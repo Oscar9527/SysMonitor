@@ -1,0 +1,19 @@
+# Visual Studio / .NET
+.vs/
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# Local runtime state and diagnostics
+*.log
+settings.json
+work/
+outputs/
+
+# Temporary test harnesses
+work/AppearanceQa/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
