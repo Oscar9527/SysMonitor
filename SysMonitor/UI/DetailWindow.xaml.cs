@@ -74,7 +74,7 @@ public partial class DetailWindow : Window
         if (snapshot.Gpu is { } gpu)
         {
             GpuCard.Visibility = Visibility.Visible;
-            UpdateMetric(gpu.UsagePercent, GpuBrush, GpuValueText, GpuProgress);
+            UpdateOptionalMetric(gpu.UsagePercent, GpuBrush, GpuValueText, GpuProgress);
             GpuNameText.Text = string.IsNullOrWhiteSpace(gpu.Name)
                 ? "Graphics adapter"
                 : gpu.Name.Trim();
@@ -149,6 +149,24 @@ public partial class DetailWindow : Window
         progress.Foreground = brush;
     }
 
+    private static void UpdateOptionalMetric(
+        double? rawValue,
+        Brush normalBrush,
+        System.Windows.Controls.TextBlock valueText,
+        System.Windows.Controls.ProgressBar progress)
+    {
+        if (IsFinite(rawValue))
+        {
+            UpdateMetric(rawValue!.Value, normalBrush, valueText, progress);
+            return;
+        }
+
+        valueText.Text = "--%";
+        valueText.Foreground = normalBrush;
+        progress.Value = 0d;
+        progress.Foreground = normalBrush;
+    }
+
     private static string BuildCpuDetails(int logicalProcessorCount, double? temperature)
     {
         var processorText = logicalProcessorCount > 0
@@ -165,16 +183,32 @@ public partial class DetailWindow : Window
 
     private static string BuildGpuDetails(GpuSnapshot gpu)
     {
-        var temperature = IsFinite(gpu.TemperatureCelsius)
-            ? FormatTemperature(gpu.TemperatureCelsius)
-            : "—℃";
+        var details = new List<string>();
+        if (IsFinite(gpu.TemperatureCelsius))
+        {
+            details.Add(FormatTemperature(gpu.TemperatureCelsius!.Value));
+        }
 
-        return string.Format(
-            CultureInfo.CurrentCulture,
-            "{0} · {1} / {2} GB VRAM",
-            temperature,
-            FormatGigabytes(gpu.MemoryUsedBytes),
-            FormatGigabytes(gpu.MemoryTotalBytes));
+        if (gpu.MemoryTotalBytes is { } total && total > 0)
+        {
+            string used = gpu.MemoryUsedBytes is { } memoryUsed && memoryUsed >= 0
+                ? FormatGigabytes(memoryUsed)
+                : "--";
+            details.Add(string.Format(
+                CultureInfo.CurrentCulture,
+                "{0} / {1} GB VRAM",
+                used,
+                FormatGigabytes(total)));
+        }
+        else if (gpu.MemoryUsedBytes is { } allocated && allocated >= 0)
+        {
+            details.Add(string.Format(
+                CultureInfo.CurrentCulture,
+                "{0} GB dedicated allocated",
+                FormatGigabytes(allocated)));
+        }
+
+        return string.Join(" · ", details);
     }
 
     private static string FormatGigabytes(long bytes)

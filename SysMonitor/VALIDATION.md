@@ -7,7 +7,9 @@ Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, 
 
 - Release build: passed, 0 warnings, 0 errors
 - Publish: win-x64, framework-dependent, single EXE
-- Version: 1.2.13
+- Version: 1.2.14
+- Runtime: Microsoft .NET 8 Desktop Runtime x64
+- LibreHardwareMonitorLib: 0.9.4 (selected after a 0.9.5/0.9.6 Ryzen temperature regression comparison)
 
 ## Safe-range positioning
 
@@ -29,8 +31,9 @@ Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, 
 - At zero spacing the same layout uses 413 px and provides 625 px of safe travel, a 107 px gain over the previous fixed width.
 - The settings window was rendered at 420 x 450: both sliders, value badges, explanatory text, preview card, and footer buttons were visible without clipping.
 
-## Portable upgrade handoff
+## Prior 1.2.13 regression baseline
 
+- The following taskbar/launcher baseline was established in 1.2.13 and retained unchanged by the GPU-only integration:
 - Launching 1.2.13 while the extracted 1.2.12 core was still running terminated only the old SysMonitor runtime core, then started 1.2.13 successfully.
 - The startup registration migrated from the 1.2.12 portable EXE to the 1.2.13 portable EXE.
 - A deliberately stale 1.2.12 payload renamed to the cached 1.2.13 core path was detected by embedded SHA-256 comparison and replaced before launch.
@@ -51,10 +54,37 @@ Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, 
 
 - CPU source selected: PDH `Processor Utility`, matching Task Manager semantics.
 - Independent `typeperf` sampling confirmed the Utility counter is available and materially different from the old busy-time counter on this frequency-scaled CPU.
-- Memory, GPU usage, GPU temperature/VRAM, network and system-drive values updated in the Band and detail panel.
-- GPU temperature remained visible (47–49 °C during this run).
+- CPU temperature remained available on the AMD Ryzen 7 5800H (`Core (Tctl/Tdie)`, 62–65 °C during the 1.2.14 run).
+- LibreHardwareMonitorLib 0.9.5 and 0.9.6 returned an invalid 0 °C for that same sensor; 0.9.4 returned 66.6 °C and was retained to prevent regression.
+- The GPU coordinator first produced a valid LibreHardwareMonitor sample, then selected the NVIDIA primary source when its first timestamp-delimited cycle arrived.
+- Selected NVIDIA device: RTX 3060 Laptop GPU. Core temperature was 45–46 °C and total VRAM was 6144 MiB, matching an independent `nvidia-smi` query.
+- NVIDIA, AMD and Intel selector/coordinator behavior is covered by 22 deterministic tests. AMD and Intel physical GPU validation was not available on this machine and is not claimed.
+- Missing usage, core temperature or VRAM remains nullable and renders as unavailable instead of a false zero.
+
+## GPU automated checks
+
+- Exact NVIDIA/AMD `GPU Core` load selection; controller, video and bus loads are excluded.
+- Intel uses the maximum finite D3D engine load.
+- Only exact `GPU Core` temperature is accepted; hotspot, memory junction and VRM sensors are excluded.
+- MiB-to-byte conversion, Total-Free derivation, D3D dedicated-used fallback, shared-memory exclusion, zero/invalid/overflow values.
+- Quoted CSV fields, `N/A` metrics, timestamp cycle boundaries, partial/corrupt rows and adapter-set changes.
+- Fresh NVIDIA-primary suppression of duplicate LibreHardwareMonitor NVIDIA devices, exact-identity-only merge, stale fallback, out-of-order rejection and two-tick selection hysteresis.
+- Repeated start/stop/dispose is idempotent and awaited.
+- Result: 22 passed, 0 failed, 0 skipped; Release build completed with 0 warnings and 0 errors.
+
+## Portable upgrade and process cleanup
+
+- Starting the 1.2.14 launcher over a running extracted 1.2.13 core stopped the old core and its persistent `nvidia-smi` child as one process tree.
+- Observed old PID 9212 and child PID 2380: both gone after upgrade; no old child remained orphaned.
+- Extracted `SysMonitor.Core.1.2.14.exe` SHA-256 matched the embedded publish core exactly.
+- Startup registration migrated to the 1.2.14 portable launcher, and the new core responded normally.
+- The application manifest remains `asInvoker`; the launcher only detects the .NET 8 Desktop Runtime and opens the official page when missing. This host session runs at high integrity, so a clean standard-user machine validation was unavailable and is not claimed.
 
 ## Resource target
 
 - Sampling interval: 1 second.
-- Final 107.70-second background window consumed no additional measurable process CPU quantum: 0.000000% normalized average across 16 logical processors, below the 1% target.
+- After a 30-second warm-up, three complete-process-tree windows ran for 61.69, 61.56 and 61.61 seconds.
+- Each window measured 0.0000% normalized average, p95 and peak CPU across 16 logical processors (no additional measurable CPU quantum), below the 1% target.
+- Working set at the end of the three windows: 159.15, 159.47 and 161.17 MiB; private memory: 137.37, 136.02 and 138.00 MiB; thread count: 29, 27 and 28.
+- Final portable launcher: 6,740,480 bytes (6.43 MiB), inside the requested 5–50 MB range.
+- Final SHA-256: `BE2B79C08661BC38294425BFF84C1FCF61C5D721CE7995E10E0C17F066ABC7D6`.

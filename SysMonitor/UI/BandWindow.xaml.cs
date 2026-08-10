@@ -203,12 +203,25 @@ public partial class BandWindow : Window
         GpuSeparator.Visibility = hasGpu ? Visibility.Visible : Visibility.Collapsed;
         if (snapshot.Gpu is { } gpu)
         {
-            GpuValueText.Text = FormatPercent(gpu.UsagePercent);
-            GpuValueText.Foreground = GetUsageBrush(gpu.UsagePercent);
-            GpuTemperatureText.Text = double.IsFinite(gpu.TemperatureCelsius)
-                ? $"{gpu.TemperatureCelsius:0}℃"
+            if (gpu.UsagePercent is { } gpuUsage && double.IsFinite(gpuUsage))
+            {
+                GpuValueText.Text = FormatPercent(gpuUsage);
+                GpuValueText.Foreground = GetUsageBrush(gpuUsage);
+            }
+            else
+            {
+                GpuValueText.Text = "--%";
+                GpuValueText.Foreground = _mainTextBrush;
+            }
+
+            GpuTemperatureText.Text = gpu.TemperatureCelsius is { } gpuTemperature &&
+                                      double.IsFinite(gpuTemperature)
+                ? $"{gpuTemperature:0}℃"
                 : "--℃";
-            GpuValueText.ToolTip = $"{gpu.Name}  {gpu.TemperatureCelsius:0}°C";
+            GpuValueText.ToolTip = gpu.TemperatureCelsius is { } tooltipTemperature &&
+                                   double.IsFinite(tooltipTemperature)
+                ? $"{gpu.Name}  {tooltipTemperature:0}°C"
+                : gpu.Name;
         }
 
         DownloadValueText.Text = FormatRate(snapshot.DownloadBytesPerSecond);

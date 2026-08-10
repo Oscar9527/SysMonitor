@@ -1,6 +1,6 @@
 # Third-party notices
 
-SysMonitor 1.2.1 bundles LibreHardwareMonitorLib 0.9.2 under the Mozilla Public License 2.0. It is packaged into the portable executable and used only to read CPU hardware temperature sensors.
+SysMonitor 1.2.14 bundles LibreHardwareMonitorLib 0.9.4 under the Mozilla Public License 2.0. It is packaged into the portable executable and used to read CPU temperature sensors and NVIDIA/AMD/Intel GPU telemetry exposed by local hardware drivers. Version 0.9.4 is intentionally retained because later stable builds regress AMD Ryzen 5000 mobile CPU temperature reads on validated hardware.
 
 Project: https://github.com/LibreHardwareMonitor/LibreHardwareMonitor
 License: https://www.mozilla.org/MPL/2.0/

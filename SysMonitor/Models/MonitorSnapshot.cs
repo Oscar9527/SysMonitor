@@ -3,10 +3,10 @@ namespace SysMonitor.Models;
 public sealed record GpuSnapshot(
     int Index,
     string Name,
-    double UsagePercent,
-    double TemperatureCelsius,
-    long MemoryUsedBytes,
-    long MemoryTotalBytes,
+    double? UsagePercent,
+    double? TemperatureCelsius,
+    long? MemoryUsedBytes,
+    long? MemoryTotalBytes,
     DateTimeOffset SampledAt);
 
 public sealed record MonitorSnapshot(

@@ -17,7 +17,7 @@ public sealed class MonitorService : IMonitorService
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly CpuUsageReader _cpuReader = new();
     private readonly CpuTemperatureReader _cpuTemperatureReader = new();
-    private readonly GpuStreamReader _gpuReader = new();
+    private readonly GpuTelemetryCoordinator _gpuCoordinator = new();
     private readonly List<NetworkCounter> _networkCounters = new();
     private CancellationTokenSource? _runCancellation;
     private Task? _samplingTask;
@@ -51,7 +51,7 @@ public sealed class MonitorService : IMonitorService
             _cpuReader.Start();
             _cpuTemperatureReader.Start();
             InitializeNetworkCounters();
-            await _gpuReader.StartAsync(_runCancellation.Token).ConfigureAwait(false);
+            await _gpuCoordinator.StartAsync(_runCancellation.Token).ConfigureAwait(false);
             _samplingTask = Task.Run(
                 () => SamplingLoopAsync(_runCancellation.Token),
                 CancellationToken.None);
@@ -80,7 +80,7 @@ public sealed class MonitorService : IMonitorService
                 }
             }
 
-            await _gpuReader.StopAsync().ConfigureAwait(false);
+            await _gpuCoordinator.StopAsync().ConfigureAwait(false);
             _cpuTemperatureReader.Stop();
             _cpuReader.Stop();
             _samplingTask = null;
@@ -111,7 +111,7 @@ public sealed class MonitorService : IMonitorService
         }
 
         await StopAsync().ConfigureAwait(false);
-        await _gpuReader.DisposeAsync().ConfigureAwait(false);
+        await _gpuCoordinator.DisposeAsync().ConfigureAwait(false);
         _cpuTemperatureReader.Dispose();
         _cpuReader.Dispose();
         _lifecycle.Dispose();
@@ -137,7 +137,7 @@ public sealed class MonitorService : IMonitorService
                 memory.usage,
                 memory.used,
                 memory.total,
-                _gpuReader.LatestGpu,
+                _gpuCoordinator.Read(),
                 network.download,
                 network.upload,
                 drive.name,

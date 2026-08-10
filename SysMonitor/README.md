@@ -1,12 +1,12 @@
 # SysMonitor 1.2
 
-SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA GPU 使用率与温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板。
+SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA/AMD/Intel GPU 使用率与可用温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板。
 
 ## 系统要求
 
 - Windows 10/11 64 位
-- Framework-dependent 版本需要 Microsoft .NET 7 Desktop Runtime（x64）
-- NVIDIA GPU 数据依赖显卡驱动提供的 `nvidia-smi`
+- Framework-dependent 版本需要 Microsoft .NET 8 Desktop Runtime（x64）
+- GPU 数据依赖 NVIDIA、AMD 或 Intel 正式显卡驱动公开的遥测接口
 - 不需要管理员权限
 
 ## 使用
@@ -23,11 +23,11 @@ SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NV
 
 - CPU：优先读取 `Processor Information(_Total)\% Processor Utility`，与现代 Windows 任务管理器的总体 CPU 口径一致；不可用时依次回退到 `% Processor Time` 和 `GetSystemTimes`。
 - 内存：PSAPI `GetPerformanceInfo`。
-- GPU：一个常驻 `nvidia-smi` 数据流，显示使用率、型号、温度和显存。
+- GPU：NVIDIA 优先使用一个常驻 `nvidia-smi` 数据流，AMD/Intel 及 NVIDIA 回退使用 LibreHardwareMonitor；显示驱动实际公开的使用率、型号、核心温度和专用显存。
 - 网络：活动物理以太网与 Wi-Fi 网卡收发字节增量，默认排除 VPN、TAP/TUN 和虚拟网卡。
 - 磁盘：Windows 系统卷容量占用率。
 
-Windows 没有通用可靠的内存温度接口，因此不显示估算的内存温度。CPU 温度通过 LibreHardwareMonitor 读取，必要时按需启动同一 EXE 的管理员助手；GPU 温度由 NVIDIA 驱动提供。
+Windows 没有通用可靠的内存温度接口，因此不显示估算的内存温度。CPU 温度通过 LibreHardwareMonitor 读取，必要时按需启动同一 EXE 的管理员助手。GPU 只接受明确的核心温度传感器，不会把热点、显存结温或 VRM 温度冒充核心温度；驱动未公开的项目会显示为不可用。
 
 ## 任务栏行为
 

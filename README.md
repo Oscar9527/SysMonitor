@@ -25,7 +25,7 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 任务栏 Band | 透明无边框、置顶显示、自动适应任务栏位置和 DPI、支持自动隐藏任务栏 |
 | CPU | 总体使用率、逻辑处理器数量、可用时显示 CPU 温度 |
 | 内存 | 物理内存使用率、已用/总容量 |
-| GPU | NVIDIA 使用率、温度、显存使用量；没有 NVIDIA GPU 时自动隐藏 |
+| GPU | NVIDIA、AMD、Intel 使用率；硬件可提供时显示核心温度和专用显存 |
 | 网络 | 所有活动 IPv4 网卡合计的下载/上传速率 |
 | 磁盘 | 首个固定磁盘的使用率 |
 | 托盘 | 显示/隐藏面板、窗口置顶、开机自启、退出 |
@@ -36,10 +36,10 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 ## 下载与发行版
 
 - [下载最新 Release](https://github.com/Oscar9527/SysMonitor/releases)
-- [SysMonitor v1.2.13](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.13)
-- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.13/SysMonitor.exe)
+- [SysMonitor v1.2.14](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.14)
+- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.14/SysMonitor.exe)
 
-当前版本：**1.2.13**
+当前版本：**1.2.14**
 
 发行包信息：
 
@@ -48,10 +48,10 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 文件名 | `SysMonitor.exe` |
 | 平台 | Windows 10/11 x64 |
 | 类型 | 便携式、单文件、无需安装 |
-| 大小 | 约 5.7 MB |
-| SHA-256 | `46C139370370042D05EF25AF5262E645BE1CBD730C76BBEF2D0BDC9747F0FA7E` |
+| 大小 | 6,740,480 字节（约 6.43 MiB） |
+| SHA-256 | `BE2B79C08661BC38294425BFF84C1FCF61C5D721CE7995E10E0C17F066ABC7D6` |
 
-> 这是 framework-dependent 单文件版本，目标电脑需要安装 Microsoft .NET 7 Desktop Runtime x64。启动器检测到运行时缺失时，会打开官方 .NET 下载页面。
+> 这是 framework-dependent 单文件版本，目标电脑需要安装 Microsoft .NET 8 Desktop Runtime x64。启动器检测到运行时缺失时，会打开官方 .NET 下载页面；不会静默安装或提权。
 
 ## 快速开始
 
@@ -88,7 +88,8 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | CPU 使用率 | PDH `Processor Utility` | 1 秒 | 使用 Windows 性能计数器 |
 | CPU 温度 | LibreHardwareMonitor 传感器 | 按需/缓存 | 取决于主板和 CPU 传感器支持 |
 | 内存 | PSAPI `GetPerformanceInfo` | 1 秒 | 物理内存使用率 |
-| GPU | `nvidia-smi` | 30 秒 | NVIDIA GPU 使用率、温度和显存 |
+| GPU（NVIDIA） | `nvidia-smi`，LibreHardwareMonitor 回退 | 1 秒 | 优先使用 NVIDIA 驱动数据 |
+| GPU（AMD/Intel） | LibreHardwareMonitor | 1 秒 | 读取驱动公开的利用率和可用传感器 |
 | 网络 | `NetworkInterface.GetIPv4Statistics` | 1 秒 | 所有活动网卡合计 |
 | 网卡列表 | `GetAllNetworkInterfaces` | 60 秒 | 重新发现活动网卡 |
 | 磁盘 | `DriveInfo.GetDrives()` | 10 秒 | 首个固定磁盘 |
@@ -101,7 +102,19 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 - CPU 温度没有统一的 Windows 公共接口，因此需要主板/CPU 的硬件监控传感器能够被 LibreHardwareMonitor 识别。
 - 某些笔记本、服务器、较新的主板或 BIOS 可能不暴露 CPU 温度；此时使用率仍然正常，温度会显示为不可用。
 - Windows 没有统一可靠的“内存温度”接口，因此 SysMonitor 不伪造或估算内存温度。
-- GPU 温度只针对 NVIDIA `nvidia-smi` 路径；没有 NVIDIA GPU 时 GPU 卡片和 Band 项会自动隐藏。
+- NVIDIA、AMD 和 Intel 显卡均可显示。双显卡电脑会选择当前更活跃的适配器，并使用切换防抖避免名称来回跳动。
+- GPU 核心温度只在驱动公开了可靠的核心温度传感器时显示；热点、显存结温、VRM 温度不会冒充核心温度。
+- Intel 集显以及部分 AMD/笔记本驱动可能只公开使用率，不公开核心温度或物理显存总量；缺失项显示为不可用，不以 `0` 伪装。
+
+当前兼容性验证状态：
+
+| GPU 厂商 | 实现状态 | 真实硬件验证 |
+| --- | --- | --- |
+| NVIDIA | `nvidia-smi` 主通道 + LibreHardwareMonitor 故障回退 | 已在 RTX 3060 Laptop GPU / Windows 11 验证 |
+| AMD | LibreHardwareMonitor 核心负载、核心温度、可用专用显存 | 已通过传感器选择与缺失值自动测试；等待更多真实 AMD GPU 反馈 |
+| Intel | LibreHardwareMonitor D3D 引擎负载、可用专用显存 | 已通过多引擎选择与缺失值自动测试；等待更多真实 Intel GPU 反馈 |
+
+“支持”表示程序已经识别并处理该厂商的数据结构，不代表每块显卡都一定公开温度或显存总量。最终显示内容以显卡驱动实际提供的传感器为准。
 
 ## 设置与开机自启
 
@@ -127,7 +140,7 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SysMonitor
 
 ## 构建
 
-需要 Windows 环境和 .NET 7 SDK：
+需要 Windows 环境和 .NET 8 SDK：
 
 ```powershell
 dotnet restore .\SysMonitor\SysMonitor.csproj -r win-x64
@@ -138,6 +151,14 @@ dotnet publish .\SysMonitor\SysMonitor.csproj -c Release -r win-x64 `
 
 发布结果位于 `bin/Release` 对应目录。项目默认发布为 framework-dependent 单文件版本；如果需要完全自包含版本，可将 `--self-contained false` 改为 `--self-contained true`，但文件体积会明显增大。
 
+要生成与 Release 相同、带运行时检测和升级交接的最终便携单文件：
+
+```powershell
+.\Launcher\Build-Portable.ps1
+```
+
+结果位于 `artifacts\SysMonitor.exe`，脚本会同时输出 SHA-256。
+
 ## 项目结构
 
 ```text
@@ -147,6 +168,8 @@ SysMonitor/
 ├─ UI/           # Band、详情面板和外观设置窗口
 ├─ Assets/       # 图标与资源
 └─ SysMonitor.csproj
+SysMonitor.Tests/ # GPU 解析、选择、回退和生命周期测试
+Launcher/         # 最终便携单文件启动器与构建脚本
 docs/images/     # README 界面预览图
 release/         # 可直接分发的单文件版本
 ```
@@ -155,7 +178,7 @@ release/         # 可直接分发的单文件版本
 
 ### 双击后没有启动
 
-请确认目标系统安装了 Microsoft .NET 7 Desktop Runtime x64。正式版启动器会在检测到运行时缺失时打开官方下载页。
+请确认目标系统安装了 Microsoft .NET 8 Desktop Runtime x64。正式版启动器会在检测到运行时缺失时打开官方下载页。
 
 ### 任务栏上没有 Band
 
@@ -165,9 +188,9 @@ release/         # 可直接分发的单文件版本
 
 这通常不是 CPU 使用率读取失败，而是当前电脑没有向 LibreHardwareMonitor 暴露可读的温度传感器。可以保留使用率、内存、GPU 和网络监控；程序不会显示不准确的估算值。
 
-### GPU 项目隐藏
+### GPU 项目隐藏或部分数据为空
 
-GPU 项目依赖 NVIDIA 驱动和 `nvidia-smi`。AMD、Intel 或没有 NVIDIA GPU 的电脑会自动隐藏该项目，不影响其他指标。
+请先安装对应厂商的正式显卡驱动。SysMonitor 支持 NVIDIA、AMD 和 Intel，但温度与显存项目取决于具体驱动、显卡和传感器是否公开；使用 Microsoft 基本显示适配器、远程虚拟显卡或过旧驱动时可能没有可读数据。AMD/Intel 路径已经实现并通过确定性逻辑测试，仍需要更多真实机型反馈来扩充兼容性记录。
 
 ### Windows 10 任务栏出现闪烁
 
@@ -179,9 +202,9 @@ GPU 项目依赖 NVIDIA 驱动和 `nvidia-smi`。AMD、Intel 或没有 NVIDIA GP
 
 - 指标只在本机采集和显示。
 - 不上传 CPU、温度、网络速率、硬盘或设备信息。
-- 不需要管理员权限。
+- GPU 监控和主程序不需要管理员权限；少数无法直接读取 CPU 温度的机器可能触发既有的可选管理员温度助手。
 - 开机自启只写入当前用户的 `HKCU` 注册表项。
-- GPU 数据通过本机 `nvidia-smi` 进程读取，不连接远程服务。
+- GPU 数据通过本机显卡驱动和 LibreHardwareMonitor 读取，不连接远程服务。
 
 ## 许可证
 

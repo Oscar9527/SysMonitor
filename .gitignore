@@ -10,6 +10,7 @@
 settings.json
 work/
 outputs/
+artifacts/
 
 # Temporary test harnesses
 work/AppearanceQa/
