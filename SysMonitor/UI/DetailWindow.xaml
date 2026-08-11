@@ -14,10 +14,8 @@
         Activated="DetailWindow_Activated"
         LocationChanged="DetailWindow_LocationChanged"
         DpiChanged="DetailWindow_DpiChanged"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{DynamicResource AppWindowStyle}">
     <Window.Resources>
-        <SolidColorBrush x:Key="TrackBrush" Color="#E9E9ED" />
-
         <Style x:Key="TitleBarButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="32" />
@@ -35,10 +33,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Surface" Property="Background" Value="#E8E8ED" />
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppControlBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Surface" Property="Background" Value="#DCDCE1" />
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppSeparatorBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -50,7 +48,7 @@
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="#FFE5E3" />
-                    <Setter Property="Foreground" Value="#FF3B30" />
+                    <Setter Property="Foreground" Value="{DynamicResource CriticalMetricBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -59,7 +57,7 @@
             <Setter Property="Padding" Value="16,14" />
             <Setter Property="Effect">
                 <Setter.Value>
-                    <DropShadowEffect BlurRadius="12" Direction="270" ShadowDepth="2" Opacity="0.07" Color="#000000" />
+                    <DropShadowEffect BlurRadius="12" Direction="270" ShadowDepth="2" Opacity="{DynamicResource AppShadowOpacity}" Color="#000000" />
                 </Setter.Value>
             </Setter>
         </Style>
@@ -68,7 +66,7 @@
             <Setter Property="Height" Value="4" />
             <Setter Property="Minimum" Value="0" />
             <Setter Property="Maximum" Value="100" />
-            <Setter Property="Background" Value="{StaticResource TrackBrush}" />
+            <Setter Property="Background" Value="{DynamicResource MetricTrackBrush}" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -102,24 +100,24 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="TitleBar" Grid.Row="0" Background="{StaticResource AppBackgroundBrush}"
+        <Grid x:Name="TitleBar" Grid.Row="0" Background="{DynamicResource AppBackgroundBrush}"
               MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Margin="20,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse Width="8" Height="8" Margin="0,0,9,0" Fill="#34C759" />
+                <Ellipse Width="8" Height="8" Margin="0,0,9,0" Fill="{DynamicResource GpuMetricBrush}" />
                 <TextBlock VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" Text="SysMonitor" />
             </StackPanel>
             <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="PinButton" Style="{StaticResource TitleBarButtonStyle}" Click="PinButton_Click">
                     <Path x:Name="PinIcon" Width="15" Height="16"
                           Data="M 5,1 L 11,1 L 10,6 L 13,9 L 9,9 L 9,15 L 7,15 L 7,9 L 3,9 L 6,6 Z"
-                          Fill="#6E6E73" Stretch="Fill" />
+                          Fill="{DynamicResource DetailUnpinnedForegroundBrush}" Stretch="Fill" />
                 </Button>
                 <Button x:Name="MinimizeButton" Style="{StaticResource TitleBarButtonStyle}" Click="MinimizeButton_Click">
-                    <Path Width="12" Height="1" Data="M 0,0.5 L 12,0.5" Stroke="#6E6E73"
+                    <Path Width="12" Height="1" Data="M 0,0.5 L 12,0.5" Stroke="{DynamicResource AppSecondaryTextBrush}"
                           StrokeThickness="1.4" Stretch="Fill" />
                 </Button>
                 <Button x:Name="CloseButton" Style="{StaticResource CloseButtonStyle}" Click="CloseButton_Click">
@@ -140,13 +138,13 @@
                     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="4" /></Grid.RowDefinitions>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <Border Width="30" Height="30" Margin="0,0,11,0" VerticalAlignment="Top" Background="#EAF3FF" CornerRadius="9">
-                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="#007AFF" Text="CPU" />
+                        <Border Width="30" Height="30" Margin="0,0,11,0" VerticalAlignment="Top" Background="{DynamicResource CpuMetricSoftBrush}" CornerRadius="9">
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource CpuMetricBrush}" Text="CPU" />
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Top">
                             <TextBlock x:Name="ProcessorLabelText" Style="{StaticResource MetricLabelStyle}" />
                             <TextBlock x:Name="CpuDetailsText" Margin="0,5,8,0" FontSize="11.5"
-                                       Foreground="{StaticResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
+                                       Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                         <TextBlock x:Name="CpuValueText" Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource MetricValueStyle}" />
                     </Grid>
@@ -159,13 +157,13 @@
                     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="4" /></Grid.RowDefinitions>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <Border Width="30" Height="30" Margin="0,0,11,0" VerticalAlignment="Top" Background="#F5EAFB" CornerRadius="9">
-                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="#AF52DE" Text="MEM" />
+                        <Border Width="30" Height="30" Margin="0,0,11,0" VerticalAlignment="Top" Background="{DynamicResource MemoryMetricSoftBrush}" CornerRadius="9">
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource MemoryMetricBrush}" Text="MEM" />
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Top">
                             <TextBlock x:Name="MemoryLabelText" Style="{StaticResource MetricLabelStyle}" />
                             <TextBlock x:Name="MemoryDetailsText" Margin="0,5,8,0" FontSize="11.5"
-                                       Foreground="{StaticResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
+                                       Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                         <TextBlock x:Name="MemoryValueText" Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource MetricValueStyle}" />
                     </Grid>
@@ -178,15 +176,15 @@
                     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="4" /></Grid.RowDefinitions>
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <Border Width="30" Height="30" Margin="0,0,11,0" VerticalAlignment="Top" Background="#EAF8EE" CornerRadius="9">
-                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="#34C759" Text="GPU" />
+                        <Border Width="30" Height="30" Margin="0,0,11,0" VerticalAlignment="Top" Background="{DynamicResource GpuMetricSoftBrush}" CornerRadius="9">
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource GpuMetricBrush}" Text="GPU" />
                         </Border>
                         <StackPanel Grid.Column="1" VerticalAlignment="Top">
                             <TextBlock x:Name="GraphicsLabelText" Style="{StaticResource MetricLabelStyle}" />
                             <TextBlock x:Name="GpuNameText" Margin="0,3,8,0" FontSize="11.5"
-                                       Foreground="{StaticResource AppSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                                       Foreground="{DynamicResource AppSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
                             <TextBlock x:Name="GpuDetailsText" Margin="0,2,8,0" FontSize="10.5"
-                                       Foreground="{StaticResource AppTertiaryTextBrush}" TextWrapping="Wrap" />
+                                       Foreground="{DynamicResource AppTertiaryTextBrush}" TextWrapping="Wrap" />
                         </StackPanel>
                         <TextBlock x:Name="GpuValueText" Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource MetricValueStyle}" />
                     </Grid>
@@ -200,9 +198,9 @@
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Margin="0,0,7,0" FontSize="16" FontWeight="SemiBold" Foreground="#007AFF" Text="↓" />
+                            <TextBlock Margin="0,0,7,0" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource CpuMetricBrush}" Text="↓" />
                             <TextBlock x:Name="DownloadLabelText" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AppSecondaryTextBrush}" />
+                                       Foreground="{DynamicResource AppSecondaryTextBrush}" />
                         </StackPanel>
                         <TextBlock x:Name="DownloadValueText" Grid.Row="1" VerticalAlignment="Bottom" FontSize="20"
                                    FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -212,9 +210,9 @@
                     <Grid>
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Margin="0,0,7,0" FontSize="16" FontWeight="SemiBold" Foreground="#34C759" Text="↑" />
+                            <TextBlock Margin="0,0,7,0" FontSize="16" FontWeight="SemiBold" Foreground="{DynamicResource GpuMetricBrush}" Text="↑" />
                             <TextBlock x:Name="UploadLabelText" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AppSecondaryTextBrush}" />
+                                       Foreground="{DynamicResource AppSecondaryTextBrush}" />
                         </StackPanel>
                         <TextBlock x:Name="UploadValueText" Grid.Row="1" VerticalAlignment="Bottom" FontSize="20"
                                    FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -231,7 +229,7 @@
                     <TextBlock x:Name="StorageLabelText" FontSize="13" FontWeight="SemiBold" />
                     <Grid Grid.Row="1">
                         <TextBlock x:Name="NoDrivesText" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                   FontSize="11.5" Foreground="{StaticResource AppSecondaryTextBrush}" />
+                                   FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" />
                         <ScrollViewer x:Name="DriveScrollViewer" MaxHeight="84" VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled" CanContentScroll="True">
                             <StackPanel x:Name="DriveRowsPanel" />

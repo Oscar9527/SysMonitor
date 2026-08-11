@@ -57,4 +57,25 @@
   <data name="TrayPin" xml:space="preserve"><value>面板置顶</value></data>
   <data name="TrayShowPanel" xml:space="preserve"><value>显示面板</value></data>
   <data name="TrayStartup" xml:space="preserve"><value>开机自启</value></data>
+  <data name="AppearanceTheme" xml:space="preserve"><value>主题</value></data>
+  <data name="AppearanceThemeImport" xml:space="preserve"><value>导入主题…</value></data>
+  <data name="AppearanceThemeDefault" xml:space="preserve"><value>恢复默认主题</value></data>
+  <data name="AppearanceSaveFailed" xml:space="preserve"><value>无法保存设置，已恢复之前的外观。</value></data>
+  <data name="ThemeMetadata" xml:space="preserve"><value>作者：{0} · 版本 {1}</value></data>
+  <data name="ThemePackageFilter" xml:space="preserve"><value>SysMonitor 主题 (*.smonitor-theme)|*.smonitor-theme</value></data>
+  <data name="ThemeImporting" xml:space="preserve"><value>正在导入主题…</value></data>
+  <data name="ThemeImportInstalledNotApplied" xml:space="preserve"><value>主题已安装并选中预览；点击“应用”后才会启用。</value></data>
+  <data name="ThemeImportFailed" xml:space="preserve"><value>主题导入失败：{0}</value></data>
+  <data name="ThemeImportReasonCancelled" xml:space="preserve"><value>导入已取消。</value></data>
+  <data name="ThemeImportReasonPackageNotFound" xml:space="preserve"><value>找不到所选主题包。</value></data>
+  <data name="ThemeImportReasonInvalidPackage" xml:space="preserve"><value>文件不是有效的 SysMonitor 主题包。</value></data>
+  <data name="ThemeImportReasonInvalidPath" xml:space="preserve"><value>主题包包含不安全或不支持的路径。</value></data>
+  <data name="ThemeImportReasonLimitExceeded" xml:space="preserve"><value>主题包超过大小或压缩率限制。</value></data>
+  <data name="ThemeImportReasonInvalidManifest" xml:space="preserve"><value>主题清单格式无效。</value></data>
+  <data name="ThemeImportReasonInvalidTheme" xml:space="preserve"><value>主题设置格式无效。</value></data>
+  <data name="ThemeImportReasonInvalidAsset" xml:space="preserve"><value>PNG 或 ICO 图片资源无效。</value></data>
+  <data name="ThemeImportReasonIncompatibleVersion" xml:space="preserve"><value>该主题需要更高版本的 SysMonitor。</value></data>
+  <data name="ThemeImportReasonDuplicateId" xml:space="preserve"><value>已安装相同 ID 的主题。</value></data>
+  <data name="ThemeImportReasonIoFailure" xml:space="preserve"><value>无法读取或写入主题文件。</value></data>
+  <data name="ThemeUnavailable" xml:space="preserve"><value>所选主题已不可用。</value></data>
 </root>

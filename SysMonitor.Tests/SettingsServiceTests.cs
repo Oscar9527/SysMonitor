@@ -31,6 +31,46 @@ public sealed class SettingsServiceTests
         Assert.Equal(7, loaded.BandItemSpacingDip);
         Assert.True(loaded.PanelTopmost);
         Assert.Equal(BandMetricVisibility.All, loaded.BandMetricVisibility!.ToEffective());
+        Assert.Equal(AppSettings.DefaultThemeId, loaded.ActiveThemeId);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"ActiveThemeId\":null}")]
+    [InlineData("{\"ActiveThemeId\":\"   \"}")]
+    public void Load_MigratesMissingOrBlankThemeToBuiltInDefault(string json)
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(service.SettingsPath, json);
+
+        Assert.Equal(AppSettings.DefaultThemeId, service.Load().ActiveThemeId);
+    }
+
+    [Fact]
+    public void TrySave_ReturnsFalseWhenSettingsDirectoryCannotBeCreated()
+    {
+        using var directory = new TemporaryDirectory();
+        Directory.CreateDirectory(directory.Path);
+        string occupiedPath = Path.Combine(directory.Path, "occupied");
+        File.WriteAllText(occupiedPath, "not a directory");
+        var service = new SettingsService(occupiedPath);
+
+        bool saved = service.TrySave(new AppSettings());
+
+        Assert.False(saved);
+    }
+
+    [Fact]
+    public void Load_TrimsExplicitThemeId()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(service.SettingsPath, "{\"ActiveThemeId\":\"  custom.blue  \"}");
+
+        Assert.Equal("custom.blue", service.Load().ActiveThemeId);
     }
 
     [Theory]

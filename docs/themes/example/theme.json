@@ -1,0 +1,29 @@
+{
+  "colors": {
+    "appBackground": "#0B1420",
+    "surface": "#132235",
+    "text": "#F2F8FF",
+    "secondary": "#A9BED3",
+    "tertiary": "#7890A8",
+    "separator": "#29435D",
+    "control": "#1B3047",
+    "accent": "#35A7FF"
+  },
+  "metrics": {
+    "cpu": "#35A7FF",
+    "memory": "#B77CFF",
+    "gpu": "#4EDB9A",
+    "warning": "#FFB84D",
+    "critical": "#FF6262"
+  },
+  "shape": {
+    "groupCornerRadius": 16,
+    "shadowOpacity": 0.1
+  },
+  "band": {
+    "backgroundColor": "#D90B1420",
+    "cornerRadius": 8,
+    "textColor": "#F2F8FF",
+    "separatorColor": "#667890A8"
+  }
+}

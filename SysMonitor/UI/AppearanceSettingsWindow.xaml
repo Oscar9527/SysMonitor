@@ -14,7 +14,7 @@
         Activated="AppearanceSettingsWindow_Activated"
         LocationChanged="AppearanceSettingsWindow_LocationChanged"
         DpiChanged="AppearanceSettingsWindow_DpiChanged"
-        Style="{StaticResource AppWindowStyle}">
+        Style="{DynamicResource AppWindowStyle}">
     <Window.Resources>
         <Style x:Key="TitleBarButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="32" />
@@ -33,7 +33,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Surface" Property="Background" Value="#FFE5E3" />
-                                <Setter Property="Foreground" Value="#FF3B30" />
+                                <Setter Property="Foreground" Value="{DynamicResource CriticalMetricBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Surface" Property="Background" Value="#FFD8D5" />
@@ -47,9 +47,9 @@
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="36" />
             <Setter Property="Padding" Value="14,0" />
-            <Setter Property="Background" Value="White" />
-            <Setter Property="Foreground" Value="{StaticResource AppTextBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppSeparatorBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppSeparatorBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontSize" Value="13" />
@@ -63,8 +63,8 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#F0F0F3" /></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#E7E7EB" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppControlBrush}" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppSeparatorBrush}" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -72,9 +72,9 @@
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-            <Setter Property="Background" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
             <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -84,8 +84,8 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="#0873E8" /></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="#0068D9" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.88" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.76" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -119,15 +119,17 @@
                 <RowDefinition Height="12" />
                 <RowDefinition Height="116" />
                 <RowDefinition Height="12" />
+                <RowDefinition Height="176" />
+                <RowDefinition Height="12" />
                 <RowDefinition Height="64" />
                 <RowDefinition Height="12" />
                 <RowDefinition Height="62" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="12" />
                 <RowDefinition Height="36" />
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0" Padding="16,10" Style="{StaticResource AppGroupStyle}">
-                <Border.Effect><DropShadowEffect BlurRadius="12" Direction="270" ShadowDepth="2" Opacity="0.07" /></Border.Effect>
+                <Border.Effect><DropShadowEffect BlurRadius="12" Direction="270" ShadowDepth="2" Opacity="{DynamicResource AppShadowOpacity}" /></Border.Effect>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="42" /><RowDefinition Height="44" /><RowDefinition Height="44" />
@@ -146,7 +148,7 @@
                         <Slider x:Name="FontSizeSlider" Margin="0,0,12,0" VerticalAlignment="Center"
                                 Minimum="9" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True"
                                 SmallChange="1" LargeChange="1" ValueChanged="FontSizeSlider_ValueChanged" />
-                        <Border Grid.Column="1" Height="30" VerticalAlignment="Center" Background="{StaticResource AppControlBrush}" CornerRadius="8">
+                        <Border Grid.Column="1" Height="30" VerticalAlignment="Center" Background="{DynamicResource AppControlBrush}" CornerRadius="8">
                             <TextBlock x:Name="FontSizeValueText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" />
                         </Border>
                     </Grid>
@@ -157,7 +159,7 @@
                         <Slider x:Name="ItemSpacingSlider" Margin="0,0,12,0" VerticalAlignment="Center"
                                 Minimum="0" Maximum="18" TickFrequency="1" IsSnapToTickEnabled="True"
                                 SmallChange="1" LargeChange="2" ValueChanged="ItemSpacingSlider_ValueChanged" />
-                        <Border Grid.Column="1" Height="30" VerticalAlignment="Center" Background="{StaticResource AppControlBrush}" CornerRadius="8">
+                        <Border Grid.Column="1" Height="30" VerticalAlignment="Center" Background="{DynamicResource AppControlBrush}" CornerRadius="8">
                             <TextBlock x:Name="ItemSpacingValueText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" />
                         </Border>
                     </Grid>
@@ -168,13 +170,13 @@
                         <Slider x:Name="HorizontalOffsetSlider" Margin="0,0,12,0" VerticalAlignment="Center"
                                 Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
                                 SmallChange="1" LargeChange="1" ValueChanged="HorizontalOffsetSlider_ValueChanged" />
-                        <Border Grid.Column="1" Height="30" VerticalAlignment="Center" Background="{StaticResource AppControlBrush}" CornerRadius="8">
+                        <Border Grid.Column="1" Height="30" VerticalAlignment="Center" Background="{DynamicResource AppControlBrush}" CornerRadius="8">
                             <TextBlock x:Name="HorizontalOffsetValueText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" />
                         </Border>
                     </Grid>
 
                     <TextBlock x:Name="PositionHelpText" Grid.Row="4" Grid.Column="1" Margin="0,4,0,0"
-                               VerticalAlignment="Top" FontSize="11" Foreground="{StaticResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
+                               VerticalAlignment="Top" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
                 </Grid>
             </Border>
 
@@ -191,11 +193,43 @@
                         <CheckBox x:Name="DiskVisibilityCheckBox" VerticalAlignment="Center" Checked="VisibilityCheckBox_Changed" Unchecked="VisibilityCheckBox_Changed" />
                     </UniformGrid>
                     <TextBlock x:Name="VisibleItemsHelpText" Grid.Row="2" VerticalAlignment="Center" FontSize="11"
-                               Foreground="{StaticResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
+                               Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
                 </Grid>
             </Border>
 
-            <Border Grid.Row="4" Padding="16,0" Style="{StaticResource AppGroupStyle}">
+            <Border Grid.Row="4" Padding="16,12" Style="{StaticResource AppGroupStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="70" />
+                        <RowDefinition Height="48" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="98" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock x:Name="ThemeLabelText" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" />
+                    <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Height="32" DisplayMemberPath="Name"
+                              VerticalContentAlignment="Center" SelectionChanged="ThemeComboBox_SelectionChanged" />
+                    <Grid Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="92" /></Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="ThemeNameText" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="ThemeMetadataText" Margin="0,5,8,0" FontSize="11"
+                                       Foreground="{DynamicResource AppSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Width="88" Height="58" Background="{DynamicResource AppControlBrush}"
+                                BorderBrush="{DynamicResource AppSeparatorBrush}" BorderThickness="1" CornerRadius="8">
+                            <Image x:Name="ThemePreviewImage" Margin="3" Stretch="UniformToFill" />
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+                        <Button x:Name="ImportThemeButton" MinWidth="124" Style="{StaticResource SecondaryButtonStyle}"
+                                Click="ImportThemeButton_Click" />
+                        <Button x:Name="DefaultThemeButton" MinWidth="116" Margin="8,0,0,0"
+                                Style="{StaticResource SecondaryButtonStyle}" Click="DefaultThemeButton_Click" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="6" Padding="16,0" Style="{StaticResource AppGroupStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="98" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <TextBlock x:Name="LanguageLabelText" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" />
@@ -208,20 +242,20 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="6" Padding="16,0" Style="{StaticResource AppGroupStyle}">
+            <Border Grid.Row="8" Padding="16,0" Style="{StaticResource AppGroupStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="98" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                    <TextBlock x:Name="PreviewLabelText" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource AppSecondaryTextBrush}" />
+                    <TextBlock x:Name="PreviewLabelText" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
                     <TextBlock x:Name="PreviewText" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="CPU 37%  MEM 63%  ↓ 1.2 MB/s" />
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="8">
+            <Grid Grid.Row="10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" />
                     <ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12" Foreground="#34A853" />
+                <TextBlock x:Name="StatusText" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource GpuMetricBrush}" />
                 <Button x:Name="ApplyButton" Grid.Column="1" MinWidth="66" Style="{StaticResource PrimaryButtonStyle}" Click="ApplyButton_Click" />
                 <Button x:Name="RestoreDefaultsButton" Grid.Column="3" MinWidth="102" Style="{StaticResource SecondaryButtonStyle}" Click="RestoreDefaultsButton_Click" />
                 <Button x:Name="BottomCloseButton" Grid.Column="5" MinWidth="66" Style="{StaticResource SecondaryButtonStyle}" Click="CloseButton_Click" />

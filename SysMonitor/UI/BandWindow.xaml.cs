@@ -58,6 +58,7 @@ public partial class BandWindow : Window
     private SolidColorBrush _separatorBrush = CreateBrush(ColorFrom("#66FFFFFF"));
     private SolidColorBrush _warningBrush = CreateBrush(ColorFrom("#FFB340"));
     private SolidColorBrush _criticalBrush = CreateBrush(ColorFrom("#FF6961"));
+    private ResolvedTheme? _activeTheme;
     private bool _positionTracking;
     private bool _highContrast;
     private bool _systemUsesLightTheme;
@@ -114,6 +115,21 @@ public partial class BandWindow : Window
     public event EventHandler? ToggleDetailsRequested;
     public event EventHandler<BandNativeDestroyedEventArgs>? NativeDestroyed;
     public event EventHandler<double>? HorizontalPositionResolved;
+
+    public void ApplyTheme(ResolvedTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => ApplyTheme(theme));
+            return;
+        }
+
+        _activeTheme = theme;
+        BandRoot.SetResourceReference(Border.BackgroundProperty, "BandBackgroundBrush");
+        BandRoot.CornerRadius = new CornerRadius(theme.Definition.Band.CornerRadius);
+        ApplySystemTheme();
+    }
 
     public long Generation { get; }
 
@@ -1281,33 +1297,51 @@ public partial class BandWindow : Window
         _highContrast = SystemParameters.HighContrast;
         _systemUsesLightTheme = ReadSystemUsesLightTheme();
 
+        MediaColor main;
+        MediaColor separator;
+        MediaColor warning;
+        MediaColor critical;
         if (_highContrast)
         {
             MediaColor systemColor = System.Windows.SystemColors.WindowTextColor;
-            SetThemeBrushes(
-                systemColor,
-                MediaColor.FromArgb(160, systemColor.R, systemColor.G, systemColor.B),
-                systemColor,
-                systemColor);
-            return;
+            main = systemColor;
+            separator = MediaColor.FromArgb(160, systemColor.R, systemColor.G, systemColor.B);
+            warning = systemColor;
+            critical = systemColor;
         }
-
-        if (_systemUsesLightTheme)
+        else if (_systemUsesLightTheme)
         {
-            SetThemeBrushes(
-                ColorFrom("#111111"),
-                ColorFrom("#44111111"),
-                ColorFrom("#9A4D00"),
-                ColorFrom("#B42318"));
+            main = ColorFrom("#111111");
+            separator = ColorFrom("#44111111");
+            warning = ColorFrom("#9A4D00");
+            critical = ColorFrom("#B42318");
         }
         else
         {
-            SetThemeBrushes(
-                Colors.White,
-                ColorFrom("#66FFFFFF"),
-                ColorFrom("#FFB340"),
-                ColorFrom("#FF6961"));
+            main = Colors.White;
+            separator = ColorFrom("#66FFFFFF");
+            warning = ColorFrom("#FFB340");
+            critical = ColorFrom("#FF6961");
         }
+
+        if (_activeTheme is { } theme)
+        {
+            ThemeBandStyle band = theme.Definition.Band;
+            main = string.IsNullOrWhiteSpace(band.TextColor) ? main : ColorFrom(band.TextColor);
+            separator = string.IsNullOrWhiteSpace(band.SeparatorColor)
+                ? separator
+                : ColorFrom(band.SeparatorColor);
+            if (!string.Equals(
+                    theme.Identity.Id,
+                    AppSettings.DefaultThemeId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                warning = ColorFrom(theme.Definition.Metrics.Warning);
+                critical = ColorFrom(theme.Definition.Metrics.Critical);
+            }
+        }
+
+        SetThemeBrushes(main, separator, warning, critical);
     }
 
     private void SetThemeBrushes(
@@ -1320,8 +1354,8 @@ public partial class BandWindow : Window
         _separatorBrush = CreateBrush(separator);
         _warningBrush = CreateBrush(warning);
         _criticalBrush = CreateBrush(critical);
-        Resources["MainTextBrush"] = _mainTextBrush;
-        Resources["SeparatorBrush"] = _separatorBrush;
+        Resources["BandTextBrush"] = _mainTextBrush;
+        Resources["BandSeparatorBrush"] = _separatorBrush;
     }
 
     private static bool ReadSystemUsesLightTheme()

@@ -16,14 +16,15 @@ public sealed class TrayIconService : IDisposable
     private readonly Forms.ToolStripMenuItem _pinItem;
     private readonly Forms.ToolStripMenuItem _startupItem;
     private readonly Forms.ToolStripMenuItem _exitItem;
-    private readonly Icon _icon;
+    private readonly Icon _defaultIcon;
+    private Icon? _themedIcon;
     private bool _syncingState;
     private bool _panelVisible;
     private bool _disposed;
 
     public TrayIconService()
     {
-        _icon = CreateIcon();
+        _defaultIcon = CreateIcon();
 
         _panelItem = new Forms.ToolStripMenuItem();
         _panelItem.Click += OnPanelItemClick;
@@ -54,7 +55,7 @@ public sealed class TrayIconService : IDisposable
 
         _notifyIcon = new Forms.NotifyIcon
         {
-            Icon = _icon,
+            Icon = _defaultIcon,
             Text = "SysMonitor",
             ContextMenuStrip = _contextMenu,
             Visible = true
@@ -89,6 +90,40 @@ public sealed class TrayIconService : IDisposable
         SetCheckedWithoutNotification(_startupItem, enabled);
     }
 
+    public bool ApplyThemeIcon(string? iconPath)
+    {
+        ThrowIfDisposed();
+        if (string.IsNullOrWhiteSpace(iconPath))
+        {
+            UseDefaultIcon();
+            return true;
+        }
+
+        Icon? replacement = null;
+        try
+        {
+            using var stream = new FileStream(
+                iconPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var loaded = new Icon(stream);
+            replacement = (Icon)loaded.Clone();
+            Icon? oldThemed = _themedIcon;
+            _notifyIcon.Icon = replacement;
+            _themedIcon = replacement;
+            replacement = null;
+            oldThemed?.Dispose();
+            return true;
+        }
+        catch
+        {
+            replacement?.Dispose();
+            UseDefaultIcon();
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -107,7 +142,9 @@ public sealed class TrayIconService : IDisposable
         _exitItem.Click -= OnExitItemClick;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();
-        _icon.Dispose();
+        _themedIcon?.Dispose();
+        _themedIcon = null;
+        _defaultIcon.Dispose();
     }
 
     internal void ApplyLocalizedText()
@@ -183,6 +220,14 @@ public sealed class TrayIconService : IDisposable
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private void UseDefaultIcon()
+    {
+        Icon? oldThemed = _themedIcon;
+        _notifyIcon.Icon = _defaultIcon;
+        _themedIcon = null;
+        oldThemed?.Dispose();
+    }
 
     private static Icon CreateIcon()
     {

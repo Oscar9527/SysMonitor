@@ -15,6 +15,8 @@ public partial class App : System.Windows.Application
     private readonly SettingsService _settingsService = new();
     private readonly StartupService _startupService = new();
     private readonly LocalizationService _localizationService = LocalizationService.Current;
+    private readonly ThemeCatalogService _themeCatalog = new();
+    private readonly ThemeResourceApplier _themeResourceApplier = new();
     private Mutex? _singleInstanceMutex;
     private MonitorService? _monitorService;
     private TrayIconService? _trayIcon;
@@ -23,6 +25,8 @@ public partial class App : System.Windows.Application
     private AppearanceSettingsWindow? _appearanceSettingsWindow;
     private DispatcherTimer? _bandRecreateTimer;
     private AppSettings _settings = new();
+    private ResolvedTheme? _currentTheme;
+    private ResolvedTheme? _appliedTheme;
     private bool _isExiting;
     private long _bandGeneration;
     private nint _bandHandle;
@@ -81,10 +85,48 @@ public partial class App : System.Windows.Application
 
         try
         {
+            await _themeCatalog.InitializeAsync();
+        }
+        catch (Exception exception)
+        {
+            LogException("Theme catalog initialization failed; using built-in themes", exception);
+        }
+
+        bool activeThemeResolved = _themeCatalog.TryResolve(
+            _settings.ActiveThemeId,
+            out ResolvedTheme startupTheme);
+        if (!activeThemeResolved)
+        {
+            _settings.ActiveThemeId = startupTheme.Identity.Id;
+            _ = _settingsService.TrySave(_settings);
+        }
+
+        if (!ApplyThemeRuntime(startupTheme))
+        {
+            ResolvedTheme fallbackTheme = _themeCatalog.ResolveOrDefault(AppSettings.DefaultThemeId);
+            _settings.ActiveThemeId = fallbackTheme.Identity.Id;
+            _ = _settingsService.TrySave(_settings);
+            if (!ApplyThemeRuntime(fallbackTheme))
+            {
+                LogException(
+                    "The built-in default theme could not be applied",
+                    new InvalidOperationException("Theme resource initialization failed."));
+                Shutdown();
+                return;
+            }
+
+            startupTheme = fallbackTheme;
+        }
+
+        _appliedTheme = startupTheme;
+
+        try
+        {
             _ = System.Windows.Media.Fonts.SystemFontFamilies.Count;
             BandDiagnostics.Log("WPF system font cache prepared before band HWND creation");
             BandDiagnostics.Log("creating tray icon service");
             _trayIcon = new TrayIconService();
+            _ = _trayIcon.ApplyThemeIcon(_currentTheme?.TrayIconPath);
             BandDiagnostics.Log("tray icon service created");
             BandDiagnostics.Log("creating monitor service");
             _monitorService = new MonitorService();
@@ -138,6 +180,10 @@ public partial class App : System.Windows.Application
         var band = new BandWindow(generation);
         BandDiagnostics.Log($"creating band window generation={generation}");
         band.ApplyAppearance(CurrentBandAppearance);
+        if (_currentTheme is { } theme)
+        {
+            band.ApplyTheme(theme);
+        }
         band.UpdateSnapshot(_monitorService?.Latest ?? MonitorSnapshot.Empty);
         band.ToggleDetailsRequested += OnToggleDetailsRequested;
         band.NativeDestroyed += OnBandNativeDestroyed;
@@ -387,6 +433,7 @@ public partial class App : System.Windows.Application
 
         AppearanceSettingsWindow window = EnsureAppearanceSettingsWindow();
         window.LoadAppearance(CurrentBandAppearance);
+        window.LoadThemes(_themeCatalog.Catalog.Items, _settings.ActiveThemeId);
         window.LoadUiCulture(_settings.UiCulture);
         window.Show();
         window.Activate();
@@ -400,31 +447,128 @@ public partial class App : System.Windows.Application
         }
 
         var window = new AppearanceSettingsWindow();
-        window.AppearanceApplied += OnAppearanceApplied;
+        window.AppearanceThemeApplied += OnAppearanceThemeApplied;
         window.AppearancePreviewChanged += OnAppearancePreviewChanged;
+        window.ThemePreviewRequested += OnThemePreviewRequested;
+        window.ThemeImported += OnThemeImported;
+        window.ThemeImportRequested = ImportThemeAsync;
         window.UiCultureChanged += OnUiCultureChanged;
         window.LoadAppearance(CurrentBandAppearance);
+        window.LoadThemes(_themeCatalog.Catalog.Items, _settings.ActiveThemeId);
         window.LoadUiCulture(_settings.UiCulture);
         _appearanceSettingsWindow = window;
         return window;
     }
 
-    private void OnAppearanceApplied(object? sender, BandAppearanceSettings appearance)
+    private void OnAppearanceThemeApplied(object? sender, AppearanceThemeApplyEventArgs e)
     {
+        BandAppearanceSettings previousAppearance = CurrentBandAppearance;
+        string previousThemeId = _settings.ActiveThemeId;
+        ResolvedTheme previousTheme = _appliedTheme ??
+            _themeCatalog.ResolveOrDefault(previousThemeId);
+        BandAppearanceSettings appearance = e.Appearance;
+        if (!_themeCatalog.TryResolve(e.ThemeId, out ResolvedTheme selectedTheme))
+        {
+            e.ErrorMessage = _localizationService.GetString("ThemeUnavailable");
+            return;
+        }
+
+        if (!ApplyThemeRuntime(selectedTheme))
+        {
+            _ = ApplyThemeRuntime(previousTheme);
+            e.ErrorMessage = _localizationService.GetString("ThemeUnavailable");
+            return;
+        }
+
         _settings.BandFontFamily = appearance.FontFamily;
         _settings.BandFontSize = appearance.FontSize;
         _settings.BandItemSpacingDip = appearance.ItemSpacingDip;
         _settings.BandHorizontalPositionPercent = appearance.HorizontalPositionPercent;
         _settings.BandMetricVisibility =
             BandMetricVisibilitySettings.FromEffective(appearance.EffectiveMetricVisibility);
+
+        _settings.ActiveThemeId = selectedTheme.Identity.Id;
+        if (!_settingsService.TrySave(_settings))
+        {
+            RestoreAppearanceSettings(previousAppearance);
+            _settings.ActiveThemeId = previousThemeId;
+            _bandWindow?.ApplyAppearance(previousAppearance);
+            _ = ApplyThemeRuntime(previousTheme);
+            e.ErrorMessage = _localizationService.GetString("AppearanceSaveFailed");
+            return;
+        }
+
         _bandWindow?.ApplyAppearance(appearance);
-        _settingsService.Save(_settings);
+        _appliedTheme = selectedTheme;
+        e.Accepted = true;
     }
 
     private void OnAppearancePreviewChanged(
         object? sender,
         BandAppearanceSettings appearance) =>
         _bandWindow?.ApplyAppearance(appearance);
+
+    private void OnThemePreviewRequested(string themeId)
+    {
+        if (_themeCatalog.TryResolve(themeId, out ResolvedTheme theme))
+        {
+            _ = ApplyThemeRuntime(theme);
+        }
+    }
+
+    private Task<ThemeImportResult> ImportThemeAsync(
+        string packagePath,
+        CancellationToken cancellationToken) =>
+        _themeCatalog.ImportAsync(packagePath, cancellationToken);
+
+    private void OnThemeImported(ThemeImportResult result)
+    {
+        if (!result.Success || result.Theme is null || _appearanceSettingsWindow is null)
+        {
+            return;
+        }
+
+        _appearanceSettingsWindow.LoadThemes(
+            _themeCatalog.Catalog.Items,
+            result.Theme.Identity.Id,
+            markApplied: false);
+        _ = ApplyThemeRuntime(result.Theme);
+    }
+
+    private bool ApplyThemeRuntime(ResolvedTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        if (!Dispatcher.CheckAccess())
+        {
+            return false;
+        }
+
+        try
+        {
+            _themeResourceApplier.Apply(theme);
+            _currentTheme = theme;
+            _bandWindow?.ApplyTheme(theme);
+            _detailWindow?.ApplyTheme(theme);
+            _ = _trayIcon?.ApplyThemeIcon(theme.TrayIconPath);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            LogException($"Applying theme '{theme.Identity.Id}' failed", exception);
+            return false;
+        }
+    }
+
+    private void RestoreAppearanceSettings(BandAppearanceSettings appearance)
+    {
+        _settings.BandFontFamily = appearance.FontFamily;
+        _settings.BandFontSize = appearance.FontSize;
+        _settings.BandItemSpacingDip = appearance.ItemSpacingDip;
+        _settings.BandHorizontalPositionPercent = appearance.HorizontalPositionPercent;
+        _settings.BandHorizontalOffsetDip = appearance.LegacyHorizontalOffsetDip;
+        _settings.BandMetricVisibility =
+            BandMetricVisibilitySettings.FromEffective(appearance.EffectiveMetricVisibility);
+    }
 
     private void OnUiCultureChanged(string culturePreference)
     {
@@ -454,6 +598,10 @@ public partial class App : System.Windows.Application
         }
 
         var detail = new DetailWindow();
+        if (_currentTheme is { } theme)
+        {
+            detail.ApplyTheme(theme);
+        }
         detail.SetPinned(_settings.PanelTopmost);
         detail.PinChanged += OnDetailPinChanged;
         detail.HideRequested += OnDetailHideRequested;
@@ -612,8 +760,11 @@ public partial class App : System.Windows.Application
         {
             try
             {
-                _appearanceSettingsWindow.AppearanceApplied -= OnAppearanceApplied;
+                _appearanceSettingsWindow.AppearanceThemeApplied -= OnAppearanceThemeApplied;
                 _appearanceSettingsWindow.AppearancePreviewChanged -= OnAppearancePreviewChanged;
+                _appearanceSettingsWindow.ThemePreviewRequested -= OnThemePreviewRequested;
+                _appearanceSettingsWindow.ThemeImported -= OnThemeImported;
+                _appearanceSettingsWindow.ThemeImportRequested = null;
                 _appearanceSettingsWindow.UiCultureChanged -= OnUiCultureChanged;
                 _appearanceSettingsWindow.ForceClose();
             }

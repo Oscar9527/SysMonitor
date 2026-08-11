@@ -14,23 +14,20 @@ using RowDefinition = System.Windows.Controls.RowDefinition;
 using TextBlock = System.Windows.Controls.TextBlock;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
-using Color = System.Windows.Media.Color;
-using ColorConverter = System.Windows.Media.ColorConverter;
 using TextTrimming = System.Windows.TextTrimming;
-using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
 namespace SysMonitor.UI;
 
 public partial class DetailWindow : Window
 {
-    private static readonly Brush CpuBrush = CreateFrozenBrush("#007AFF");
-    private static readonly Brush MemoryBrush = CreateFrozenBrush("#AF52DE");
-    private static readonly Brush GpuBrush = CreateFrozenBrush("#34C759");
-    private static readonly Brush WarningBrush = CreateFrozenBrush("#FF9500");
-    private static readonly Brush CriticalBrush = CreateFrozenBrush("#FF3B30");
-    private static readonly Brush PinnedBackgroundBrush = CreateFrozenBrush("#EAF3FF");
-    private static readonly Brush PinnedForegroundBrush = CreateFrozenBrush("#007AFF");
-    private static readonly Brush UnpinnedForegroundBrush = CreateFrozenBrush("#6E6E73");
+    private Brush _cpuBrush = Brushes.DodgerBlue;
+    private Brush _memoryBrush = Brushes.MediumPurple;
+    private Brush _gpuBrush = Brushes.MediumSeaGreen;
+    private Brush _warningBrush = Brushes.Orange;
+    private Brush _criticalBrush = Brushes.Red;
+    private Brush _pinnedBackgroundBrush = Brushes.Transparent;
+    private Brush _pinnedForegroundBrush = Brushes.DodgerBlue;
+    private Brush _unpinnedForegroundBrush = Brushes.DimGray;
 
     private MonitorSnapshot _latestSnapshot = MonitorSnapshot.Empty;
     private readonly Dictionary<string, DriveRowElements> _driveRows =
@@ -42,6 +39,7 @@ public partial class DetailWindow : Window
     public DetailWindow()
     {
         InitializeComponent();
+        RefreshThemeBrushes();
         Closing += DetailWindow_Closing;
         Closed += DetailWindow_Closed;
         LocalizationService.Current.CultureChanged += OnCultureChanged;
@@ -55,6 +53,20 @@ public partial class DetailWindow : Window
     public event EventHandler? PinChanged;
     public event EventHandler? HideRequested;
 
+    public void ApplyTheme(ResolvedTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => ApplyTheme(theme));
+            return;
+        }
+
+        RefreshThemeBrushes();
+        SetPinned(_isPinned);
+        UpdateSnapshot(_latestSnapshot);
+    }
+
     public void UpdateSnapshot(MonitorSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -65,12 +77,12 @@ public partial class DetailWindow : Window
         }
 
         _latestSnapshot = snapshot;
-        UpdateMetric(snapshot.CpuUsagePercent, CpuBrush, CpuValueText, CpuProgress);
+        UpdateMetric(snapshot.CpuUsagePercent, _cpuBrush, CpuValueText, CpuProgress);
         CpuDetailsText.Text = BuildCpuDetails(
             snapshot.LogicalProcessorCount,
             snapshot.CpuTemperatureCelsius);
 
-        UpdateMetric(snapshot.MemoryUsagePercent, MemoryBrush, MemoryValueText, MemoryProgress);
+        UpdateMetric(snapshot.MemoryUsagePercent, _memoryBrush, MemoryValueText, MemoryProgress);
         MemoryDetailsText.Text = string.Format(
             LocalizationService.Current.ActiveCulture,
             "{0} / {1} GB",
@@ -80,7 +92,7 @@ public partial class DetailWindow : Window
         if (snapshot.Gpu is { } gpu)
         {
             GpuCard.Visibility = Visibility.Visible;
-            UpdateOptionalMetric(gpu.UsagePercent, GpuBrush, GpuValueText, GpuProgress);
+            UpdateOptionalMetric(gpu.UsagePercent, _gpuBrush, GpuValueText, GpuProgress);
             GpuNameText.Text = string.IsNullOrWhiteSpace(gpu.Name)
                 ? LocalizationService.Current.GetString("GpuFallbackName")
                 : gpu.Name.Trim();
@@ -108,8 +120,8 @@ public partial class DetailWindow : Window
         bool changed = _isPinned != isPinned;
         _isPinned = isPinned;
         Topmost = isPinned;
-        PinButton.Background = isPinned ? PinnedBackgroundBrush : Brushes.Transparent;
-        PinIcon.Fill = isPinned ? PinnedForegroundBrush : UnpinnedForegroundBrush;
+        PinButton.Background = isPinned ? _pinnedBackgroundBrush : Brushes.Transparent;
+        PinIcon.Fill = isPinned ? _pinnedForegroundBrush : _unpinnedForegroundBrush;
         UpdatePinTooltip();
 
         if (changed)
@@ -218,7 +230,7 @@ public partial class DetailWindow : Window
                     drive.VolumeLabel.Trim(),
                     marker);
             double usage = ClampPercent(drive.UsagePercent);
-            Brush driveBrush = SelectBrush(usage, CpuBrush);
+            Brush driveBrush = SelectBrush(usage, _cpuBrush);
             row.Name.Text = title;
             row.Name.ToolTip = title;
             row.Details.Text = LocalizationService.Current.Format(
@@ -374,7 +386,7 @@ public partial class DetailWindow : Window
         System.Windows.Automation.AutomationProperties.SetName(PinButton, tooltip);
     }
 
-    private static void UpdateMetric(
+    private void UpdateMetric(
         double rawValue,
         Brush normalBrush,
         System.Windows.Controls.TextBlock valueText,
@@ -388,7 +400,7 @@ public partial class DetailWindow : Window
         progress.Foreground = brush;
     }
 
-    private static void UpdateOptionalMetric(
+    private void UpdateOptionalMetric(
         double? rawValue,
         Brush normalBrush,
         System.Windows.Controls.TextBlock valueText,
@@ -448,22 +460,30 @@ public partial class DetailWindow : Window
 
     private static bool IsFinite(double? value) => value.HasValue && IsFinite(value.Value);
 
-    private static Brush SelectBrush(double value, Brush normalBrush)
+    private Brush SelectBrush(double value, Brush normalBrush)
     {
         if (value >= 90d)
         {
-            return CriticalBrush;
+            return _criticalBrush;
         }
 
-        return value >= 75d ? WarningBrush : normalBrush;
+        return value >= 75d ? _warningBrush : normalBrush;
     }
 
-    private static Brush CreateFrozenBrush(string color)
+    private void RefreshThemeBrushes()
     {
-        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-        brush.Freeze();
-        return brush;
+        _cpuBrush = FindBrush("CpuMetricBrush", _cpuBrush);
+        _memoryBrush = FindBrush("MemoryMetricBrush", _memoryBrush);
+        _gpuBrush = FindBrush("GpuMetricBrush", _gpuBrush);
+        _warningBrush = FindBrush("WarningMetricBrush", _warningBrush);
+        _criticalBrush = FindBrush("CriticalMetricBrush", _criticalBrush);
+        _pinnedBackgroundBrush = FindBrush("DetailPinBackgroundBrush", _pinnedBackgroundBrush);
+        _pinnedForegroundBrush = FindBrush("DetailPinForegroundBrush", _pinnedForegroundBrush);
+        _unpinnedForegroundBrush = FindBrush("DetailUnpinnedForegroundBrush", _unpinnedForegroundBrush);
     }
+
+    private Brush FindBrush(string key, Brush fallback) =>
+        TryFindResource(key) as Brush ?? fallback;
 
     private void PinButton_Click(object sender, RoutedEventArgs e) => SetPinned(!_isPinned);
 

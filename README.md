@@ -29,17 +29,17 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 网络 | 所有活动 IPv4 网卡合计的下载/上传速率 |
 | 磁盘 | Band 显示系统盘使用率；详情面板显示所有可用固定磁盘的已用/总容量与使用率 |
 | 托盘 | 显示/隐藏面板、窗口置顶、开机自启、退出 |
-| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置、按项显示/隐藏、简体中文/English 和安全区域 |
+| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置、按项显示/隐藏、简体中文/English、安全区域和安全主题包 |
 | 稳定性 | 父任务栏相对定位、固定指标槽位、等宽数字、边界迟滞和 Windows 10 重绘抑制 |
 | 便携运行 | 单文件启动器自动释放核心程序，不写入安装目录，不需要管理员权限 |
 
 ## 下载与发行版
 
 - [下载最新 Release](https://github.com/Oscar9527/SysMonitor/releases)
-- [SysMonitor v1.2.15](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.15)
-- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.15/SysMonitor.exe)
+- [SysMonitor v1.2.16](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.16)
+- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.16/SysMonitor.exe)
 
-当前版本：**1.2.15**
+当前公开版本：**1.2.16**
 
 发行包信息：
 
@@ -48,8 +48,8 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 文件名 | `SysMonitor.exe` |
 | 平台 | Windows 10/11 x64 |
 | 类型 | 便携式、单文件、无需安装 |
-| 大小 | 6,798,336 字节（约 6.48 MiB） |
-| SHA-256 | `F4C3A8E621DC7735023C60F2E528F582261448131A4DC14D3D736BF55AE04ED0` |
+| 大小 | 6,876,160 字节（约 6.56 MiB） |
+| SHA-256 | `4A50C73409B50B150A176DF7D93AC46AD48F8A19D3AE1556EA13743F8D659FC6` |
 
 > 这是 framework-dependent 单文件版本，目标电脑需要安装 Microsoft .NET 8 Desktop Runtime x64。启动器检测到运行时缺失时，会打开官方 .NET 下载页面；不会静默安装或提权。
 
@@ -135,12 +135,27 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SysMonitor
 设置项包括：
 
 - 界面语言：跟随系统、简体中文或 English；切换后立即生效。
+- 主题：内建 Default / Midnight，或导入经过安全校验的 `.smonitor-theme` 文件；选择时实时预览，点击“应用”后保存。
 - Band 字体和字号。
 - CPU、内存、GPU、下载、上传、磁盘项目之间的间距。
 - CPU、内存、GPU、下载、上传和系统盘可分别显示或隐藏；全部隐藏后可从托盘重新打开设置。
 - Band 左右位置偏移。
 - 任务栏图标和通知区的安全边界。
 - 面板是否置顶。
+
+## 自定义主题
+
+1.3.0 的主题系统采用纯数据包设计：主题可以修改应用卡片、指标颜色、警告色、圆角、阴影、Band 背景和托盘图标，但不能包含或执行 DLL、脚本、XAML、字体及其他任意代码。
+
+主题包通过“任务栏外观”窗口导入，安装目录为：
+
+```text
+%APPDATA%\SysMonitor\Themes
+```
+
+程序会对 ZIP 路径、文件白名单、压缩率、解压大小、JSON 字段及 PNG/ICO 实际内容进行校验，并通过临时目录完整复验后一次性安装。关闭设置窗口会恢复最后已应用的主题，刚导入的包则保留在本地，方便之后再次选择。
+
+完整格式、限制和可直接打包的示例见 [主题包开发文档](docs/themes/README.md)。
 
 ## 构建
 
@@ -175,6 +190,7 @@ SysMonitor/
 SysMonitor.Tests/ # GPU、任务栏稳定、本地化和设置迁移测试
 Launcher/         # 最终便携单文件启动器与构建脚本
 docs/images/     # README 界面预览图
+docs/themes/     # 主题包规范、限制与可打包示例
 release/         # 可直接分发的单文件版本
 ```
 
@@ -199,7 +215,7 @@ release/         # 可直接分发的单文件版本
 ### Windows 10 任务栏出现闪烁
 
 1. 确认使用的是最新 Release。
-2. 1.2.15 已取消健康状态下的周期性重新定位，并过滤任务栏安全边界的像素级波动。
+2. 1.2.16 已取消健康状态下的周期性重新定位，并过滤任务栏安全边界的像素级波动。
 3. 在“任务栏外观”中调整左右位置和项目间距，避开通知区和任务栏图标安全区域。
 4. 不要同时运行多个旧版本 SysMonitor；新版启动器会迁移并清理旧核心进程。
 

@@ -47,6 +47,11 @@ public sealed class SettingsService
 
     public void Save(AppSettings settings)
     {
+        _ = TrySave(settings);
+    }
+
+    public bool TrySave(AppSettings settings)
+    {
         ArgumentNullException.ThrowIfNull(settings);
         Normalize(settings);
 
@@ -62,10 +67,12 @@ public sealed class SettingsService
             File.WriteAllText(temporaryPath, json);
             File.Move(temporaryPath, SettingsPath, true);
             temporaryPath = null;
+            return true;
         }
         catch
         {
             // Preferences are best-effort; monitoring should continue if persistence fails.
+            return false;
         }
         finally
         {
@@ -86,6 +93,9 @@ public sealed class SettingsService
     internal static void Normalize(AppSettings settings)
     {
         settings.UiCulture = LocalizationService.NormalizeCulturePreference(settings.UiCulture);
+        settings.ActiveThemeId = string.IsNullOrWhiteSpace(settings.ActiveThemeId)
+            ? AppSettings.DefaultThemeId
+            : settings.ActiveThemeId.Trim();
         settings.BandFontFamily = string.IsNullOrWhiteSpace(settings.BandFontFamily)
             ? "Segoe UI Variable Text"
             : settings.BandFontFamily.Trim();

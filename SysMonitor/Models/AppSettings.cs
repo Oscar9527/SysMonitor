@@ -2,6 +2,8 @@ namespace SysMonitor.Models;
 
 public sealed class AppSettings
 {
+    public const string DefaultThemeId = "builtin.default";
+
     public string UiCulture { get; set; } = "system";
 
     public bool BandVisible { get; set; } = true;
@@ -17,6 +19,8 @@ public sealed class AppSettings
     public double? BandHorizontalPositionPercent { get; set; }
 
     public BandMetricVisibilitySettings? BandMetricVisibility { get; set; } = new();
+
+    public string ActiveThemeId { get; set; } = DefaultThemeId;
 
     public bool PanelTopmost { get; set; }
 

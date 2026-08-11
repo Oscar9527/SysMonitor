@@ -16,10 +16,8 @@
         SnapsToDevicePixels="True"
         UseLayoutRounding="True">
     <Window.Resources>
-        <SolidColorBrush x:Key="MainTextBrush" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="SeparatorBrush" Color="#55FFFFFF" />
         <Style x:Key="MetricLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BandTextBrush}" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
             <Setter Property="FontSize" Value="10" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -29,7 +27,7 @@
             <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
         </Style>
         <Style x:Key="MetricValue" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource BandTextBrush}" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -48,13 +46,14 @@
         <Style x:Key="MetricSeparator" TargetType="Border">
             <Setter Property="Width" Value="1" />
             <Setter Property="Height" Value="22" />
-            <Setter Property="Background" Value="{DynamicResource SeparatorBrush}" />
+            <Setter Property="Background" Value="{DynamicResource BandSeparatorBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
     </Window.Resources>
 
     <Border x:Name="BandRoot"
-            Background="Transparent"
+            Background="{DynamicResource BandBackgroundBrush}"
+            CornerRadius="{DynamicResource BandCornerRadius}"
             BorderThickness="0">
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
