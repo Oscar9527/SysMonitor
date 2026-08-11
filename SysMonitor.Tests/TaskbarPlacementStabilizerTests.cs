@@ -241,6 +241,16 @@ public sealed class TaskbarPlacementStabilizerTests
     }
 
     [Fact]
+    public void SubLegacyMinimumSingleMetricWidthCanBePlaced()
+    {
+        TaskbarPlacementDecision decision = TaskbarPlacementStabilizer.Decide(
+            Constraint(100, 400), 40, 72, 34, 50, null, true);
+
+        Assert.False(decision.HideRequested);
+        Assert.Equal(72, decision.Rect.Width);
+    }
+
+    [Fact]
     public void ExplicitLayoutBypassesPositionDeadZoneButRemainsConstrained()
     {
         TaskbarSafeConstraint constraint = Constraint(250, 900);

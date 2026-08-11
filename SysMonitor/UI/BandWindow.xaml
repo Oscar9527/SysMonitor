@@ -80,7 +80,7 @@
                            Text="0%" />
             </Grid>
 
-            <Border Style="{StaticResource MetricSeparator}" />
+            <Border x:Name="CpuMemorySeparator" Style="{StaticResource MetricSeparator}" />
 
             <Grid x:Name="MemoryGroup" Style="{StaticResource MetricGroup}">
                 <Grid.RowDefinitions>
@@ -94,7 +94,7 @@
                            Text="0%" />
             </Grid>
 
-            <Border x:Name="GpuSeparator" Style="{StaticResource MetricSeparator}" />
+            <Border x:Name="MemoryGpuSeparator" Style="{StaticResource MetricSeparator}" />
 
             <Grid x:Name="GpuGroup" Style="{StaticResource MetricGroup}">
                 <Grid.RowDefinitions>
@@ -114,7 +114,7 @@
                            Text="0%" />
             </Grid>
 
-            <Border Style="{StaticResource MetricSeparator}" />
+            <Border x:Name="GpuDownloadSeparator" Style="{StaticResource MetricSeparator}" />
 
             <Grid x:Name="DownloadGroup" Style="{StaticResource MetricGroup}">
                 <Grid.RowDefinitions>
@@ -128,7 +128,7 @@
                            Text="0 B/s" />
             </Grid>
 
-            <Border Style="{StaticResource MetricSeparator}" />
+            <Border x:Name="DownloadUploadSeparator" Style="{StaticResource MetricSeparator}" />
 
             <Grid x:Name="UploadGroup" Style="{StaticResource MetricGroup}">
                 <Grid.RowDefinitions>
@@ -142,7 +142,7 @@
                            Text="0 B/s" />
             </Grid>
 
-            <Border x:Name="DiskSeparator" Style="{StaticResource MetricSeparator}" />
+            <Border x:Name="UploadDiskSeparator" Style="{StaticResource MetricSeparator}" />
 
             <Grid x:Name="DiskGroup" Style="{StaticResource MetricGroup}">
                 <Grid.RowDefinitions>

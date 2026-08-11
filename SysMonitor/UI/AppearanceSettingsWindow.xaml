@@ -3,13 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Taskbar appearance"
         Width="440"
-        Height="548"
+        Height="676"
         MinWidth="420"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="False"
         ResizeMode="NoResize"
         ShowInTaskbar="True"
+        Loaded="AppearanceSettingsWindow_Loaded"
+        Activated="AppearanceSettingsWindow_Activated"
+        LocationChanged="AppearanceSettingsWindow_LocationChanged"
+        DpiChanged="AppearanceSettingsWindow_DpiChanged"
         Style="{StaticResource AppWindowStyle}">
     <Window.Resources>
         <Style x:Key="TitleBarButtonStyle" TargetType="Button">
@@ -105,9 +109,15 @@
             </Button>
         </Grid>
 
-        <Grid Grid.Row="1" Margin="20,0,20,18">
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      PanningMode="VerticalFirst">
+        <Grid Margin="20,0,20,18">
             <Grid.RowDefinitions>
                 <RowDefinition Height="264" />
+                <RowDefinition Height="12" />
+                <RowDefinition Height="116" />
                 <RowDefinition Height="12" />
                 <RowDefinition Height="64" />
                 <RowDefinition Height="12" />
@@ -168,7 +178,24 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="2" Padding="16,0" Style="{StaticResource AppGroupStyle}">
+            <Border Grid.Row="2" Padding="16,10" Style="{StaticResource AppGroupStyle}">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="24" /><RowDefinition Height="44" /><RowDefinition Height="28" /></Grid.RowDefinitions>
+                    <TextBlock x:Name="VisibleItemsLabelText" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" />
+                    <UniformGrid Grid.Row="1" Columns="3" Rows="2">
+                        <CheckBox x:Name="CpuVisibilityCheckBox" VerticalAlignment="Center" Checked="VisibilityCheckBox_Changed" Unchecked="VisibilityCheckBox_Changed" />
+                        <CheckBox x:Name="MemoryVisibilityCheckBox" VerticalAlignment="Center" Checked="VisibilityCheckBox_Changed" Unchecked="VisibilityCheckBox_Changed" />
+                        <CheckBox x:Name="GpuVisibilityCheckBox" VerticalAlignment="Center" Checked="VisibilityCheckBox_Changed" Unchecked="VisibilityCheckBox_Changed" />
+                        <CheckBox x:Name="DownloadVisibilityCheckBox" VerticalAlignment="Center" Checked="VisibilityCheckBox_Changed" Unchecked="VisibilityCheckBox_Changed" />
+                        <CheckBox x:Name="UploadVisibilityCheckBox" VerticalAlignment="Center" Checked="VisibilityCheckBox_Changed" Unchecked="VisibilityCheckBox_Changed" />
+                        <CheckBox x:Name="DiskVisibilityCheckBox" VerticalAlignment="Center" Checked="VisibilityCheckBox_Changed" Unchecked="VisibilityCheckBox_Changed" />
+                    </UniformGrid>
+                    <TextBlock x:Name="VisibleItemsHelpText" Grid.Row="2" VerticalAlignment="Center" FontSize="11"
+                               Foreground="{StaticResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="4" Padding="16,0" Style="{StaticResource AppGroupStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="98" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <TextBlock x:Name="LanguageLabelText" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" />
@@ -181,7 +208,7 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="4" Padding="16,0" Style="{StaticResource AppGroupStyle}">
+            <Border Grid.Row="6" Padding="16,0" Style="{StaticResource AppGroupStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="98" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <TextBlock x:Name="PreviewLabelText" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource AppSecondaryTextBrush}" />
@@ -189,7 +216,7 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="6">
+            <Grid Grid.Row="8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" />
                     <ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" />
@@ -200,5 +227,6 @@
                 <Button x:Name="BottomCloseButton" Grid.Column="5" MinWidth="66" Style="{StaticResource SecondaryButtonStyle}" Click="CloseButton_Click" />
             </Grid>
         </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>

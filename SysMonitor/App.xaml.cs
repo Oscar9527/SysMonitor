@@ -375,7 +375,8 @@ public partial class App : System.Windows.Application
             _settings.BandFontSize,
             _settings.BandHorizontalPositionPercent,
             _settings.BandItemSpacingDip,
-            _settings.BandHorizontalOffsetDip);
+            _settings.BandHorizontalOffsetDip,
+            _settings.BandMetricVisibility?.ToEffective() ?? BandMetricVisibility.All);
 
     private void OnAppearanceSettingsRequested(object? sender, EventArgs e)
     {
@@ -414,6 +415,8 @@ public partial class App : System.Windows.Application
         _settings.BandFontSize = appearance.FontSize;
         _settings.BandItemSpacingDip = appearance.ItemSpacingDip;
         _settings.BandHorizontalPositionPercent = appearance.HorizontalPositionPercent;
+        _settings.BandMetricVisibility =
+            BandMetricVisibilitySettings.FromEffective(appearance.EffectiveMetricVisibility);
         _bandWindow?.ApplyAppearance(appearance);
         _settingsService.Save(_settings);
     }

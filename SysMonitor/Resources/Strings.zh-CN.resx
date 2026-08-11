@@ -16,6 +16,14 @@
   <data name="AppearancePreview" xml:space="preserve"><value>预览</value></data>
   <data name="AppearanceRestoreDefaults" xml:space="preserve"><value>恢复默认</value></data>
   <data name="AppearanceTitle" xml:space="preserve"><value>任务栏外观</value></data>
+  <data name="AppearanceVisibleCpu" xml:space="preserve"><value>CPU</value></data>
+  <data name="AppearanceVisibleDownload" xml:space="preserve"><value>下载</value></data>
+  <data name="AppearanceVisibleGpu" xml:space="preserve"><value>GPU</value></data>
+  <data name="AppearanceVisibleItems" xml:space="preserve"><value>显示项目</value></data>
+  <data name="AppearanceVisibleItemsHelp" xml:space="preserve"><value>全部隐藏后，仍可从托盘图标重新打开外观设置。</value></data>
+  <data name="AppearanceVisibleMemory" xml:space="preserve"><value>内存</value></data>
+  <data name="AppearanceVisibleSystemDisk" xml:space="preserve"><value>系统盘</value></data>
+  <data name="AppearanceVisibleUpload" xml:space="preserve"><value>上传</value></data>
   <data name="CloseTooltip" xml:space="preserve"><value>关闭</value></data>
   <data name="CpuLogicalProcessors" xml:space="preserve"><value>{0:N0} 个逻辑处理器</value></data>
   <data name="CpuLogicalProcessorsUnavailable" xml:space="preserve"><value>逻辑处理器信息不可用</value></data>
@@ -24,6 +32,10 @@
   <data name="DetailMemory" xml:space="preserve"><value>内存</value></data>
   <data name="DetailProcessor" xml:space="preserve"><value>处理器</value></data>
   <data name="DetailUpload" xml:space="preserve"><value>上传</value></data>
+  <data name="DetailStorage" xml:space="preserve"><value>存储</value></data>
+  <data name="DriveNameWithLabel" xml:space="preserve"><value>{0}  {1}{2}</value></data>
+  <data name="DriveSystemMarker" xml:space="preserve"><value>（系统）</value></data>
+  <data name="DriveUsageDetails" xml:space="preserve"><value>{0} / {1} GB</value></data>
   <data name="GpuDedicatedAllocated" xml:space="preserve"><value>专用显存：已分配 {0} GB</value></data>
   <data name="GpuFallbackName" xml:space="preserve"><value>图形适配器</value></data>
   <data name="GpuVramUsage" xml:space="preserve"><value>{0} / {1} GB VRAM</value></data>
@@ -31,6 +43,7 @@
   <data name="LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
   <data name="LanguageSystem" xml:space="preserve"><value>跟随系统</value></data>
   <data name="MinimizeTooltip" xml:space="preserve"><value>最小化</value></data>
+  <data name="NoFixedDrives" xml:space="preserve"><value>暂无可用的固定磁盘</value></data>
   <data name="PinDisableTooltip" xml:space="preserve"><value>取消置顶</value></data>
   <data name="PinEnableTooltip" xml:space="preserve"><value>保持置顶</value></data>
   <data name="PositionCenter" xml:space="preserve"><value>中间 {0:0}%</value></data>

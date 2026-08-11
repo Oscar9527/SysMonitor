@@ -13,7 +13,6 @@ public static class TaskbarPositioner
     private static readonly TaskbarSafeConstraintTracker ConstraintTracker = new();
 
     public const double BandHeightDip = 34;
-    public const double MinimumBandWidthDip = 320;
 
     public static void Invalidate()
     {
@@ -44,7 +43,7 @@ public static class TaskbarPositioner
         TaskbarRegionSnapshot? snapshot,
         double? horizontalPositionPercent,
         double legacyHorizontalOffsetDip,
-        double itemSpacingDip,
+        double targetWidthDip,
         bool explicitLayoutChange = false)
     {
         ArgumentNullException.ThrowIfNull(window);
@@ -99,17 +98,26 @@ public static class TaskbarPositioner
         double taskbarThicknessDip = taskbarHeight / taskbarScale;
         bool compactLayout = taskbarThicknessDip <= 30;
         bool wideLayout = taskbarThicknessDip > 40;
-        double desiredWidthDip = SelectWidth(taskbarThicknessDip, itemSpacingDip);
-        double availableWidthDip = availableWidth / bandScale;
-        double widthDip = Math.Min(desiredWidthDip, availableWidthDip);
-        if (widthDip < MinimumBandWidthDip)
+        double widthDip = double.IsFinite(targetWidthDip)
+            ? Math.Max(0, targetWidthDip)
+            : 0;
+        if (widthDip <= 0)
         {
             return TaskbarPositionResult.Hide(
                 window.Width,
+                retrySuggested: false,
                 constraintConfirmationSuggested: constraintConfirmationSuggested);
         }
 
-        int widthPixels = Math.Max(1, (int)Math.Floor(widthDip * bandScale));
+        int widthPixels = Math.Max(1, (int)Math.Round(widthDip * bandScale));
+        if (widthPixels > availableWidth)
+        {
+            return TaskbarPositionResult.Hide(
+                window.Width,
+                retrySuggested: false,
+                constraintConfirmationSuggested: constraintConfirmationSuggested);
+        }
+
         int heightPixels = Math.Max(1, (int)Math.Round(BandHeightDip * bandScale));
         int maximumX = constraint.Right - widthPixels;
         double travelDip = Math.Max(0, maximumX - constraint.Left) / bandScale;
@@ -172,7 +180,7 @@ public static class TaskbarPositioner
                     $"widthPx={widthPixels} widthDip={widthDip:0.##} " +
                     $"safeLeftLocal={constraint.Left} safeRightLocal={constraint.Right} " +
                     $"travelPx={Math.Max(0, maximumX - constraint.Left)} " +
-                    $"position={resolvedPercent:0.##}% spacingDip={itemSpacingDip:0.##}");
+                    $"position={resolvedPercent:0.##}% targetWidthDip={targetWidthDip:0.##}");
             }
         }
 
@@ -205,25 +213,6 @@ public static class TaskbarPositioner
 
         double leftwardFraction = Math.Clamp(-legacyOffsetDip / travelDip, 0, 1);
         return 100 * (1 - leftwardFraction);
-    }
-
-    private static double SelectWidth(double taskbarThicknessDip, double itemSpacingDip)
-    {
-        double spacing = double.IsFinite(itemSpacingDip)
-            ? Math.Clamp(itemSpacingDip, 0, 18)
-            : 10;
-        if (taskbarThicknessDip <= 30)
-        {
-            // Five visible groups: 294 DIP of metric slots + four separators.
-            return Math.Max(MinimumBandWidthDip, 298 + 5 * spacing);
-        }
-
-        // Six visible groups. The width follows the requested spacing instead
-        // of reserving a fixed 450/520 DIP rectangle, so lower spacing also
-        // creates materially more safe horizontal travel.
-        return taskbarThicknessDip <= 40
-            ? Math.Max(MinimumBandWidthDip, 361 + 6 * spacing)
-            : Math.Max(MinimumBandWidthDip, 413 + 6 * spacing);
     }
 
     [StructLayout(LayoutKind.Sequential)]

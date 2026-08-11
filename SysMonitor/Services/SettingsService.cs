@@ -112,5 +112,8 @@ public sealed class SettingsService
                     0,
                     100)
                 : null;
+        BandMetricVisibility effective =
+            (settings.BandMetricVisibility ?? new BandMetricVisibilitySettings()).ToEffective();
+        settings.BandMetricVisibility = BandMetricVisibilitySettings.FromEffective(effective);
     }
 }

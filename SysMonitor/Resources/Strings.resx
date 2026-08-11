@@ -16,6 +16,14 @@
   <data name="AppearancePreview" xml:space="preserve"><value>Preview</value></data>
   <data name="AppearanceRestoreDefaults" xml:space="preserve"><value>Restore defaults</value></data>
   <data name="AppearanceTitle" xml:space="preserve"><value>Taskbar appearance</value></data>
+  <data name="AppearanceVisibleCpu" xml:space="preserve"><value>CPU</value></data>
+  <data name="AppearanceVisibleDownload" xml:space="preserve"><value>Download</value></data>
+  <data name="AppearanceVisibleGpu" xml:space="preserve"><value>GPU</value></data>
+  <data name="AppearanceVisibleItems" xml:space="preserve"><value>Visible items</value></data>
+  <data name="AppearanceVisibleItemsHelp" xml:space="preserve"><value>If all items are hidden, reopen Appearance from the tray icon.</value></data>
+  <data name="AppearanceVisibleMemory" xml:space="preserve"><value>Memory</value></data>
+  <data name="AppearanceVisibleSystemDisk" xml:space="preserve"><value>System disk</value></data>
+  <data name="AppearanceVisibleUpload" xml:space="preserve"><value>Upload</value></data>
   <data name="CloseTooltip" xml:space="preserve"><value>Close</value></data>
   <data name="CpuLogicalProcessors" xml:space="preserve"><value>{0:N0} logical processors</value></data>
   <data name="CpuLogicalProcessorsUnavailable" xml:space="preserve"><value>Logical processors unavailable</value></data>
@@ -24,6 +32,10 @@
   <data name="DetailMemory" xml:space="preserve"><value>Memory</value></data>
   <data name="DetailProcessor" xml:space="preserve"><value>Processor</value></data>
   <data name="DetailUpload" xml:space="preserve"><value>Upload</value></data>
+  <data name="DetailStorage" xml:space="preserve"><value>Storage</value></data>
+  <data name="DriveNameWithLabel" xml:space="preserve"><value>{0}  {1}{2}</value></data>
+  <data name="DriveSystemMarker" xml:space="preserve"><value> (System)</value></data>
+  <data name="DriveUsageDetails" xml:space="preserve"><value>{0} / {1} GB</value></data>
   <data name="GpuDedicatedAllocated" xml:space="preserve"><value>Dedicated memory: {0} GB allocated</value></data>
   <data name="GpuFallbackName" xml:space="preserve"><value>Graphics adapter</value></data>
   <data name="GpuVramUsage" xml:space="preserve"><value>{0} / {1} GB VRAM</value></data>
@@ -31,6 +43,7 @@
   <data name="LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
   <data name="LanguageSystem" xml:space="preserve"><value>Follow system</value></data>
   <data name="MinimizeTooltip" xml:space="preserve"><value>Minimize</value></data>
+  <data name="NoFixedDrives" xml:space="preserve"><value>No fixed drives available</value></data>
   <data name="PinDisableTooltip" xml:space="preserve"><value>Stop keeping on top</value></data>
   <data name="PinEnableTooltip" xml:space="preserve"><value>Keep on top</value></data>
   <data name="PositionCenter" xml:space="preserve"><value>Center {0:0}%</value></data>

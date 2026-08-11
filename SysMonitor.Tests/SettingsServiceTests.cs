@@ -30,6 +30,54 @@ public sealed class SettingsServiceTests
         Assert.Equal(15, loaded.BandFontSize);
         Assert.Equal(7, loaded.BandItemSpacingDip);
         Assert.True(loaded.PanelTopmost);
+        Assert.Equal(BandMetricVisibility.All, loaded.BandMetricVisibility!.ToEffective());
+    }
+
+    [Theory]
+    [InlineData("{}", true, true, true, true, true, true)]
+    [InlineData("{\"BandMetricVisibility\":null}", true, true, true, true, true, true)]
+    [InlineData("{\"BandMetricVisibility\":{\"Cpu\":false}}", false, true, true, true, true, true)]
+    [InlineData("{\"BandMetricVisibility\":{\"Cpu\":null,\"Gpu\":false,\"FutureMetric\":false}}", true, true, false, true, true, true)]
+    public void Load_MigratesVisibilityFieldsWithoutOverwritingExplicitFalse(
+        string json,
+        bool cpu,
+        bool memory,
+        bool gpu,
+        bool download,
+        bool upload,
+        bool systemDisk)
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(service.SettingsPath, json);
+
+        BandMetricVisibility visibility = service.Load().BandMetricVisibility!.ToEffective();
+
+        Assert.Equal(
+            new BandMetricVisibility(cpu, memory, gpu, download, upload, systemDisk),
+            visibility);
+    }
+
+    [Fact]
+    public void SaveAndLoad_RoundTripsAllVisibilityValues()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        var expected = new BandMetricVisibility(false, true, false, true, false, true);
+        var settings = new AppSettings
+        {
+            BandMetricVisibility = BandMetricVisibilitySettings.FromEffective(expected)
+        };
+
+        service.Save(settings);
+        AppSettings loaded = service.Load();
+
+        Assert.Equal(expected, loaded.BandMetricVisibility!.ToEffective());
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(service.SettingsPath));
+        JsonElement persisted = document.RootElement.GetProperty("BandMetricVisibility");
+        Assert.False(persisted.GetProperty("Cpu").GetBoolean());
+        Assert.True(persisted.GetProperty("SystemDisk").GetBoolean());
     }
 
     [Fact]

@@ -1,13 +1,22 @@
 using System.ComponentModel;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using SysMonitor.Models;
 using SysMonitor.Services;
+using Border = System.Windows.Controls.Border;
+using ColumnDefinition = System.Windows.Controls.ColumnDefinition;
+using Grid = System.Windows.Controls.Grid;
+using ProgressBar = System.Windows.Controls.ProgressBar;
+using RowDefinition = System.Windows.Controls.RowDefinition;
+using TextBlock = System.Windows.Controls.TextBlock;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
+using TextTrimming = System.Windows.TextTrimming;
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
 namespace SysMonitor.UI;
@@ -24,6 +33,9 @@ public partial class DetailWindow : Window
     private static readonly Brush UnpinnedForegroundBrush = CreateFrozenBrush("#6E6E73");
 
     private MonitorSnapshot _latestSnapshot = MonitorSnapshot.Empty;
+    private readonly Dictionary<string, DriveRowElements> _driveRows =
+        new(StringComparer.OrdinalIgnoreCase);
+    private ImmutableArray<string> _driveOrder = ImmutableArray<string>.Empty;
     private bool _allowClose;
     private bool _isPinned;
 
@@ -82,16 +94,7 @@ public partial class DetailWindow : Window
         DownloadValueText.Text = FormatRate(snapshot.DownloadBytesPerSecond);
         UploadValueText.Text = FormatRate(snapshot.UploadBytesPerSecond);
 
-        double driveUsage = ClampPercent(snapshot.SystemDriveUsagePercent);
-        DriveNameText.Text = string.IsNullOrWhiteSpace(snapshot.SystemDriveName)
-            ? LocalizationService.Current.GetString("SystemDisk")
-            : LocalizationService.Current.Format("SystemDiskNamed", snapshot.SystemDriveName.Trim());
-        DriveValueText.Text = FormatPercent(driveUsage);
-        DriveProgress.Value = driveUsage;
-
-        Brush driveBrush = SelectBrush(driveUsage, CpuBrush);
-        DriveValueText.Foreground = driveBrush;
-        DriveProgress.Foreground = driveBrush;
+        UpdateDrives(snapshot.FixedDrives);
     }
 
     public void SetPinned(bool isPinned)
@@ -135,6 +138,8 @@ public partial class DetailWindow : Window
         GraphicsLabelText.Text = localization.GetString("DetailGraphics");
         DownloadLabelText.Text = localization.GetString("DetailDownload");
         UploadLabelText.Text = localization.GetString("DetailUpload");
+        StorageLabelText.Text = localization.GetString("DetailStorage");
+        NoDrivesText.Text = localization.GetString("NoFixedDrives");
         System.Windows.Automation.AutomationProperties.SetName(
             CpuProgress,
             localization.GetString("DetailProcessor"));
@@ -145,8 +150,8 @@ public partial class DetailWindow : Window
             GpuProgress,
             localization.GetString("DetailGraphics"));
         System.Windows.Automation.AutomationProperties.SetName(
-            DriveProgress,
-            localization.GetString("SystemDisk"));
+            DriveScrollViewer,
+            localization.GetString("DetailStorage"));
         MinimizeButton.ToolTip = localization.GetString("MinimizeTooltip");
         CloseButton.ToolTip = localization.GetString("CloseTooltip");
         System.Windows.Automation.AutomationProperties.SetName(
@@ -156,6 +161,157 @@ public partial class DetailWindow : Window
             CloseButton,
             localization.GetString("CloseTooltip"));
         UpdatePinTooltip();
+        UpdateDrives(_latestSnapshot.FixedDrives);
+    }
+
+    private void UpdateDrives(ImmutableArray<DriveSnapshot> drives)
+    {
+        if (drives.IsDefault)
+        {
+            drives = ImmutableArray<DriveSnapshot>.Empty;
+        }
+
+        ImmutableArray<string> nextOrder = drives.Select(drive => drive.Name).ToImmutableArray();
+        bool collectionChanged = !_driveOrder.SequenceEqual(
+            nextOrder,
+            StringComparer.OrdinalIgnoreCase);
+        if (collectionChanged)
+        {
+            var present = nextOrder.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (string removed in _driveRows.Keys.Where(name => !present.Contains(name)).ToArray())
+            {
+                _driveRows.Remove(removed);
+            }
+
+            DriveRowsPanel.Children.Clear();
+            foreach (string name in nextOrder)
+            {
+                if (!_driveRows.TryGetValue(name, out DriveRowElements? row))
+                {
+                    row = CreateDriveRow();
+                    _driveRows.Add(name, row);
+                }
+
+                DriveRowsPanel.Children.Add(row.Container);
+            }
+
+            _driveOrder = nextOrder;
+        }
+
+        NoDrivesText.Visibility = drives.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        DriveScrollViewer.Visibility = drives.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        foreach (DriveSnapshot drive in drives)
+        {
+            if (!_driveRows.TryGetValue(drive.Name, out DriveRowElements? row))
+            {
+                continue;
+            }
+
+            string marker = drive.IsSystemDrive
+                ? LocalizationService.Current.GetString("DriveSystemMarker")
+                : string.Empty;
+            string title = string.IsNullOrWhiteSpace(drive.VolumeLabel)
+                ? drive.Name + marker
+                : LocalizationService.Current.Format(
+                    "DriveNameWithLabel",
+                    drive.Name,
+                    drive.VolumeLabel.Trim(),
+                    marker);
+            double usage = ClampPercent(drive.UsagePercent);
+            Brush driveBrush = SelectBrush(usage, CpuBrush);
+            row.Name.Text = title;
+            row.Name.ToolTip = title;
+            row.Details.Text = LocalizationService.Current.Format(
+                "DriveUsageDetails",
+                FormatGigabytes(drive.UsedBytes),
+                FormatGigabytes(drive.TotalBytes));
+            row.Value.Text = FormatPercent(usage);
+            row.Value.Foreground = driveBrush;
+            row.Progress.Value = usage;
+            row.Progress.Foreground = driveBrush;
+            System.Windows.Automation.AutomationProperties.SetName(row.Progress, title);
+        }
+    }
+
+    private DriveRowElements CreateDriveRow()
+    {
+        var container = new Border
+        {
+            Height = 58,
+            Padding = new Thickness(0, 4, 0, 7),
+        };
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(4) });
+
+        var name = new TextBlock
+        {
+            Margin = new Thickness(0, 0, 12, 0),
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        var value = new TextBlock
+        {
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+        };
+        Grid.SetColumn(value, 1);
+
+        var details = new TextBlock
+        {
+            Margin = new Thickness(0, 2, 12, 4),
+            FontSize = 10.5,
+        };
+        details.SetResourceReference(ForegroundProperty, "AppSecondaryTextBrush");
+        Grid.SetRow(details, 1);
+        Grid.SetColumnSpan(details, 2);
+
+        var progress = new ProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+        };
+        progress.SetResourceReference(StyleProperty, "MetricProgressStyle");
+        Grid.SetRow(progress, 2);
+        Grid.SetColumnSpan(progress, 2);
+
+        grid.Children.Add(name);
+        grid.Children.Add(value);
+        grid.Children.Add(details);
+        grid.Children.Add(progress);
+        container.Child = grid;
+        return new DriveRowElements(container, name, details, value, progress);
+    }
+
+    private void DetailWindow_Loaded(object sender, RoutedEventArgs e) => ConstrainToWorkArea();
+
+    private void DetailWindow_Activated(object? sender, EventArgs e) => ConstrainToWorkArea();
+
+    private void DetailWindow_LocationChanged(object? sender, EventArgs e) =>
+        ConstrainToWorkArea();
+
+    private void DetailWindow_DpiChanged(object sender, System.Windows.DpiChangedEventArgs e) =>
+        ConstrainToWorkArea();
+
+    private void ConstrainToWorkArea()
+    {
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        System.Drawing.Rectangle workingArea =
+            System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
+        HwndSource? source = HwndSource.FromHwnd(handle);
+        double deviceToDipY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1d;
+        double availableHeight = Math.Max(1d, workingArea.Height * deviceToDipY - 16d);
+        MaxHeight = availableHeight;
+        Height = Math.Min(700d, availableHeight);
     }
 
     internal static string BuildCpuDetails(int logicalProcessorCount, double? temperature)
@@ -347,4 +503,11 @@ public partial class DetailWindow : Window
 
     private void DetailWindow_Closed(object? sender, EventArgs e) =>
         LocalizationService.Current.CultureChanged -= OnCultureChanged;
+
+    private sealed record DriveRowElements(
+        Border Container,
+        TextBlock Name,
+        TextBlock Details,
+        TextBlock Value,
+        ProgressBar Progress);
 }

@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace SysMonitor.Models;
 
 public sealed record GpuSnapshot(
@@ -22,8 +24,17 @@ public sealed record MonitorSnapshot(
     double DownloadBytesPerSecond,
     double UploadBytesPerSecond,
     string SystemDriveName,
-    double SystemDriveUsagePercent)
+    double SystemDriveUsagePercent,
+    ImmutableArray<DriveSnapshot> FixedDrives = default)
 {
+    private ImmutableArray<DriveSnapshot> _fixedDrives = FixedDrives;
+
+    public ImmutableArray<DriveSnapshot> FixedDrives
+    {
+        get => _fixedDrives.IsDefault ? ImmutableArray<DriveSnapshot>.Empty : _fixedDrives;
+        init => _fixedDrives = value;
+    }
+
     public static MonitorSnapshot Empty { get; } = new(
         0,
         DateTimeOffset.Now,

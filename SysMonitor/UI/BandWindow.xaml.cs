@@ -64,6 +64,9 @@ public partial class BandWindow : Window
     private double? _horizontalPositionPercent;
     private double _itemSpacingDip = 10;
     private double _legacyHorizontalOffsetDip;
+    private BandMetricVisibility _metricVisibility = BandMetricVisibility.All;
+    private readonly GpuCapabilityStabilizer _gpuCapability = new();
+    private EffectiveBandLayout? _effectiveLayout;
     private TaskbarRegionSnapshot? _regionSnapshot;
     private long _lastToggleTimestamp;
     private int _toggleGeneration;
@@ -162,6 +165,8 @@ public partial class BandWindow : Window
             textBlock.FontSize = valueBlocks.Contains(textBlock) ? valueSize : labelSize;
         }
 
+        double? priorPosition = _horizontalPositionPercent;
+        double priorLegacyOffset = _legacyHorizontalOffsetDip;
         _horizontalPositionPercent =
             appearance.HorizontalPositionPercent is double position &&
             double.IsFinite(position)
@@ -176,11 +181,18 @@ public partial class BandWindow : Window
         _legacyHorizontalOffsetDip = double.IsFinite(appearance.LegacyHorizontalOffsetDip)
             ? appearance.LegacyHorizontalOffsetDip
             : 0;
-        _placementInvalidated = true;
-        TaskbarPositioner.Invalidate();
-        if (_positionTracking)
+        _metricVisibility = appearance.EffectiveMetricVisibility;
+        bool layoutChanged = ApplyEffectiveLayout(CreateEffectiveLayout());
+        bool placementChanged = priorPosition != _horizontalPositionPercent ||
+            priorLegacyOffset != _legacyHorizontalOffsetDip;
+        if (layoutChanged || placementChanged)
         {
-            Reposition();
+            _placementInvalidated = true;
+            TaskbarPositioner.Invalidate();
+            if (_positionTracking)
+            {
+                Reposition();
+            }
         }
     }
 
@@ -203,9 +215,7 @@ public partial class BandWindow : Window
         MemoryValueText.Text = FormatPercent(snapshot.MemoryUsagePercent);
         MemoryValueText.Foreground = GetUsageBrush(snapshot.MemoryUsagePercent);
 
-        bool hasGpu = snapshot.Gpu is not null;
-        GpuGroup.Visibility = hasGpu ? Visibility.Visible : Visibility.Collapsed;
-        GpuSeparator.Visibility = hasGpu ? Visibility.Visible : Visibility.Collapsed;
+        bool gpuCapabilityChanged = _gpuCapability.Observe(snapshot.Gpu is not null);
         if (snapshot.Gpu is { } gpu)
         {
             if (gpu.UsagePercent is { } gpuUsage && double.IsFinite(gpuUsage))
@@ -228,6 +238,15 @@ public partial class BandWindow : Window
                 ? $"{gpu.Name}  {tooltipTemperature:0}°C"
                 : gpu.Name;
         }
+        else
+        {
+            // Keep the slot stable during the five-sample disappearance grace
+            // period, but never leave stale telemetry on screen.
+            GpuValueText.Text = "--%";
+            GpuValueText.Foreground = _mainTextBrush;
+            GpuTemperatureText.Text = "--℃";
+            GpuValueText.ToolTip = null;
+        }
 
         DownloadValueText.Text = FormatRate(snapshot.DownloadBytesPerSecond);
         UploadValueText.Text = FormatRate(snapshot.UploadBytesPerSecond);
@@ -237,8 +256,23 @@ public partial class BandWindow : Window
         DiskLabelText.Text = string.IsNullOrWhiteSpace(snapshot.SystemDriveName)
             ? "DISK"
             : snapshot.SystemDriveName.TrimEnd('\\').ToUpperInvariant();
-        DiskValueText.Text = FormatPercent(snapshot.SystemDriveUsagePercent);
-        DiskValueText.Foreground = GetUsageBrush(snapshot.SystemDriveUsagePercent);
+        bool hasSystemDriveTelemetry = snapshot.FixedDrives.Any(drive => drive.IsSystemDrive);
+        DiskValueText.Text = hasSystemDriveTelemetry
+            ? FormatPercent(snapshot.SystemDriveUsagePercent)
+            : "--%";
+        DiskValueText.Foreground = hasSystemDriveTelemetry
+            ? GetUsageBrush(snapshot.SystemDriveUsagePercent)
+            : _mainTextBrush;
+
+        if (gpuCapabilityChanged && _metricVisibility.Gpu &&
+            ApplyEffectiveLayout(CreateEffectiveLayout()))
+        {
+            _placementInvalidated = true;
+            if (_positionTracking)
+            {
+                Reposition();
+            }
+        }
     }
 
     public void StartPositionTracking()
@@ -284,40 +318,79 @@ public partial class BandWindow : Window
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
     }
 
-    public void UpdateCompactMode(
-        double widthDip,
-        bool compact,
-        bool wide)
+    private EffectiveBandLayout CreateEffectiveLayout()
     {
-        CpuGroup.Width = compact ? 50 : wide ? 68 : 62;
-        MemoryGroup.Width = compact ? 50 : wide ? 58 : 54;
-        GpuGroup.Width = compact ? 58 : wide ? 68 : 62;
-        DownloadGroup.Width = compact ? 68 : wide ? 78 : 72;
-        UploadGroup.Width = compact ? 68 : wide ? 78 : 72;
-        DiskGroup.Width = compact ? 50 : wide ? 58 : 54;
-
-        FrameworkElement[] metricGroups =
-            { CpuGroup, MemoryGroup, GpuGroup, DownloadGroup, UploadGroup, DiskGroup };
-        FrameworkElement[] activeMetricGroups = compact
-            ? new FrameworkElement[]
-                { CpuGroup, MemoryGroup, GpuGroup, DownloadGroup, UploadGroup }
-            : metricGroups;
-        double baseWidth = activeMetricGroups.Sum(group => group.Width);
-        int activeGroupCount = activeMetricGroups.Length;
-        int separatorCount = activeGroupCount - 1;
-        double maximumFittingSpacing = Math.Max(
-            0,
-            (widthDip - baseWidth - separatorCount) / activeGroupCount);
-        double effectiveSpacing = Math.Min(_itemSpacingDip, maximumFittingSpacing);
-        Thickness metricMargin = new(effectiveSpacing / 2, 0, effectiveSpacing / 2, 0);
-        foreach (FrameworkElement group in metricGroups)
+        bool compact = false;
+        bool wide = false;
+        if (_regionSnapshot is { } snapshot)
         {
-            group.Margin = metricMargin;
+            double scale = (snapshot.TaskbarDpi == 0 ? 96 : snapshot.TaskbarDpi) / 96d;
+            double thicknessDip = (snapshot.TaskbarBottom - snapshot.TaskbarTop) / scale;
+            compact = thicknessDip <= 30;
+            wide = thicknessDip > 40;
         }
 
-        DiskGroup.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        DiskSeparator.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        CpuTemperatureText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        return EffectiveBandLayout.Create(
+            _metricVisibility,
+            compact,
+            wide,
+            _gpuCapability.IsCapable,
+            _itemSpacingDip);
+    }
+
+    private bool ApplyEffectiveLayout(EffectiveBandLayout layout)
+    {
+        if (_effectiveLayout == layout)
+        {
+            return false;
+        }
+
+        _effectiveLayout = layout;
+        var groups = new Dictionary<BandMetric, FrameworkElement>
+        {
+            [BandMetric.Cpu] = CpuGroup,
+            [BandMetric.Memory] = MemoryGroup,
+            [BandMetric.Gpu] = GpuGroup,
+            [BandMetric.Download] = DownloadGroup,
+            [BandMetric.Upload] = UploadGroup,
+            [BandMetric.SystemDisk] = DiskGroup
+        };
+        var precedingSeparators = new Dictionary<BandMetric, FrameworkElement>
+        {
+            [BandMetric.Memory] = CpuMemorySeparator,
+            [BandMetric.Gpu] = MemoryGpuSeparator,
+            [BandMetric.Download] = GpuDownloadSeparator,
+            [BandMetric.Upload] = DownloadUploadSeparator,
+            [BandMetric.SystemDisk] = UploadDiskSeparator
+        };
+        Thickness margin = new(
+            layout.ItemSpacingDip / 2,
+            0,
+            layout.ItemSpacingDip / 2,
+            0);
+        foreach ((BandMetric metric, FrameworkElement group) in groups)
+        {
+            group.Width = layout.SlotWidth(metric);
+            group.Margin = margin;
+            group.Visibility = layout.IsVisible(metric)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        foreach (FrameworkElement separator in precedingSeparators.Values)
+        {
+            separator.Visibility = Visibility.Collapsed;
+        }
+
+        foreach (BandMetric metric in layout.ActiveGroups.Skip(1))
+        {
+            precedingSeparators[metric].Visibility = Visibility.Visible;
+        }
+
+        CpuTemperatureText.Visibility = layout.Compact
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        return true;
     }
 
     public void RequestClose()
@@ -563,13 +636,23 @@ public partial class BandWindow : Window
             return;
         }
 
+        EffectiveBandLayout layout = CreateEffectiveLayout();
+        bool layoutChanged = ApplyEffectiveLayout(layout);
+        if (!layout.HasVisibleGroups)
+        {
+            _placementInvalidated = false;
+            _layoutRetryTimer.Stop();
+            SafetyPark("all band metrics disabled");
+            return;
+        }
+
         TaskbarPositionResult result = TaskbarPositioner.Position(
             this,
             _regionSnapshot,
             _horizontalPositionPercent,
             _legacyHorizontalOffsetDip,
-            _itemSpacingDip,
-            _placementInvalidated);
+            layout.TargetWidthDip,
+            _placementInvalidated || layoutChanged);
         _constraintExpansionPending = result.ConstraintConfirmationSuggested;
         if (result.ConstraintConfirmationSuggested &&
             !_constraintConfirmationInFlight &&
@@ -588,14 +671,6 @@ public partial class BandWindow : Window
             InvalidateRegionSnapshotAndRequestProbe();
             EnterDegraded("positioning detected a lost taskbar parent");
             return;
-        }
-
-        if (result.WidthDip > 0)
-        {
-            UpdateCompactMode(
-                result.WidthDip,
-                result.CompactLayout,
-                result.WideLayout);
         }
 
         if (result.ResolvedMigratedPositionPercent is double resolvedPercent)

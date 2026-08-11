@@ -9,6 +9,7 @@ namespace SysMonitor.Services;
 public sealed class MonitorService : IMonitorService
 {
     private static readonly TimeSpan NetworkRefreshInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan DriveRefreshInterval = TimeSpan.FromSeconds(10);
     private static readonly string[] VirtualAdapterMarkers =
     {
         "Hyper-V", "VMware", "Docker", "TAP", "TUN", "Virtual", "虚拟",
@@ -18,6 +19,7 @@ public sealed class MonitorService : IMonitorService
     private readonly CpuUsageReader _cpuReader = new();
     private readonly CpuTemperatureReader _cpuTemperatureReader = new();
     private readonly GpuTelemetryCoordinator _gpuCoordinator = new();
+    private readonly DriveTelemetryCache _driveTelemetry = new(GetSystemDriveRoot());
     private readonly List<NetworkCounter> _networkCounters = new();
     private CancellationTokenSource? _runCancellation;
     private Task? _samplingTask;
@@ -28,6 +30,7 @@ public sealed class MonitorService : IMonitorService
     private bool _cpuPrimed;
     private long _networkLastTimestamp;
     private long _networkRefreshTimestamp;
+    private long _driveRefreshTimestamp;
     private bool _disposed;
 
     public event EventHandler<MonitorSnapshot>? SnapshotUpdated;
@@ -120,13 +123,15 @@ public sealed class MonitorService : IMonitorService
     private async Task SamplingLoopAsync(CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+        do
         {
             double cpuUsage = ReadCpuUsage();
             double? cpuTemperature = _cpuTemperatureReader.Read();
             (double usage, long used, long total) memory = ReadMemory();
             (double download, double upload) network = ReadNetwork();
-            (string name, double usage) drive = ReadSystemDrive();
+            RefreshDrivesIfDue();
+            var fixedDrives = _driveTelemetry.Current;
+            DriveSnapshot? systemDrive = fixedDrives.FirstOrDefault(item => item.IsSystemDrive);
 
             var snapshot = new MonitorSnapshot(
                 Interlocked.Increment(ref _sequence),
@@ -140,12 +145,14 @@ public sealed class MonitorService : IMonitorService
                 _gpuCoordinator.Read(),
                 network.download,
                 network.upload,
-                drive.name,
-                drive.usage);
+                systemDrive?.Name ?? _driveTelemetry.SystemDriveName,
+                systemDrive?.UsagePercent ?? 0d,
+                fixedDrives);
 
             Volatile.Write(ref _latest, snapshot);
             RaiseSnapshotUpdated(snapshot);
         }
+        while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));
     }
 
     private void PrimeCpu()
@@ -230,26 +237,91 @@ public sealed class MonitorService : IMonitorService
         }
     }
 
-    private static (string name, double usage) ReadSystemDrive()
+    private void RefreshDrivesIfDue()
     {
-        string fallbackName = "C:";
+        long now = Stopwatch.GetTimestamp();
+        if (_driveRefreshTimestamp != 0 &&
+            Stopwatch.GetElapsedTime(_driveRefreshTimestamp, now) < DriveRefreshInterval)
+        {
+            return;
+        }
+
+        _driveRefreshTimestamp = now;
+        DriveInfo[] drives;
         try
         {
-            string root = Path.GetPathRoot(Environment.SystemDirectory) ?? fallbackName + "\\";
-            var drive = new DriveInfo(root);
-            long total = drive.TotalSize;
-            long free = drive.TotalFreeSpace;
-            if (total <= 0)
-            {
-                return (drive.Name.TrimEnd('\\'), 0);
-            }
-
-            double usage = (total - Math.Clamp(free, 0, total)) * 100d / total;
-            return (drive.Name.TrimEnd('\\'), Math.Clamp(usage, 0, 100));
+            drives = DriveInfo.GetDrives();
         }
         catch
         {
-            return (fallbackName, 0);
+            _driveTelemetry.ApplyGlobalFailure();
+            return;
+        }
+
+        var observations = new List<DriveTelemetryObservation>(drives.Length);
+        foreach (DriveInfo drive in drives)
+        {
+            string name;
+            try
+            {
+                name = drive.Name;
+            }
+            catch
+            {
+                continue;
+            }
+
+            bool isFixed;
+            bool isReady;
+            try
+            {
+                isFixed = drive.DriveType == DriveType.Fixed;
+                isReady = drive.IsReady;
+            }
+            catch
+            {
+                observations.Add(new DriveTelemetryObservation(
+                    name, true, true, false, string.Empty, 0, 0));
+                continue;
+            }
+
+            if (!isFixed || !isReady)
+            {
+                observations.Add(new DriveTelemetryObservation(
+                    name, isFixed, isReady, true, string.Empty, 0, 0));
+                continue;
+            }
+
+            try
+            {
+                observations.Add(new DriveTelemetryObservation(
+                    name,
+                    true,
+                    true,
+                    true,
+                    drive.VolumeLabel,
+                    drive.TotalSize,
+                    drive.TotalFreeSpace));
+            }
+            catch
+            {
+                observations.Add(new DriveTelemetryObservation(
+                    name, true, true, false, string.Empty, 0, 0));
+            }
+        }
+
+        _driveTelemetry.ApplySuccessfulEnumeration(observations);
+    }
+
+    private static string GetSystemDriveRoot()
+    {
+        try
+        {
+            return Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+        }
+        catch
+        {
+            return "C:\\";
         }
     }
 

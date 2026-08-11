@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using SysMonitor.Models;
@@ -122,6 +123,14 @@ public partial class AppearanceSettingsWindow : Window
         ItemSpacingLabelText.Text = localization.GetString("AppearanceItemSpacing");
         PositionLabelText.Text = localization.GetString("AppearancePosition");
         PositionHelpText.Text = localization.GetString("AppearancePositionHelp");
+        VisibleItemsLabelText.Text = localization.GetString("AppearanceVisibleItems");
+        VisibleItemsHelpText.Text = localization.GetString("AppearanceVisibleItemsHelp");
+        CpuVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleCpu");
+        MemoryVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleMemory");
+        GpuVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleGpu");
+        DownloadVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleDownload");
+        UploadVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleUpload");
+        DiskVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleSystemDisk");
         LanguageLabelText.Text = localization.GetString("AppearanceLanguage");
         PreviewLabelText.Text = localization.GetString("AppearancePreview");
         ApplyButton.Content = localization.GetString("AppearanceApply");
@@ -137,6 +146,12 @@ public partial class AppearanceSettingsWindow : Window
         SetAutomationName(FontSizeSlider, localization.GetString("AppearanceFontSize"));
         SetAutomationName(ItemSpacingSlider, localization.GetString("AppearanceItemSpacing"));
         SetAutomationName(HorizontalOffsetSlider, localization.GetString("AppearancePosition"));
+        SetAutomationName(CpuVisibilityCheckBox, localization.GetString("AppearanceVisibleCpu"));
+        SetAutomationName(MemoryVisibilityCheckBox, localization.GetString("AppearanceVisibleMemory"));
+        SetAutomationName(GpuVisibilityCheckBox, localization.GetString("AppearanceVisibleGpu"));
+        SetAutomationName(DownloadVisibilityCheckBox, localization.GetString("AppearanceVisibleDownload"));
+        SetAutomationName(UploadVisibilityCheckBox, localization.GetString("AppearanceVisibleUpload"));
+        SetAutomationName(DiskVisibilityCheckBox, localization.GetString("AppearanceVisibleSystemDisk"));
         SetAutomationName(LanguageComboBox, localization.GetString("AppearanceLanguage"));
         SetAutomationName(ApplyButton, localization.GetString("AppearanceApply"));
         SetAutomationName(RestoreDefaultsButton, localization.GetString("AppearanceRestoreDefaults"));
@@ -161,6 +176,13 @@ public partial class AppearanceSettingsWindow : Window
             FontSizeSlider.Value = NormalizeFontSize(value.FontSize);
             ItemSpacingSlider.Value = NormalizeItemSpacing(value.ItemSpacingDip);
             HorizontalOffsetSlider.Value = NormalizePosition(value.HorizontalPositionPercent);
+            BandMetricVisibility visibility = value.EffectiveMetricVisibility;
+            CpuVisibilityCheckBox.IsChecked = visibility.Cpu;
+            MemoryVisibilityCheckBox.IsChecked = visibility.Memory;
+            GpuVisibilityCheckBox.IsChecked = visibility.Gpu;
+            DownloadVisibilityCheckBox.IsChecked = visibility.Download;
+            UploadVisibilityCheckBox.IsChecked = visibility.Upload;
+            DiskVisibilityCheckBox.IsChecked = visibility.SystemDisk;
             if (markApplied)
             {
                 _lastApplied = new BandAppearanceSettings(
@@ -170,7 +192,8 @@ public partial class AppearanceSettingsWindow : Window
                         ? Math.Clamp(position, 0, 100)
                         : null,
                     NormalizeItemSpacing(value.ItemSpacingDip),
-                    value.LegacyHorizontalOffsetDip);
+                    value.LegacyHorizontalOffsetDip,
+                    visibility);
             }
 
             _showingAppliedStatus = false;
@@ -188,7 +211,15 @@ public partial class AppearanceSettingsWindow : Window
             NormalizeFontFamily(FontFamilyComboBox.Text),
             NormalizeFontSize(FontSizeSlider.Value),
             NormalizePosition(HorizontalOffsetSlider.Value),
-            NormalizeItemSpacing(ItemSpacingSlider.Value));
+            NormalizeItemSpacing(ItemSpacingSlider.Value),
+            0,
+            new BandMetricVisibility(
+                CpuVisibilityCheckBox.IsChecked == true,
+                MemoryVisibilityCheckBox.IsChecked == true,
+                GpuVisibilityCheckBox.IsChecked == true,
+                DownloadVisibilityCheckBox.IsChecked == true,
+                UploadVisibilityCheckBox.IsChecked == true,
+                DiskVisibilityCheckBox.IsChecked == true));
 
     private void UpdatePreview()
     {
@@ -200,7 +231,17 @@ public partial class AppearanceSettingsWindow : Window
         PreviewText.FontSize = value.FontSize;
         int previewSpaces = 1 + (int)Math.Round(value.ItemSpacingDip / 3);
         string gap = new(' ', previewSpaces);
-        PreviewText.Text = $"CPU 37%{gap}MEM 63%{gap}↓ 1.2 MB/s";
+        BandMetricVisibility visibility = value.EffectiveMetricVisibility;
+        var previewItems = new List<string>(6);
+        if (visibility.Cpu) previewItems.Add("CPU 37%");
+        if (visibility.Memory) previewItems.Add("MEM 63%");
+        if (visibility.Gpu) previewItems.Add("GPU 12%");
+        if (visibility.Download) previewItems.Add("↓ 1.2 MB/s");
+        if (visibility.Upload) previewItems.Add("↑ 256 KB/s");
+        if (visibility.SystemDisk) previewItems.Add("C: 45%");
+        PreviewText.Text = previewItems.Count == 0
+            ? LocalizationService.Current.GetString("AppearanceVisibleItemsHelp")
+            : string.Join(gap, previewItems);
         try
         {
             PreviewText.FontFamily = new MediaFontFamily(value.FontFamily);
@@ -351,6 +392,40 @@ public partial class AppearanceSettingsWindow : Window
 
     private void HorizontalOffsetSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) =>
         ScheduleLivePreview();
+
+    private void VisibilityCheckBox_Changed(object sender, RoutedEventArgs e) =>
+        ScheduleLivePreview();
+
+    private void AppearanceSettingsWindow_Loaded(object sender, RoutedEventArgs e) =>
+        ConstrainToWorkArea();
+
+    private void AppearanceSettingsWindow_Activated(object? sender, EventArgs e) =>
+        ConstrainToWorkArea();
+
+    private void AppearanceSettingsWindow_LocationChanged(object? sender, EventArgs e) =>
+        ConstrainToWorkArea();
+
+    private void AppearanceSettingsWindow_DpiChanged(
+        object sender,
+        System.Windows.DpiChangedEventArgs e) =>
+        ConstrainToWorkArea();
+
+    private void ConstrainToWorkArea()
+    {
+        nint handle = new WindowInteropHelper(this).Handle;
+        if (handle == nint.Zero)
+        {
+            return;
+        }
+
+        System.Drawing.Rectangle workingArea =
+            System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
+        HwndSource? source = HwndSource.FromHwnd(handle);
+        double deviceToDipY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1d;
+        double availableHeight = Math.Max(360d, workingArea.Height * deviceToDipY - 16d);
+        MaxHeight = availableHeight;
+        Height = Math.Min(676d, availableHeight);
+    }
 
     private void AppearanceSettingsWindow_Closing(object? sender, CancelEventArgs e)
     {

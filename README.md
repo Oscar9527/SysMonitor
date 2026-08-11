@@ -27,9 +27,9 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 内存 | 物理内存使用率、已用/总容量 |
 | GPU | NVIDIA、AMD、Intel 使用率；硬件可提供时显示核心温度和专用显存 |
 | 网络 | 所有活动 IPv4 网卡合计的下载/上传速率 |
-| 磁盘 | 首个固定磁盘的使用率 |
+| 磁盘 | Band 显示系统盘使用率；详情面板显示所有可用固定磁盘的已用/总容量与使用率 |
 | 托盘 | 显示/隐藏面板、窗口置顶、开机自启、退出 |
-| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置、简体中文/English 和安全区域 |
+| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置、按项显示/隐藏、简体中文/English 和安全区域 |
 | 稳定性 | 父任务栏相对定位、固定指标槽位、等宽数字、边界迟滞和 Windows 10 重绘抑制 |
 | 便携运行 | 单文件启动器自动释放核心程序，不写入安装目录，不需要管理员权限 |
 
@@ -94,7 +94,7 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | GPU（AMD/Intel） | LibreHardwareMonitor | 1 秒 | 读取驱动公开的利用率和可用传感器 |
 | 网络 | `NetworkInterface.GetIPv4Statistics` | 1 秒 | 所有活动网卡合计 |
 | 网卡列表 | `GetAllNetworkInterfaces` | 60 秒 | 重新发现活动网卡 |
-| 磁盘 | `DriveInfo.GetDrives()` | 10 秒 | 首个固定磁盘 |
+| 磁盘 | `DriveInfo.GetDrives()` | 10 秒 | 详情显示全部固定磁盘，Band 只显示系统盘 |
 
 所有指标均在本机采集，程序不会上传性能数据。
 
@@ -137,6 +137,7 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SysMonitor
 - 界面语言：跟随系统、简体中文或 English；切换后立即生效。
 - Band 字体和字号。
 - CPU、内存、GPU、下载、上传、磁盘项目之间的间距。
+- CPU、内存、GPU、下载、上传和系统盘可分别显示或隐藏；全部隐藏后可从托盘重新打开设置。
 - Band 左右位置偏移。
 - 任务栏图标和通知区的安全边界。
 - 面板是否置顶。
