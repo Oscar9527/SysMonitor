@@ -14,7 +14,7 @@ Environment: Windows 11 x64; interactive user session left untouched
 
 - Release build completed with 0 warnings and 0 errors; the full suite passed 228/228 tests.
 - A read-only production-reader probe matched the active Delta Force process (PID 28276) and returned 88.9 FPS from RTSS plus 93.9 °C from the unique aggregate MAHM CPU sensor. Both values remained nullable and were not asserted as fixed environmental values.
-- The final portable launcher is one `SysMonitor.exe`, version 1.5.0, 8,391,680 bytes (8.00 MiB), SHA-256 `CA3A428818CD7C2CE7EDE5C5C49202F6A73AA33A2B41C747DE21B26C15B8A843`.
+- The final portable launcher is one `SysMonitor.exe`, version 1.5.0, 8,391,680 bytes (8.00 MiB), SHA-256 `FBAFF32F0DB5CA7D6C4181C933E6D191B67921C3EE7701B7DB14B251EFCC25CB`.
 - The launcher contains the versioned `SysMonitor.Core.1.5.0.exe` resource. The core embeds the pinned official PresentMon 2.5.1 x64 binary, its MIT license, and the project third-party notice.
 - The embedded PresentMon binary is verified by test and at extraction time against SHA-256 `9BEC3083069F58F911E6A512F4806DB51A27BD096103087BC1D05EF54C80A191`.
 - Exact collector arguments, owned-session termination arguments, bounded output, comma-bearing application names, invalid/overlong rows, per-swapchain aggregation, hysteresis and stale clearing have deterministic coverage.
