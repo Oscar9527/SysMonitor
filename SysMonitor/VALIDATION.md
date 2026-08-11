@@ -1,7 +1,20 @@
-# SysMonitor 1.4 validation
+# SysMonitor 1.4.1 validation
 
 Validation date: 2026-08-11
 Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, auto-hidden taskbar
+
+## v1.4.1 Band click reliability release
+
+- Root cause was confirmed with native per-pixel hit testing: the transparent layered Band routed only 1,878 of 13,226 client pixels (14.2%) to its own HWND; transparent margins and glyph interiors were routed to Explorer.
+- A theme-independent ARGB alpha-1 hit surface now covers the complete Band rectangle while the visible theme layer remains transparent or image-backed. The same native `WindowFromPoint` scan after the fix routed all 13,226 pixels to the Band HWND (100%, 0 misses).
+- The toggle entry point is now `WM_LBUTTONDOWN`; `WM_LBUTTONUP` never toggles. A monotonic 350 ms down-event debouncer collapses native double-click sequences without extending the suppression window.
+- Deterministic tests cover the first click, exact debounce boundary, repeated timestamps, clock rollback, down-only message policy, theme-independent hit surface, tray activation policy and normal/pinned z-order requests.
+- A live down/up sequence showed and hid the detail panel correctly. The panel was above the existing foreground window while `GetForegroundWindow` remained unchanged, and the final state was hidden. A burst pair toggled exactly once.
+- Non-pinned Band shows use a non-activating topmost/not-topmost z-order sequence, leaving the final window non-topmost. Pinned shows retain true topmost state. Tray shows keep the existing activation behavior.
+- Release build completed with 0 warnings and 0 errors; the full suite passed 156/156 tests.
+- A 30.9-second settled sample observed one Band HWND, one parent, one X position, one width and one Y position. Every sample remained no-activate and the Band never became foreground.
+- During that sample, normalized CPU use was below the measurable 0.0001% threshold. Handles changed from 874 to 865, GDI objects stayed 39 to 39, USER objects changed from 44 to 43, and exactly one v1.4.1 core process remained.
+- The final portable executable SHA-256 and immutable source commit are recorded in the annotated `v1.4.1` tag after the final rebuild succeeds.
 
 ## v1.4.0 history chart release
 
