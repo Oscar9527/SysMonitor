@@ -18,8 +18,9 @@ public sealed class MonitorService : IMonitorService
 
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly CpuUsageReader _cpuReader = new();
-    private readonly CpuTemperatureReader _cpuTemperatureReader = new();
-    private readonly GpuTelemetryCoordinator _gpuCoordinator = new();
+    private readonly CpuTemperatureReader? _cpuTemperatureReader;
+    private readonly CpuFrequencyReader _cpuFrequencyReader = new();
+    private readonly GpuTelemetryCoordinator _gpuCoordinator;
     private readonly DriveTelemetryCache _driveTelemetry = new(GetSystemDriveRoot());
     private readonly List<NetworkCounter> _networkCounters = new();
     private readonly long _producerId = Interlocked.Increment(ref s_nextProducerId);
@@ -39,6 +40,24 @@ public sealed class MonitorService : IMonitorService
 
     public MonitorSnapshot Latest => Volatile.Read(ref _latest);
 
+    public MonitorService()
+        : this(MonitorOptions.GameSafe)
+    {
+    }
+
+    public MonitorService(MonitorOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        _cpuTemperatureReader = options.EnableCpuTemperatureReader
+            ? new CpuTemperatureReader()
+            : null;
+        _gpuCoordinator = new GpuTelemetryCoordinator(options.EnableLibreHardwareMonitor);
+        BandDiagnostics.Log(
+            $"monitor options gameSafe={!options.EnableLibreHardwareMonitor && !options.EnableCpuTemperatureReader} " +
+            $"cpuTemperature={options.EnableCpuTemperatureReader} " +
+            $"libreHardwareMonitor={options.EnableLibreHardwareMonitor}");
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -54,7 +73,7 @@ public sealed class MonitorService : IMonitorService
             _runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             PrimeCpu();
             _cpuReader.Start();
-            _cpuTemperatureReader.Start();
+            _cpuTemperatureReader?.Start();
             InitializeNetworkCounters();
             await _gpuCoordinator.StartAsync(_runCancellation.Token).ConfigureAwait(false);
             _samplingTask = Task.Run(
@@ -86,7 +105,7 @@ public sealed class MonitorService : IMonitorService
             }
 
             await _gpuCoordinator.StopAsync().ConfigureAwait(false);
-            _cpuTemperatureReader.Stop();
+            _cpuTemperatureReader?.Stop();
             _cpuReader.Stop();
             _samplingTask = null;
             _runCancellation?.Dispose();
@@ -117,7 +136,7 @@ public sealed class MonitorService : IMonitorService
 
         await StopAsync().ConfigureAwait(false);
         await _gpuCoordinator.DisposeAsync().ConfigureAwait(false);
-        _cpuTemperatureReader.Dispose();
+        _cpuTemperatureReader?.Dispose();
         _cpuReader.Dispose();
         _lifecycle.Dispose();
     }
@@ -128,7 +147,8 @@ public sealed class MonitorService : IMonitorService
         do
         {
             double cpuUsage = ReadCpuUsage();
-            double? cpuTemperature = _cpuTemperatureReader.Read();
+            double? cpuTemperature = _cpuTemperatureReader?.Read();
+            double? cpuFrequency = _cpuFrequencyReader.ReadCurrentMhz();
             (double usage, long used, long total) memory = ReadMemory();
             (double download, double upload) network = ReadNetwork();
             RefreshDrivesIfDue();
@@ -152,7 +172,8 @@ public sealed class MonitorService : IMonitorService
                 fixedDrives)
             {
                 ProducerId = _producerId,
-                MonotonicTimestamp = Stopwatch.GetTimestamp()
+                MonotonicTimestamp = Stopwatch.GetTimestamp(),
+                CpuFrequencyMhz = cpuFrequency
             };
 
             Volatile.Write(ref _latest, snapshot);

@@ -12,7 +12,9 @@ public sealed class TrayIconService : IDisposable
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.ContextMenuStrip _contextMenu;
     private readonly Forms.ToolStripMenuItem _panelItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayItem;
     private readonly Forms.ToolStripMenuItem _appearanceItem;
+    private readonly Forms.ToolStripMenuItem _gameSafeModeItem;
     private readonly Forms.ToolStripMenuItem _pinItem;
     private readonly Forms.ToolStripMenuItem _startupItem;
     private readonly Forms.ToolStripMenuItem _exitItem;
@@ -20,6 +22,8 @@ public sealed class TrayIconService : IDisposable
     private Icon? _themedIcon;
     private bool _syncingState;
     private bool _panelVisible;
+    private bool _gameOverlayVisible;
+    private bool _gameOverlayAvailable = true;
     private bool _disposed;
 
     public TrayIconService()
@@ -29,8 +33,14 @@ public sealed class TrayIconService : IDisposable
         _panelItem = new Forms.ToolStripMenuItem();
         _panelItem.Click += OnPanelItemClick;
 
+        _gameOverlayItem = new Forms.ToolStripMenuItem();
+        _gameOverlayItem.Click += OnGameOverlayItemClick;
+
         _appearanceItem = new Forms.ToolStripMenuItem();
         _appearanceItem.Click += OnAppearanceItemClick;
+
+        _gameSafeModeItem = new Forms.ToolStripMenuItem { CheckOnClick = true, Checked = true };
+        _gameSafeModeItem.CheckedChanged += OnGameSafeModeCheckedChanged;
 
         _pinItem = new Forms.ToolStripMenuItem { CheckOnClick = true };
         _pinItem.CheckedChanged += OnPinCheckedChanged;
@@ -45,8 +55,10 @@ public sealed class TrayIconService : IDisposable
         _contextMenu.Items.AddRange(
         [
             _panelItem,
+            _gameOverlayItem,
             _appearanceItem,
             new Forms.ToolStripSeparator(),
+            _gameSafeModeItem,
             _pinItem,
             _startupItem,
             new Forms.ToolStripSeparator(),
@@ -66,10 +78,18 @@ public sealed class TrayIconService : IDisposable
     }
 
     public event EventHandler? ToggleDetailsRequested;
+    public event EventHandler? ToggleGameOverlayRequested;
     public event EventHandler? AppearanceSettingsRequested;
+    public event Action<bool>? GameSafeModeChangeRequested;
     public event Action<bool>? PinToggled;
     public event Action<bool>? StartupToggled;
     public event EventHandler? ExitRequested;
+
+    public bool GameOverlayVisible => _gameOverlayVisible;
+
+    public bool GameOverlayAvailable => _gameOverlayAvailable;
+
+    public bool GameSafeModeEnabled => _gameSafeModeItem.Checked;
 
     public void SetPanelVisible(bool visible)
     {
@@ -88,6 +108,31 @@ public sealed class TrayIconService : IDisposable
     {
         ThrowIfDisposed();
         SetCheckedWithoutNotification(_startupItem, enabled);
+    }
+
+    public void SetGameOverlayState(bool visible, bool available)
+    {
+        ThrowIfDisposed();
+        _gameOverlayVisible = visible;
+        _gameOverlayAvailable = available;
+        SetGameOverlayItemText();
+    }
+
+    public void SetGameSafeMode(bool enabled)
+    {
+        ThrowIfDisposed();
+        SetCheckedWithoutNotification(_gameSafeModeItem, enabled);
+    }
+
+    public void ShowGameSafeModeRestartRequired()
+    {
+        ThrowIfDisposed();
+        LocalizationService localization = LocalizationService.Current;
+        _notifyIcon.ShowBalloonTip(
+            5000,
+            localization.GetString("TrayGameSafeModeRestartTitle"),
+            localization.GetString("TrayGameSafeModeRestartMessage"),
+            Forms.ToolTipIcon.Info);
     }
 
     public bool ApplyThemeIcon(string? iconPath)
@@ -136,7 +181,9 @@ public sealed class TrayIconService : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.MouseUp -= OnNotifyIconMouseUp;
         _panelItem.Click -= OnPanelItemClick;
+        _gameOverlayItem.Click -= OnGameOverlayItemClick;
         _appearanceItem.Click -= OnAppearanceItemClick;
+        _gameSafeModeItem.CheckedChanged -= OnGameSafeModeCheckedChanged;
         _pinItem.CheckedChanged -= OnPinCheckedChanged;
         _startupItem.CheckedChanged -= OnStartupCheckedChanged;
         _exitItem.Click -= OnExitItemClick;
@@ -156,7 +203,10 @@ public sealed class TrayIconService : IDisposable
 
         LocalizationService localization = LocalizationService.Current;
         SetPanelItemText();
+        SetGameOverlayItemText();
         _appearanceItem.Text = localization.GetString("TrayAppearance");
+        _gameSafeModeItem.Text = localization.GetString("TrayGameSafeMode");
+        _gameSafeModeItem.ToolTipText = localization.GetString("TrayGameSafeModeHelp");
         _pinItem.Text = localization.GetString("TrayPin");
         _startupItem.Text = localization.GetString("TrayStartup");
         _exitItem.Text = localization.GetString("TrayExit");
@@ -165,6 +215,20 @@ public sealed class TrayIconService : IDisposable
     private void SetPanelItemText() =>
         _panelItem.Text = LocalizationService.Current.GetString(
             _panelVisible ? "TrayHidePanel" : "TrayShowPanel");
+
+    private void SetGameOverlayItemText()
+    {
+        _gameOverlayItem.Enabled = _gameOverlayAvailable;
+        _gameOverlayItem.Text = LocalizationService.Current.GetString(
+            GetGameOverlayResourceKey(_gameOverlayVisible, _gameOverlayAvailable));
+    }
+
+    internal static string GetGameOverlayResourceKey(bool visible, bool available) =>
+        !available
+            ? "TrayGameOverlayUnavailableCompatibility"
+            : visible
+                ? "TrayHideGameOverlay"
+                : "TrayShowGameOverlay";
 
     private void OnCultureChanged(object? sender, EventArgs e) => ApplyLocalizedText();
 
@@ -179,8 +243,19 @@ public sealed class TrayIconService : IDisposable
     private void OnPanelItemClick(object? sender, EventArgs e) =>
         ToggleDetailsRequested?.Invoke(this, EventArgs.Empty);
 
+    private void OnGameOverlayItemClick(object? sender, EventArgs e) =>
+        ToggleGameOverlayRequested?.Invoke(this, EventArgs.Empty);
+
     private void OnAppearanceItemClick(object? sender, EventArgs e) =>
         AppearanceSettingsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnGameSafeModeCheckedChanged(object? sender, EventArgs e)
+    {
+        if (!_syncingState)
+        {
+            GameSafeModeChangeRequested?.Invoke(_gameSafeModeItem.Checked);
+        }
+    }
 
     private void OnPinCheckedChanged(object? sender, EventArgs e)
     {

@@ -80,4 +80,23 @@
   <data name="ThemeUnavailable" xml:space="preserve"><value>所选主题已不可用。</value></data>
   <data name="MetricHistoryTooltip" xml:space="preserve"><value>最近 60 秒使用率历史</value></data>
   <data name="MetricHistoryAutomation" xml:space="preserve"><value>{0}，最近 60 秒使用率历史</value></data>
+  <data name="OverlayPresentFps" xml:space="preserve"><value>呈现帧率</value></data>
+  <data name="OverlaySystemCpu" xml:space="preserve"><value>系统 CPU</value></data>
+  <data name="OverlaySystemMemory" xml:space="preserve"><value>系统内存</value></data>
+  <data name="OverlaySystemGpu" xml:space="preserve"><value>系统 GPU</value></data>
+  <data name="OverlayCpuTemperature" xml:space="preserve"><value>CPU 温度</value></data>
+  <data name="OverlayGpuTemperature" xml:space="preserve"><value>GPU 温度</value></data>
+  <data name="OverlayCurrentFrequency" xml:space="preserve"><value>CPU / GPU 频率</value></data>
+  <data name="OverlayStateWaitingForTarget" xml:space="preserve"><value>等待切换到前台游戏</value></data>
+  <data name="OverlayStateStarting" xml:space="preserve"><value>等待呈现事件</value></data>
+  <data name="OverlayStateUnavailable" xml:space="preserve"><value>帧率暂不可用</value></data>
+  <data name="TrayShowGameOverlay" xml:space="preserve"><value>显示游戏叠加层  Ctrl+Shift+F10</value></data>
+  <data name="TrayHideGameOverlay" xml:space="preserve"><value>隐藏游戏叠加层  Ctrl+Shift+F10</value></data>
+  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层不可用（兼容模式）</value></data>
+  <data name="TrayGameSafeMode" xml:space="preserve"><value>游戏安全模式（推荐）</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>兼容传感器需主动选择；更改将在重启后生效。</value></data>
+  <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>需要重启</value></data>
+  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用传感器模式。兼容模式运行时，游戏叠加层保持不可用。</value></data>
+  <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 已被其他应用注册。</value></data>
+  <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>无法注册 Ctrl+Shift+F10（Win32 错误 {0}）。</value></data>
 </root>

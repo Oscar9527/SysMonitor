@@ -9,7 +9,12 @@ public sealed record GpuSnapshot(
     double? TemperatureCelsius,
     long? MemoryUsedBytes,
     long? MemoryTotalBytes,
-    DateTimeOffset SampledAt);
+    DateTimeOffset SampledAt)
+{
+    public double? CoreClockMhz { get; init; }
+
+    public double? MemoryClockMhz { get; init; }
+}
 
 public sealed record MonitorSnapshot(
     long Sequence,
@@ -32,6 +37,8 @@ public sealed record MonitorSnapshot(
     public long ProducerId { get; init; }
 
     public long MonotonicTimestamp { get; init; }
+
+    public double? CpuFrequencyMhz { get; init; }
 
     public ImmutableArray<DriveSnapshot> FixedDrives
     {

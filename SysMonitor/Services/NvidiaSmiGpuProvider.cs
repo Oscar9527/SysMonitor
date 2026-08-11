@@ -15,7 +15,9 @@ internal readonly record struct NvidiaSmiRow(
     double? UsagePercent,
     double? TemperatureCelsius,
     long? MemoryUsedBytes,
-    long? MemoryTotalBytes);
+    long? MemoryTotalBytes,
+    double? CoreClockMhz,
+    double? MemoryClockMhz);
 
 internal static class NvidiaSmiCsv
 {
@@ -23,7 +25,7 @@ internal static class NvidiaSmiCsv
     {
         row = default;
         List<string> fields = Parse(line);
-        if (fields.Count != 9)
+        if (fields.Count != 11)
         {
             return false;
         }
@@ -70,7 +72,9 @@ internal static class NvidiaSmiCsv
             usage,
             temperature,
             GpuSensorSelector.MiBToBytes(ParseMetric(fields[7])),
-            GpuSensorSelector.MiBToBytes(ParseMetric(fields[8])));
+            GpuSensorSelector.MiBToBytes(ParseMetric(fields[8])),
+            PositiveMetric(fields[9]),
+            PositiveMetric(fields[10]));
         return true;
     }
 
@@ -123,6 +127,12 @@ internal static class NvidiaSmiCsv
                double.IsFinite(parsed)
             ? parsed
             : null;
+    }
+
+    private static double? PositiveMetric(string value)
+    {
+        double? metric = ParseMetric(value);
+        return metric is > 0d ? metric : null;
     }
 
     private static string? ParseIdentity(string value)
@@ -206,7 +216,11 @@ internal sealed class NvidiaSmiCycleAccumulator
                 row.MemoryUsedBytes,
                 row.MemoryTotalBytes,
                 row.SampledAt,
-                _monotonicTimestamp))
+                _monotonicTimestamp)
+            {
+                CoreClockMhz = row.CoreClockMhz,
+                MemoryClockMhz = row.MemoryClockMhz,
+            })
             .ToArray();
         return new GpuProviderCycle(
             GpuTelemetrySource.NvidiaSmi,
@@ -451,7 +465,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-        startInfo.ArgumentList.Add("--query-gpu=timestamp,index,uuid,pci.bus_id,name,utilization.gpu,temperature.gpu,memory.used,memory.total");
+        startInfo.ArgumentList.Add("--query-gpu=timestamp,index,uuid,pci.bus_id,name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.current.graphics,clocks.current.memory");
         startInfo.ArgumentList.Add("--format=csv,noheader,nounits");
         startInfo.ArgumentList.Add("--loop=1");
         return Process.Start(startInfo) ??

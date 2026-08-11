@@ -8,7 +8,7 @@ public sealed class NvidiaSmiParsingTests
     public void ParsesQuotedCommaAndEachMetricIndependently()
     {
         const string line =
-            "2026/08/10 12:34:56.000, 2, GPU-ABC, 00000000:01:00.0, \"RTX, Special\", N/A, 67, 12.5, N/A";
+            "2026/08/10 12:34:56.000, 2, GPU-ABC, 00000000:01:00.0, \"RTX, Special\", N/A, 67, 12.5, N/A, 1875, 9501";
 
         Assert.True(NvidiaSmiCsv.TryParseRow(line, out NvidiaSmiRow row));
         Assert.Equal(2, row.Index);
@@ -18,16 +18,18 @@ public sealed class NvidiaSmiParsingTests
         Assert.Equal(67, row.TemperatureCelsius);
         Assert.Equal(13107200, row.MemoryUsedBytes);
         Assert.Null(row.MemoryTotalBytes);
+        Assert.Equal(1875, row.CoreClockMhz);
+        Assert.Equal(9501, row.MemoryClockMhz);
     }
 
     [Fact]
     public void RejectsMalformedRequiredFieldsButAllowsMissingOptionalIdentity()
     {
         Assert.False(NvidiaSmiCsv.TryParseRow(
-            "bad timestamp, 0, N/A, N/A, GPU, 1, 2, 3, 4",
+            "bad timestamp, 0, N/A, N/A, GPU, 1, 2, 3, 4, 5, 6",
             out _));
         Assert.True(NvidiaSmiCsv.TryParseRow(
-            "2026/08/10 12:34:56, 0, N/A, N/A, GPU, 1, 2, 3, 4",
+            "2026/08/10 12:34:56, 0, N/A, N/A, GPU, 1, 2, 3, 4, N/A, N/A",
             out NvidiaSmiRow row));
         Assert.Null(row.Uuid);
         Assert.Null(row.PciBusId);
@@ -70,5 +72,5 @@ public sealed class NvidiaSmiParsingTests
     }
 
     private static string Row(string time, int index, int usage) =>
-        $"2026/08/10 {time}, {index}, GPU-{index}, 00000000:0{index}:00.0, GPU {index}, {usage}, 60, 100, 1000";
+        $"2026/08/10 {time}, {index}, GPU-{index}, 00000000:0{index}:00.0, GPU {index}, {usage}, 60, 100, 1000, 1800, 9000";
 }

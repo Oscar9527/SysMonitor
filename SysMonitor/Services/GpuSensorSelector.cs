@@ -5,6 +5,7 @@ internal enum GpuSensorKind
     Load,
     Temperature,
     SmallData,
+    Clock,
 }
 
 internal readonly record struct GpuSensorReading(
@@ -16,7 +17,11 @@ internal readonly record struct GpuSensorSelection(
     double? UsagePercent,
     double? TemperatureCelsius,
     long? DedicatedMemoryUsedBytes,
-    long? DedicatedMemoryTotalBytes);
+    long? DedicatedMemoryTotalBytes)
+{
+    internal double? CoreClockMhz { get; init; }
+    internal double? MemoryClockMhz { get; init; }
+}
 
 internal static class GpuSensorSelector
 {
@@ -32,6 +37,8 @@ internal static class GpuSensorSelector
         double? memoryTotalMiB = null;
         double? memoryFreeMiB = null;
         double? d3dDedicatedUsedMiB = null;
+        double? coreClockMhz = null;
+        double? memoryClockMhz = null;
 
         foreach (GpuSensorReading reading in readings)
         {
@@ -93,6 +100,23 @@ internal static class GpuSensorSelector
                     }
 
                     break;
+
+                case GpuSensorKind.Clock:
+                    if (value <= 0d)
+                    {
+                        break;
+                    }
+
+                    if (name == "GPU CORE")
+                    {
+                        coreClockMhz = value;
+                    }
+                    else if (name == "GPU MEMORY")
+                    {
+                        memoryClockMhz = value;
+                    }
+
+                    break;
             }
         }
 
@@ -112,7 +136,11 @@ internal static class GpuSensorSelector
             usage,
             temperature,
             MiBToBytes(memoryUsedMiB),
-            totalBytes);
+            totalBytes)
+        {
+            CoreClockMhz = coreClockMhz,
+            MemoryClockMhz = memoryClockMhz,
+        };
     }
 
     internal static long? MiBToBytes(double? value)

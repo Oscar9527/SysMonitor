@@ -80,4 +80,23 @@
   <data name="ThemeUnavailable" xml:space="preserve"><value>The selected theme is no longer available.</value></data>
   <data name="MetricHistoryTooltip" xml:space="preserve"><value>Usage history for the last 60 seconds</value></data>
   <data name="MetricHistoryAutomation" xml:space="preserve"><value>{0}, usage history for the last 60 seconds</value></data>
+  <data name="OverlayPresentFps" xml:space="preserve"><value>Present FPS</value></data>
+  <data name="OverlaySystemCpu" xml:space="preserve"><value>System CPU</value></data>
+  <data name="OverlaySystemMemory" xml:space="preserve"><value>System memory</value></data>
+  <data name="OverlaySystemGpu" xml:space="preserve"><value>System GPU</value></data>
+  <data name="OverlayCpuTemperature" xml:space="preserve"><value>CPU temp</value></data>
+  <data name="OverlayGpuTemperature" xml:space="preserve"><value>GPU temp</value></data>
+  <data name="OverlayCurrentFrequency" xml:space="preserve"><value>CPU / GPU clocks</value></data>
+  <data name="OverlayStateWaitingForTarget" xml:space="preserve"><value>Waiting for a foreground game</value></data>
+  <data name="OverlayStateStarting" xml:space="preserve"><value>Waiting for Present events</value></data>
+  <data name="OverlayStateUnavailable" xml:space="preserve"><value>FPS unavailable</value></data>
+  <data name="TrayShowGameOverlay" xml:space="preserve"><value>Show game overlay  Ctrl+Shift+F10</value></data>
+  <data name="TrayHideGameOverlay" xml:space="preserve"><value>Hide game overlay  Ctrl+Shift+F10</value></data>
+  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>Game overlay unavailable (compatibility mode)</value></data>
+  <data name="TrayGameSafeMode" xml:space="preserve"><value>Game safe mode (recommended)</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>Compatibility sensors are opt-in. Changes take effect after restart.</value></data>
+  <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>Restart required</value></data>
+  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>Restart SysMonitor to apply the sensor mode. The game overlay stays unavailable while compatibility mode is running.</value></data>
+  <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 is already registered by another application.</value></data>
+  <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>Ctrl+Shift+F10 could not be registered (Win32 error {0}).</value></data>
 </root>

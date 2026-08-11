@@ -19,7 +19,16 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
     private bool _disposed;
 
     internal GpuTelemetryCoordinator()
-        : this(new NvidiaSmiGpuProvider(), new LibreHardwareMonitorGpuProvider())
+        : this(enableLibreHardwareMonitor: true)
+    {
+    }
+
+    internal GpuTelemetryCoordinator(bool enableLibreHardwareMonitor)
+        : this(
+            new NvidiaSmiGpuProvider(),
+            enableLibreHardwareMonitor
+                ? new LibreHardwareMonitorGpuProvider()
+                : DisabledGpuTelemetryProvider.Instance)
     {
     }
 
@@ -115,7 +124,11 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
                 Finite(selected.TemperatureCelsius),
                 NonNegative(selected.DedicatedMemoryUsedBytes),
                 NonNegative(selected.DedicatedMemoryTotalBytes),
-                selected.SampledAt);
+                selected.SampledAt)
+            {
+                CoreClockMhz = Finite(selected.CoreClockMhz),
+                MemoryClockMhz = Finite(selected.MemoryClockMhz),
+            };
     }
 
     public async ValueTask DisposeAsync()
@@ -300,6 +313,8 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
         TemperatureCelsius = primary.TemperatureCelsius ?? secondary.TemperatureCelsius,
         DedicatedMemoryUsedBytes = primary.DedicatedMemoryUsedBytes ?? secondary.DedicatedMemoryUsedBytes,
         DedicatedMemoryTotalBytes = primary.DedicatedMemoryTotalBytes ?? secondary.DedicatedMemoryTotalBytes,
+        CoreClockMhz = primary.CoreClockMhz ?? secondary.CoreClockMhz,
+        MemoryClockMhz = primary.MemoryClockMhz ?? secondary.MemoryClockMhz,
     };
 
     private static double? Finite(double? value) =>
@@ -344,5 +359,18 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
         _currentStableId = null;
         _loggedSelectionKey = null;
         ClearChallenger();
+    }
+
+    private sealed class DisabledGpuTelemetryProvider : IGpuTelemetryProvider
+    {
+        internal static DisabledGpuTelemetryProvider Instance { get; } = new();
+
+        public GpuProviderCycle? LatestCycle => null;
+
+        public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopAsync() => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

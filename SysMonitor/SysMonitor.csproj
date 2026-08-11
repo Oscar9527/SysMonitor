@@ -15,7 +15,7 @@
     <DebugType>embedded</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
-    <Version>1.4.1</Version>
+    <Version>1.5.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,9 +24,20 @@
 
   <ItemGroup>
     <Resource Include="Assets\sysmonitor.ico" />
+    <EmbeddedResource Include="ThirdParty\PresentMon-2.5.1\PresentMon-2.5.1-x64.exe"
+                      LogicalName="SysMonitor.ThirdParty.PresentMon-2.5.1.PresentMon-2.5.1-x64.exe" />
+    <EmbeddedResource Include="ThirdParty\PresentMon-2.5.1\LICENSE.txt"
+                      LogicalName="SysMonitor.ThirdParty.PresentMon-2.5.1.LICENSE.txt" />
+    <EmbeddedResource Include="THIRD-PARTY-NOTICES.md"
+                      LogicalName="SysMonitor.THIRD-PARTY-NOTICES.md" />
     <None Update="README.md" CopyToPublishDirectory="PreserveNewest" />
     <None Update="THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" />
     <None Update="VALIDATION.md" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="ThirdParty\PresentMon-2.5.1\LICENSE.txt"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

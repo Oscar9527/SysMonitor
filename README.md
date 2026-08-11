@@ -1,5 +1,13 @@
 # SysMonitor
 
+## v1.5 游戏监控悬浮窗
+
+- 按 `Ctrl+Shift+F10` 显示或隐藏透明悬浮窗；窗口不抢焦点、鼠标可穿透，并跟随目标程序所在显示器。
+- 显示 Present FPS，以及系统总体 CPU、内存、GPU、温度和可用的当前频率。缺失数据会显示 `--`，不会伪造数值。
+- 帧率由固定随包的 PresentMon 2.5.1 通过 Windows ETW 事件采集。SysMonitor 不注入 DLL、不 Hook 图形 API、不读取或写入游戏进程内存，也不为帧率安装驱动。
+- 游戏安全模式默认开启，并从程序启动时阻止兼容硬件传感器及其硬件访问驱动加载。若主动启用兼容传感器，需要重启，且该次运行不会启动游戏悬浮窗。
+- ETW 属于 Windows 系统级观测机制，但不同游戏和反作弊策略可能不同，因此本项目不宣称获得 ACE 或其他反作弊产品认证。无权限或没有 Present 事件时会显示明确状态。
+
 [![Release](https://img.shields.io/github/v/release/Oscar9527/SysMonitor?display_name=tag&sort=semver)](https://github.com/Oscar9527/SysMonitor/releases)
 [![License](https://img.shields.io/github/license/Oscar9527/SysMonitor)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/Oscar9527/SysMonitor)
@@ -38,10 +46,10 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 ## 下载与发行版
 
 - [下载最新 Release](https://github.com/Oscar9527/SysMonitor/releases)
-- [SysMonitor v1.2.16](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.16)
-- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.16/SysMonitor.exe)
+- [SysMonitor v1.4.1](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.4.1)
+- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.4.1/SysMonitor.exe)
 
-当前公开版本：**1.2.16**
+当前公开版本：**1.4.1**（v1.5.0 游戏悬浮窗正在开发分支验证）
 
 发行包信息：
 
@@ -50,8 +58,8 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 文件名 | `SysMonitor.exe` |
 | 平台 | Windows 10/11 x64 |
 | 类型 | 便携式、单文件、无需安装 |
-| 大小 | 6,876,160 字节（约 6.56 MiB） |
-| SHA-256 | `4A50C73409B50B150A176DF7D93AC46AD48F8A19D3AE1556EA13743F8D659FC6` |
+| 大小 | 7,126,016 字节（约 6.80 MiB） |
+| SHA-256 | `68E812EEF1BD57692D3BF86DBD7367BCA09F35F1597F4D3A9E4EBF3F5F996C5B` |
 
 > 这是 framework-dependent 单文件版本，目标电脑需要安装 Microsoft .NET 8 Desktop Runtime x64。启动器检测到运行时缺失时，会打开官方 .NET 下载页面；不会静默安装或提权。
 

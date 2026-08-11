@@ -1,4 +1,21 @@
-# SysMonitor 1.4.1 validation
+# SysMonitor 1.5.0 validation
+
+Validation date: 2026-08-11
+Environment: Windows 11 x64; interactive user session left untouched
+
+## v1.5.0 game-safe overlay development build
+
+- Release build completed with 0 warnings and 0 errors; the full deterministic suite passed 211/211 tests.
+- The final portable launcher is one `SysMonitor.exe`, version 1.5.0, 8,342,528 bytes (7.96 MiB), SHA-256 `83A8D4D8BE021CE4A1AF6412055254C4B691BC0C3C95552DCB5E0054B8881219`.
+- The launcher contains the versioned `SysMonitor.Core.1.5.0.exe` resource. The core embeds the pinned official PresentMon 2.5.1 x64 binary, its MIT license, and the project third-party notice.
+- The embedded PresentMon binary is verified by test and at extraction time against SHA-256 `9BEC3083069F58F911E6A512F4806DB51A27BD096103087BC1D05EF54C80A191`.
+- Exact collector arguments, owned-session termination arguments, bounded output, comma-bearing application names, invalid/overlong rows, per-swapchain aggregation, hysteresis and stale clearing have deterministic coverage.
+- Game-safe settings migrate to enabled before `MonitorService` construction. In that mode the service does not construct the CPU LibreHardwareMonitor reader/helper or the LibreHardwareMonitor GPU provider; NVIDIA telemetry continues through `nvidia-smi`.
+- Static audit found no DLL injection, graphics API hook, game-process memory read/write, low-level input hook or frame-rate kernel driver path in SysMonitor.
+- Overlay tests cover no-activate/tool/transparent styles, `HTTRANSPARENT`, hotkey registration/disposal, rapid cancellation, target exclusion/PID identity, negative monitor coordinates and DPI placement without sending physical input.
+- CPU frequency is nullable and comes from Windows `CallNtPowerInformation`; GPU clocks are nullable and come from `nvidia-smi` or compatibility sensors. No nominal clock or zero-value substitute is shown when unavailable.
+- A pre-existing v1.4.1 instance was running in the user's interactive session. The v1.5.0 launcher was therefore not started, because doing so would replace that process and disturb the user's foreground session. No PresentMon collector was left running.
+- Physical game/ACE compatibility, exclusive-fullscreen z-order and multi-GPU sensor coverage are not claimed by this deterministic pass. ETW is non-injection system observation, not an anti-cheat certification.
 
 Validation date: 2026-08-11
 Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, auto-hidden taskbar

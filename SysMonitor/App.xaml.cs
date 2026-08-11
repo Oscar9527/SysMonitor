@@ -20,6 +20,10 @@ public partial class App : System.Windows.Application
     private readonly MetricHistoryBuffer _metricHistory = new();
     private Mutex? _singleInstanceMutex;
     private MonitorService? _monitorService;
+    private GlobalHotkeyService? _gameOverlayHotkey;
+    private GameOverlayFrameProviderAdapter? _gameOverlayFrameProvider;
+    private GameOverlayController? _gameOverlayController;
+    private GameOverlayWindow? _gameOverlayWindow;
     private TrayIconService? _trayIcon;
     private BandWindow? _bandWindow;
     private DetailWindow? _detailWindow;
@@ -29,6 +33,7 @@ public partial class App : System.Windows.Application
     private ResolvedTheme? _currentTheme;
     private ResolvedTheme? _appliedTheme;
     private bool _isExiting;
+    private bool _sessionGameSafeMode;
     private long _bandGeneration;
     private nint _bandHandle;
 
@@ -130,8 +135,30 @@ public partial class App : System.Windows.Application
             _ = _trayIcon.ApplyThemeIcon(_currentTheme?.TrayIconPath);
             BandDiagnostics.Log("tray icon service created");
             BandDiagnostics.Log("creating monitor service");
-            _monitorService = new MonitorService();
+            _sessionGameSafeMode = _settings.GameSafeMode;
+            _monitorService = new MonitorService(
+                MonitorOptions.FromGameSafeMode(_sessionGameSafeMode));
             BandDiagnostics.Log("monitor service created");
+
+            if (_sessionGameSafeMode)
+            {
+                _gameOverlayFrameProvider = new GameOverlayFrameProviderAdapter(
+                    new PresentMonFrameRateProvider());
+                _gameOverlayWindow = new GameOverlayWindow();
+                _gameOverlayController = new GameOverlayController(
+                    _gameOverlayFrameProvider,
+                    _monitorService,
+                    new ForegroundTargetTracker(new Win32ForegroundWindowSource()),
+                    _gameOverlayWindow);
+                _gameOverlayController.StateChanged += OnGameOverlayStateChanged;
+                _gameOverlayHotkey = new GlobalHotkeyService();
+                _gameOverlayHotkey.Pressed += OnGameOverlayHotkeyPressed;
+                if (!_gameOverlayHotkey.IsRegistered &&
+                    !string.IsNullOrWhiteSpace(_gameOverlayHotkey.RegistrationDiagnostic))
+                {
+                    BandDiagnostics.Log(_gameOverlayHotkey.RegistrationDiagnostic);
+                }
+            }
 
             WireTrayEvents();
             CreateBandWindow();
@@ -139,6 +166,8 @@ public partial class App : System.Windows.Application
             _trayIcon.SetPinned(_settings.PanelTopmost);
             _trayIcon.SetStartupEnabled(_startupService.IsEnabled());
             _trayIcon.SetPanelVisible(false);
+            _trayIcon.SetGameSafeMode(_settings.GameSafeMode);
+            _trayIcon.SetGameOverlayState(false, _sessionGameSafeMode);
 
             _monitorService.SnapshotUpdated += OnSnapshotUpdated;
             await _monitorService.StartAsync();
@@ -164,7 +193,9 @@ public partial class App : System.Windows.Application
         }
 
         _trayIcon.ToggleDetailsRequested += OnToggleDetailsRequested;
+        _trayIcon.ToggleGameOverlayRequested += OnToggleGameOverlayRequested;
         _trayIcon.AppearanceSettingsRequested += OnAppearanceSettingsRequested;
+        _trayIcon.GameSafeModeChangeRequested += OnGameSafeModeChangeRequested;
         _trayIcon.PinToggled += OnTrayPinToggled;
         _trayIcon.StartupToggled += OnTrayStartupToggled;
         _trayIcon.ExitRequested += OnExitRequested;
@@ -689,6 +720,82 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private async void OnGameOverlayHotkeyPressed(object? sender, EventArgs e)
+    {
+        if (_isExiting || _gameOverlayController is null)
+        {
+            return;
+        }
+
+        await ToggleGameOverlayAsync(fromHotkey: true);
+    }
+
+    private async void OnToggleGameOverlayRequested(object? sender, EventArgs e)
+    {
+        if (_isExiting)
+        {
+            return;
+        }
+
+        if (_gameOverlayController is null)
+        {
+            _trayIcon?.ShowGameSafeModeRestartRequired();
+            return;
+        }
+
+        await ToggleGameOverlayAsync(fromHotkey: false);
+    }
+
+    private async Task ToggleGameOverlayAsync(bool fromHotkey)
+    {
+        GameOverlayController? controller = _gameOverlayController;
+        if (controller is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (fromHotkey)
+            {
+                await controller.ToggleFromHotkeyAsync();
+            }
+            else
+            {
+                await controller.ToggleFromTrayAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            LogException("Game overlay toggle failed", exception);
+        }
+        finally
+        {
+            OnGameOverlayStateChanged(controller, EventArgs.Empty);
+        }
+    }
+
+    private void OnGameOverlayStateChanged(object? sender, EventArgs e)
+    {
+        bool visible = _gameOverlayController?.DesiredVisible == true;
+        _trayIcon?.SetGameOverlayState(visible, _sessionGameSafeMode);
+    }
+
+    private void OnGameSafeModeChangeRequested(bool enabled)
+    {
+        _settings.GameSafeMode = enabled;
+        if (!_settingsService.TrySave(_settings))
+        {
+            _settings.GameSafeMode = !enabled;
+        }
+
+        _trayIcon?.SetGameSafeMode(_settings.GameSafeMode);
+        _trayIcon?.ShowGameSafeModeRestartRequired();
+    }
+
     private async void OnExitRequested(object? sender, EventArgs e) => await ExitAsync();
 
     private void SavePanelPosition()
@@ -719,6 +826,62 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             LogException("Saving settings during exit failed", exception);
+        }
+
+        if (_gameOverlayHotkey is not null)
+        {
+            _gameOverlayHotkey.Pressed -= OnGameOverlayHotkeyPressed;
+            _gameOverlayHotkey.Dispose();
+            _gameOverlayHotkey = null;
+        }
+
+        if (_gameOverlayController is not null)
+        {
+            _gameOverlayController.StateChanged -= OnGameOverlayStateChanged;
+            try
+            {
+                await _gameOverlayController.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                LogException("Game overlay shutdown failed", exception);
+            }
+            finally
+            {
+                _gameOverlayController = null;
+            }
+        }
+
+        if (_gameOverlayFrameProvider is not null)
+        {
+            try
+            {
+                await _gameOverlayFrameProvider.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                LogException("Frame-rate provider shutdown failed", exception);
+            }
+            finally
+            {
+                _gameOverlayFrameProvider = null;
+            }
+        }
+
+        if (_gameOverlayWindow is not null)
+        {
+            try
+            {
+                _gameOverlayWindow.Close();
+            }
+            catch (Exception exception)
+            {
+                LogException("Game overlay window close failed", exception);
+            }
+            finally
+            {
+                _gameOverlayWindow = null;
+            }
         }
 
         if (_monitorService is not null)
@@ -805,7 +968,9 @@ public partial class App : System.Windows.Application
             try
             {
                 _trayIcon.ToggleDetailsRequested -= OnToggleDetailsRequested;
+                _trayIcon.ToggleGameOverlayRequested -= OnToggleGameOverlayRequested;
                 _trayIcon.AppearanceSettingsRequested -= OnAppearanceSettingsRequested;
+                _trayIcon.GameSafeModeChangeRequested -= OnGameSafeModeChangeRequested;
                 _trayIcon.PinToggled -= OnTrayPinToggled;
                 _trayIcon.StartupToggled -= OnTrayStartupToggled;
                 _trayIcon.ExitRequested -= OnExitRequested;

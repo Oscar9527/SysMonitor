@@ -8,6 +8,12 @@ public sealed class AppSettings
 
     public bool BandVisible { get; set; } = true;
 
+    /// <summary>
+    /// Keeps compatibility hardware sensors disabled. Older settings files do not contain this
+    /// property, so the initializer intentionally migrates them to the safe default.
+    /// </summary>
+    public bool GameSafeMode { get; set; } = true;
+
     public string BandFontFamily { get; set; } = "Segoe UI Variable Text";
 
     public double BandFontSize { get; set; } = 13d;

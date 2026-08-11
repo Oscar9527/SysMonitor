@@ -230,6 +230,7 @@ internal sealed class LibreHardwareMonitorGpuProvider : IGpuTelemetryProvider
                     SensorType.Load => GpuSensorKind.Load,
                     SensorType.Temperature => GpuSensorKind.Temperature,
                     SensorType.SmallData => GpuSensorKind.SmallData,
+                    SensorType.Clock => GpuSensorKind.Clock,
                     _ => null,
                 };
                 if (kind is not null)
@@ -265,7 +266,11 @@ internal sealed class LibreHardwareMonitorGpuProvider : IGpuTelemetryProvider
             selected.DedicatedMemoryUsedBytes,
             selected.DedicatedMemoryTotalBytes,
             sampledAt,
-            monotonicTimestamp);
+            monotonicTimestamp)
+        {
+            CoreClockMhz = selected.CoreClockMhz,
+            MemoryClockMhz = selected.MemoryClockMhz,
+        };
     }
 
     private static GpuVendor? ToVendor(HardwareType hardwareType) => hardwareType switch

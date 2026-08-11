@@ -32,6 +32,31 @@ public sealed class SettingsServiceTests
         Assert.True(loaded.PanelTopmost);
         Assert.Equal(BandMetricVisibility.All, loaded.BandMetricVisibility!.ToEffective());
         Assert.Equal(AppSettings.DefaultThemeId, loaded.ActiveThemeId);
+        Assert.True(loaded.GameSafeMode);
+    }
+
+    [Fact]
+    public void Load_MissingGameSafeMode_MigratesToSafeDefault()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(service.SettingsPath, "{}");
+
+        Assert.True(service.Load().GameSafeMode);
+    }
+
+    [Fact]
+    public void SaveAndLoad_ExplicitDisabledGameSafeModeRoundTrips()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+
+        service.Save(new AppSettings { GameSafeMode = false });
+
+        Assert.False(service.Load().GameSafeMode);
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(service.SettingsPath));
+        Assert.False(document.RootElement.GetProperty("GameSafeMode").GetBoolean());
     }
 
     [Theory]
