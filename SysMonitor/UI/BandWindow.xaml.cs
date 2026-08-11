@@ -47,7 +47,7 @@ public partial class BandWindow : Window
     private const int WmMouseActivate = 0x0021;
     private const int WmShowWindow = 0x0018;
     private const int WmDestroy = 0x0002;
-    private const int WmLeftButtonUp = 0x0202;
+    private const int WmLeftButtonDown = 0x0201;
     private const int WmDpiChanged = 0x02E0;
     private const int WmNcDestroy = 0x0082;
     private const int MaNoActivate = 3;
@@ -69,7 +69,9 @@ public partial class BandWindow : Window
     private readonly GpuCapabilityStabilizer _gpuCapability = new();
     private EffectiveBandLayout? _effectiveLayout;
     private TaskbarRegionSnapshot? _regionSnapshot;
-    private long _lastToggleTimestamp;
+    private readonly BandClickDebouncer _clickDebouncer = new(
+        TimeSpan.FromMilliseconds(350),
+        Stopwatch.Frequency);
     private int _toggleGeneration;
     private HwndSource? _source;
     private nint _attachedTaskbar;
@@ -115,6 +117,8 @@ public partial class BandWindow : Window
     public event EventHandler? ToggleDetailsRequested;
     public event EventHandler<BandNativeDestroyedEventArgs>? NativeDestroyed;
     public event EventHandler<double>? HorizontalPositionResolved;
+
+    internal static bool IsToggleMessage(int message) => message == WmLeftButtonDown;
 
     public void ApplyTheme(ResolvedTheme theme)
     {
@@ -520,21 +524,19 @@ public partial class BandWindow : Window
             return nint.Zero;
         }
 
-        if (message != WmLeftButtonUp)
+        if (!IsToggleMessage(message))
         {
             return nint.Zero;
         }
 
         handled = true;
         long now = Stopwatch.GetTimestamp();
-        if (_lastToggleTimestamp != 0 &&
-            Stopwatch.GetElapsedTime(_lastToggleTimestamp, now) < TimeSpan.FromMilliseconds(350))
+        if (!_clickDebouncer.TryAccept(now))
         {
             BandDiagnostics.Log("band click suppressed by 350ms debounce");
             return nint.Zero;
         }
 
-        _lastToggleTimestamp = now;
         int generation = Interlocked.Increment(ref _toggleGeneration);
         BandDiagnostics.Log(
             $"band click accepted generation={Generation} hwnd=0x{windowHandle.ToInt64():X} " +

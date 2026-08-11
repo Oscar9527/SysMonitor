@@ -369,7 +369,8 @@ public partial class App : System.Windows.Application
 
         try
         {
-            bool shouldActivate = clickBand is null;
+            DetailWindowShowPolicy showPolicy =
+                DetailWindow.SelectShowPolicy(fromBand: clickBand is not null);
             DetailWindow detail = EnsureDetailWindow();
             if (detail is { IsVisible: true, WindowState: not WindowState.Minimized })
             {
@@ -386,16 +387,20 @@ public partial class App : System.Windows.Application
             }
 
             detail.WindowState = WindowState.Normal;
-            detail.ShowActivated = shouldActivate;
+            detail.ShowActivated = showPolicy.Activate;
             detail.UpdateSnapshot(_monitorService?.Latest ?? MonitorSnapshot.Empty);
             detail.UpdateHistory(_metricHistory.Snapshot());
             if (!detail.IsVisible)
             {
-                BandDiagnostics.Log($"detail toggle action=show activate={shouldActivate}");
+                BandDiagnostics.Log($"detail toggle action=show activate={showPolicy.Activate}");
                 detail.Show();
             }
 
-            if (shouldActivate && !detail.IsActive)
+            if (showPolicy.RaiseWithoutActivation)
+            {
+                detail.RaiseToTopWithoutActivation();
+            }
+            else if (showPolicy.Activate && !detail.IsActive)
             {
                 detail.Activate();
             }

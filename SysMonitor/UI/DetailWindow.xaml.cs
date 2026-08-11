@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -20,6 +21,11 @@ namespace SysMonitor.UI;
 
 public partial class DetailWindow : Window
 {
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
+    private static readonly nint HwndTop = nint.Zero;
+    private static readonly nint HwndTopmost = new(-1);
     private Brush _cpuBrush = Brushes.DodgerBlue;
     private Brush _memoryBrush = Brushes.MediumPurple;
     private Brush _gpuBrush = Brushes.MediumSeaGreen;
@@ -52,6 +58,39 @@ public partial class DetailWindow : Window
 
     public event EventHandler? PinChanged;
     public event EventHandler? HideRequested;
+
+    internal static DetailWindowShowPolicy SelectShowPolicy(bool fromBand) =>
+        new(Activate: !fromBand, RaiseWithoutActivation: fromBand);
+
+    internal static DetailWindowZOrderRequest SelectBandRaiseRequest(bool isTopmost) =>
+        new(
+            isTopmost ? HwndTopmost : HwndTop,
+            SwpNoMove | SwpNoSize | SwpNoActivate);
+
+    internal void RaiseToTopWithoutActivation()
+    {
+        nint handle = new WindowInteropHelper(this).Handle;
+        if (handle == nint.Zero)
+        {
+            BandDiagnostics.Log("detail non-activating raise failed: HWND unavailable");
+            return;
+        }
+
+        DetailWindowZOrderRequest request = SelectBandRaiseRequest(Topmost);
+        if (!SetWindowPos(
+                handle,
+                request.InsertAfter,
+                0,
+                0,
+                0,
+                0,
+                request.Flags))
+        {
+            int error = Marshal.GetLastPInvokeError();
+            BandDiagnostics.Log(
+                $"detail non-activating raise failed hwnd=0x{handle.ToInt64():X} error={error}");
+        }
+    }
 
     public void ApplyTheme(ResolvedTheme theme)
     {
@@ -557,4 +596,23 @@ public partial class DetailWindow : Window
         TextBlock Details,
         TextBlock Value,
         ProgressBar Progress);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowPos(
+        nint windowHandle,
+        nint insertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
 }
+
+internal readonly record struct DetailWindowShowPolicy(
+    bool Activate,
+    bool RaiseWithoutActivation);
+
+internal readonly record struct DetailWindowZOrderRequest(
+    nint InsertAfter,
+    uint Flags);
