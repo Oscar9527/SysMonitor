@@ -78,4 +78,6 @@
   <data name="ThemeImportReasonDuplicateId" xml:space="preserve"><value>A theme with the same ID is already installed.</value></data>
   <data name="ThemeImportReasonIoFailure" xml:space="preserve"><value>The theme files could not be read or written.</value></data>
   <data name="ThemeUnavailable" xml:space="preserve"><value>The selected theme is no longer available.</value></data>
+  <data name="MetricHistoryTooltip" xml:space="preserve"><value>Usage history for the last 60 seconds</value></data>
+  <data name="MetricHistoryAutomation" xml:space="preserve"><value>{0}, usage history for the last 60 seconds</value></data>
 </root>

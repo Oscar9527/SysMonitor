@@ -1,6 +1,6 @@
-# SysMonitor 1.2
+# SysMonitor 1.4
 
-SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA/AMD/Intel GPU 使用率与可用温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板。
+SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA/AMD/Intel GPU 使用率与可用温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板，并查看最近 60 秒的 CPU 与 GPU 使用率折线图。GPU 数据缺失时会以断线表示，不会误报为 0%。
 
 ## 系统要求
 

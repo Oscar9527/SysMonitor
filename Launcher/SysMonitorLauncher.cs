@@ -10,13 +10,13 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("SysMonitor")]
 [assembly: AssemblyProduct("SysMonitor")]
 [assembly: AssemblyDescription("Portable Windows taskbar system monitor")]
-[assembly: AssemblyVersion("1.3.0.0")]
-[assembly: AssemblyFileVersion("1.3.0.0")]
-[assembly: AssemblyInformationalVersion("1.3.0")]
+[assembly: AssemblyVersion("1.4.0.0")]
+[assembly: AssemblyFileVersion("1.4.0.0")]
+[assembly: AssemblyInformationalVersion("1.4.0")]
 
 internal static class SysMonitorLauncher
 {
-    private const string CoreResourceName = "SysMonitor.Core.1.3.0.exe";
+    private const string CoreResourceName = "SysMonitor.Core.1.4.0.exe";
     private const string RuntimeDownloadUrl = "https://dotnet.microsoft.com/download/dotnet/8.0/runtime";
 
     [STAThread]

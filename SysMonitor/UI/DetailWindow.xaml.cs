@@ -65,6 +65,20 @@ public partial class DetailWindow : Window
         RefreshThemeBrushes();
         SetPinned(_isPinned);
         UpdateSnapshot(_latestSnapshot);
+        CpuHistoryChart.InvalidateVisual();
+        GpuHistoryChart.InvalidateVisual();
+    }
+
+    public void UpdateHistory(ImmutableArray<MetricHistoryPoint> history)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => UpdateHistory(history));
+            return;
+        }
+
+        CpuHistoryChart.UpdateSeries(history);
+        GpuHistoryChart.UpdateSeries(history);
     }
 
     public void UpdateSnapshot(MonitorSnapshot snapshot)
@@ -77,7 +91,7 @@ public partial class DetailWindow : Window
         }
 
         _latestSnapshot = snapshot;
-        UpdateMetric(snapshot.CpuUsagePercent, _cpuBrush, CpuValueText, CpuProgress);
+        UpdateMetric(snapshot.CpuUsagePercent, _cpuBrush, CpuValueText, null);
         CpuDetailsText.Text = BuildCpuDetails(
             snapshot.LogicalProcessorCount,
             snapshot.CpuTemperatureCelsius);
@@ -92,7 +106,7 @@ public partial class DetailWindow : Window
         if (snapshot.Gpu is { } gpu)
         {
             GpuCard.Visibility = Visibility.Visible;
-            UpdateOptionalMetric(gpu.UsagePercent, _gpuBrush, GpuValueText, GpuProgress);
+            UpdateOptionalMetric(gpu.UsagePercent, _gpuBrush, GpuValueText, null);
             GpuNameText.Text = string.IsNullOrWhiteSpace(gpu.Name)
                 ? LocalizationService.Current.GetString("GpuFallbackName")
                 : gpu.Name.Trim();
@@ -153,14 +167,21 @@ public partial class DetailWindow : Window
         StorageLabelText.Text = localization.GetString("DetailStorage");
         NoDrivesText.Text = localization.GetString("NoFixedDrives");
         System.Windows.Automation.AutomationProperties.SetName(
-            CpuProgress,
-            localization.GetString("DetailProcessor"));
+            CpuHistoryChart,
+            localization.Format(
+                "MetricHistoryAutomation",
+                localization.GetString("DetailProcessor")));
         System.Windows.Automation.AutomationProperties.SetName(
             MemoryProgress,
             localization.GetString("DetailMemory"));
         System.Windows.Automation.AutomationProperties.SetName(
-            GpuProgress,
-            localization.GetString("DetailGraphics"));
+            GpuHistoryChart,
+            localization.Format(
+                "MetricHistoryAutomation",
+                localization.GetString("DetailGraphics")));
+        string historyTooltip = localization.GetString("MetricHistoryTooltip");
+        CpuHistoryChart.ToolTip = historyTooltip;
+        GpuHistoryChart.ToolTip = historyTooltip;
         System.Windows.Automation.AutomationProperties.SetName(
             DriveScrollViewer,
             localization.GetString("DetailStorage"));
@@ -390,21 +411,24 @@ public partial class DetailWindow : Window
         double rawValue,
         Brush normalBrush,
         System.Windows.Controls.TextBlock valueText,
-        System.Windows.Controls.ProgressBar progress)
+        System.Windows.Controls.ProgressBar? progress)
     {
         double value = ClampPercent(rawValue);
         Brush brush = SelectBrush(value, normalBrush);
         valueText.Text = FormatPercent(value);
         valueText.Foreground = brush;
-        progress.Value = value;
-        progress.Foreground = brush;
+        if (progress is not null)
+        {
+            progress.Value = value;
+            progress.Foreground = brush;
+        }
     }
 
     private void UpdateOptionalMetric(
         double? rawValue,
         Brush normalBrush,
         System.Windows.Controls.TextBlock valueText,
-        System.Windows.Controls.ProgressBar progress)
+        System.Windows.Controls.ProgressBar? progress)
     {
         if (IsFinite(rawValue))
         {
@@ -414,8 +438,11 @@ public partial class DetailWindow : Window
 
         valueText.Text = "--%";
         valueText.Foreground = normalBrush;
-        progress.Value = 0d;
-        progress.Foreground = normalBrush;
+        if (progress is not null)
+        {
+            progress.Value = 0d;
+            progress.Foreground = normalBrush;
+        }
     }
 
     private static string FormatGigabytes(long bytes)

@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$version = '1.3.0'
+$version = '1.4.0'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $artifactDirectory = Join-Path $repositoryRoot 'artifacts'
 $publishDirectory = Join-Path $repositoryRoot "work\portable-core-$version"

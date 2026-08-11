@@ -8,6 +8,7 @@ namespace SysMonitor.Services;
 
 public sealed class MonitorService : IMonitorService
 {
+    private static long s_nextProducerId;
     private static readonly TimeSpan NetworkRefreshInterval = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan DriveRefreshInterval = TimeSpan.FromSeconds(10);
     private static readonly string[] VirtualAdapterMarkers =
@@ -21,6 +22,7 @@ public sealed class MonitorService : IMonitorService
     private readonly GpuTelemetryCoordinator _gpuCoordinator = new();
     private readonly DriveTelemetryCache _driveTelemetry = new(GetSystemDriveRoot());
     private readonly List<NetworkCounter> _networkCounters = new();
+    private readonly long _producerId = Interlocked.Increment(ref s_nextProducerId);
     private CancellationTokenSource? _runCancellation;
     private Task? _samplingTask;
     private MonitorSnapshot _latest = MonitorSnapshot.Empty;
@@ -147,7 +149,11 @@ public sealed class MonitorService : IMonitorService
                 network.upload,
                 systemDrive?.Name ?? _driveTelemetry.SystemDriveName,
                 systemDrive?.UsagePercent ?? 0d,
-                fixedDrives);
+                fixedDrives)
+            {
+                ProducerId = _producerId,
+                MonotonicTimestamp = Stopwatch.GetTimestamp()
+            };
 
             Volatile.Write(ref _latest, snapshot);
             RaiseSnapshotUpdated(snapshot);

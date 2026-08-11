@@ -29,6 +29,10 @@ public sealed record MonitorSnapshot(
 {
     private ImmutableArray<DriveSnapshot> _fixedDrives = FixedDrives;
 
+    public long ProducerId { get; init; }
+
+    public long MonotonicTimestamp { get; init; }
+
     public ImmutableArray<DriveSnapshot> FixedDrives
     {
         get => _fixedDrives.IsDefault ? ImmutableArray<DriveSnapshot>.Empty : _fixedDrives;
@@ -48,5 +52,9 @@ public sealed record MonitorSnapshot(
         0,
         0,
         "C:",
-        0);
+        0)
+    {
+        ProducerId = 0,
+        MonotonicTimestamp = System.Diagnostics.Stopwatch.GetTimestamp()
+    };
 }

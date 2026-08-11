@@ -78,4 +78,6 @@
   <data name="ThemeImportReasonDuplicateId" xml:space="preserve"><value>已安装相同 ID 的主题。</value></data>
   <data name="ThemeImportReasonIoFailure" xml:space="preserve"><value>无法读取或写入主题文件。</value></data>
   <data name="ThemeUnavailable" xml:space="preserve"><value>所选主题已不可用。</value></data>
+  <data name="MetricHistoryTooltip" xml:space="preserve"><value>最近 60 秒使用率历史</value></data>
+  <data name="MetricHistoryAutomation" xml:space="preserve"><value>{0}，最近 60 秒使用率历史</value></data>
 </root>

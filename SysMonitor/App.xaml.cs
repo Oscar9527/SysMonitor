@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
     private readonly LocalizationService _localizationService = LocalizationService.Current;
     private readonly ThemeCatalogService _themeCatalog = new();
     private readonly ThemeResourceApplier _themeResourceApplier = new();
+    private readonly MetricHistoryBuffer _metricHistory = new();
     private Mutex? _singleInstanceMutex;
     private MonitorService? _monitorService;
     private TrayIconService? _trayIcon;
@@ -327,8 +328,23 @@ public partial class App : System.Windows.Application
             DispatcherPriority.Background,
             new Action(() =>
             {
+                Dispatcher.VerifyAccess();
+                _ = _metricHistory.TryAdd(new MetricHistoryPoint(
+                    snapshot.ProducerId,
+                    snapshot.Sequence,
+                    snapshot.MonotonicTimestamp,
+                    snapshot.CpuUsagePercent,
+                    snapshot.Gpu?.UsagePercent));
                 _bandWindow?.UpdateSnapshot(snapshot);
                 _detailWindow?.UpdateSnapshot(snapshot);
+                if (_detailWindow is
+                    {
+                        IsVisible: true,
+                        WindowState: not WindowState.Minimized
+                    } visibleDetail)
+                {
+                    visibleDetail.UpdateHistory(_metricHistory.Snapshot());
+                }
             }));
     }
 
@@ -372,6 +388,7 @@ public partial class App : System.Windows.Application
             detail.WindowState = WindowState.Normal;
             detail.ShowActivated = shouldActivate;
             detail.UpdateSnapshot(_monitorService?.Latest ?? MonitorSnapshot.Empty);
+            detail.UpdateHistory(_metricHistory.Snapshot());
             if (!detail.IsVisible)
             {
                 BandDiagnostics.Log($"detail toggle action=show activate={shouldActivate}");
