@@ -24,8 +24,8 @@ public partial class DetailWindow : Window
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoActivate = 0x0010;
-    private static readonly nint HwndTop = nint.Zero;
     private static readonly nint HwndTopmost = new(-1);
+    private static readonly nint HwndNotTopmost = new(-2);
     private Brush _cpuBrush = Brushes.DodgerBlue;
     private Brush _memoryBrush = Brushes.MediumPurple;
     private Brush _gpuBrush = Brushes.MediumSeaGreen;
@@ -62,10 +62,16 @@ public partial class DetailWindow : Window
     internal static DetailWindowShowPolicy SelectShowPolicy(bool fromBand) =>
         new(Activate: !fromBand, RaiseWithoutActivation: fromBand);
 
-    internal static DetailWindowZOrderRequest SelectBandRaiseRequest(bool isTopmost) =>
-        new(
-            isTopmost ? HwndTopmost : HwndTop,
-            SwpNoMove | SwpNoSize | SwpNoActivate);
+    internal static ImmutableArray<DetailWindowZOrderRequest> SelectBandRaiseRequests(
+        bool isTopmost)
+    {
+        uint flags = SwpNoMove | SwpNoSize | SwpNoActivate;
+        return isTopmost
+            ? ImmutableArray.Create(new DetailWindowZOrderRequest(HwndTopmost, flags))
+            : ImmutableArray.Create(
+                new DetailWindowZOrderRequest(HwndTopmost, flags),
+                new DetailWindowZOrderRequest(HwndNotTopmost, flags));
+    }
 
     internal void RaiseToTopWithoutActivation()
     {
@@ -76,19 +82,23 @@ public partial class DetailWindow : Window
             return;
         }
 
-        DetailWindowZOrderRequest request = SelectBandRaiseRequest(Topmost);
-        if (!SetWindowPos(
-                handle,
-                request.InsertAfter,
-                0,
-                0,
-                0,
-                0,
-                request.Flags))
+        foreach (DetailWindowZOrderRequest request in SelectBandRaiseRequests(Topmost))
         {
-            int error = Marshal.GetLastPInvokeError();
-            BandDiagnostics.Log(
-                $"detail non-activating raise failed hwnd=0x{handle.ToInt64():X} error={error}");
+            if (!SetWindowPos(
+                    handle,
+                    request.InsertAfter,
+                    0,
+                    0,
+                    0,
+                    0,
+                    request.Flags))
+            {
+                int error = Marshal.GetLastPInvokeError();
+                BandDiagnostics.Log(
+                    $"detail non-activating raise failed hwnd=0x{handle.ToInt64():X} " +
+                    $"insertAfter=0x{request.InsertAfter.ToInt64():X} error={error}");
+                return;
+            }
         }
     }
 

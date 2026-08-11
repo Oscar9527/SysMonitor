@@ -8,21 +8,23 @@ public sealed class DetailWindowShowPolicyTests
     public void BandShowRaisesWithoutActivation()
     {
         DetailWindowShowPolicy policy = DetailWindow.SelectShowPolicy(fromBand: true);
-        DetailWindowZOrderRequest request = DetailWindow.SelectBandRaiseRequest(isTopmost: false);
+        var requests = DetailWindow.SelectBandRaiseRequests(isTopmost: false);
 
         Assert.False(policy.Activate);
         Assert.True(policy.RaiseWithoutActivation);
-        Assert.Equal(nint.Zero, request.InsertAfter);
-        Assert.Equal(0x0013u, request.Flags);
-        Assert.Equal(0u, request.Flags & 0x0004u);
+        Assert.Equal(2, requests.Length);
+        Assert.Equal(new nint(-1), requests[0].InsertAfter);
+        Assert.Equal(new nint(-2), requests[1].InsertAfter);
+        Assert.All(requests, request => Assert.Equal(0x0013u, request.Flags));
+        Assert.All(requests, request => Assert.Equal(0u, request.Flags & 0x0004u));
     }
 
     [Fact]
     public void PinnedBandShowRetainsTopmostZOrderWithoutActivation()
     {
-        DetailWindowZOrderRequest request =
-            DetailWindow.SelectBandRaiseRequest(isTopmost: true);
+        var requests = DetailWindow.SelectBandRaiseRequests(isTopmost: true);
 
+        DetailWindowZOrderRequest request = Assert.Single(requests);
         Assert.Equal(new nint(-1), request.InsertAfter);
         Assert.Equal(0x0013u, request.Flags);
     }
