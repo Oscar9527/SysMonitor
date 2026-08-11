@@ -1,7 +1,21 @@
-# SysMonitor 1.2 validation
+# SysMonitor 1.4 validation
 
 Validation date: 2026-08-11
 Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, auto-hidden taskbar
+
+## v1.4.0 history chart release
+
+- Release build completed with 0 warnings and 0 errors; the full suite passed 147/147 tests.
+- The detail panel keeps an exact 60-second, 120-sample hard-capped CPU/GPU history on the UI dispatcher. GPU-unavailable samples remain nullable and create visible gaps rather than false 0% values.
+- The hidden or minimized detail panel does not allocate immutable chart snapshots or invalidate chart rendering. Before every show, the latest snapshot and complete retained history are injected before the first visible frame.
+- The custom WPF chart uses the active theme, fixed 0%–100% scaling, DPI-aware drawing and a UI Automation peer. Geometry, epoch resets, time-window expiry, null gaps and STA rendering are covered by 20 focused tests.
+- A 30-second live Band sample collected 887 observations of one HWND with one rectangle and one parent. Every observation remained a no-activate taskbar child and it never became foreground.
+- With the detail charts visible for 182.3 seconds, normalized CPU use was 0.0070% across 16 logical processors. GDI objects stayed 54 to 54, USER objects 67 to 66, and handles 1043 to 1028 (maximum 1047).
+- During that visible-chart run, working set moved from 190.5 MiB to 194.7 MiB (maximum 195.0 MiB); private memory moved from 161.7 MiB to 166.0 MiB.
+- A launcher-over-existing-runtime test exited the old core and started exactly one version 1.4.0 core. After settling, a further 20-second sample observed one stable Band HWND, one rectangle and one parent, with no foreground activation.
+- The final portable executable SHA-256 and immutable source commit are recorded in the annotated `v1.4.0` tag after the final rebuild succeeds.
+
+## v1.2.15 retained regression baseline
 
 ## Build
 
