@@ -14,6 +14,7 @@ public partial class App : System.Windows.Application
 
     private readonly SettingsService _settingsService = new();
     private readonly StartupService _startupService = new();
+    private readonly LocalizationService _localizationService = LocalizationService.Current;
     private Mutex? _singleInstanceMutex;
     private MonitorService? _monitorService;
     private TrayIconService? _trayIcon;
@@ -76,6 +77,7 @@ public partial class App : System.Windows.Application
         _ = _startupService.RefreshExistingRegistration();
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         _settings = _settingsService.Load();
+        _localizationService.ApplyCulture(_settings.UiCulture);
 
         try
         {
@@ -384,6 +386,7 @@ public partial class App : System.Windows.Application
 
         AppearanceSettingsWindow window = EnsureAppearanceSettingsWindow();
         window.LoadAppearance(CurrentBandAppearance);
+        window.LoadUiCulture(_settings.UiCulture);
         window.Show();
         window.Activate();
     }
@@ -398,7 +401,9 @@ public partial class App : System.Windows.Application
         var window = new AppearanceSettingsWindow();
         window.AppearanceApplied += OnAppearanceApplied;
         window.AppearancePreviewChanged += OnAppearancePreviewChanged;
+        window.UiCultureChanged += OnUiCultureChanged;
         window.LoadAppearance(CurrentBandAppearance);
+        window.LoadUiCulture(_settings.UiCulture);
         _appearanceSettingsWindow = window;
         return window;
     }
@@ -417,6 +422,14 @@ public partial class App : System.Windows.Application
         object? sender,
         BandAppearanceSettings appearance) =>
         _bandWindow?.ApplyAppearance(appearance);
+
+    private void OnUiCultureChanged(string culturePreference)
+    {
+        string normalized = LocalizationService.NormalizeCulturePreference(culturePreference);
+        _settings.UiCulture = normalized;
+        _settingsService.Save(_settings);
+        _localizationService.ApplyCulture(normalized);
+    }
 
     private void OnBandHorizontalPositionResolved(object? sender, double positionPercent)
     {
@@ -598,6 +611,7 @@ public partial class App : System.Windows.Application
             {
                 _appearanceSettingsWindow.AppearanceApplied -= OnAppearanceApplied;
                 _appearanceSettingsWindow.AppearancePreviewChanged -= OnAppearancePreviewChanged;
+                _appearanceSettingsWindow.UiCultureChanged -= OnUiCultureChanged;
                 _appearanceSettingsWindow.ForceClose();
             }
             catch (Exception exception)

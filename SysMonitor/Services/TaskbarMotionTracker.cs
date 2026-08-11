@@ -22,6 +22,8 @@ public sealed class TaskbarMotionTracker : IDisposable
     private readonly WinEventDelegate _winEventCallback;
     private readonly DispatcherTimer _healthTimer;
     private readonly DispatcherTimer _eventDebounceTimer;
+    private readonly object _subtreeGate = new();
+    private readonly HashSet<nint> _confirmedSubtreeHandles = new();
     private nint _hook;
     private nint _taskbarHandle;
     private int _generation;
@@ -95,6 +97,10 @@ public sealed class TaskbarMotionTracker : IDisposable
         _eventDebounceTimer.Stop();
         Unhook();
         _taskbarHandle = nint.Zero;
+        lock (_subtreeGate)
+        {
+            _confirmedSubtreeHandles.Clear();
+        }
         _hasTaskbarSignature = false;
         _nextRecoveryProbeUtc = DateTime.MinValue;
         Interlocked.Exchange(ref _layoutChangePending, 0);
@@ -148,14 +154,17 @@ public sealed class TaskbarMotionTracker : IDisposable
             RebuildHook();
         }
 
-        if (rebuilt || UpdateTaskbarSignature())
+        bool signatureChanged = UpdateTaskbarSignature();
+        if (rebuilt || signatureChanged)
         {
             _nextRecoveryProbeUtc = DateTime.UtcNow.AddSeconds(2);
-            _requestRegionProbe();
+            Interlocked.Exchange(ref _layoutChangePending, 1);
+            ScheduleQuietProbe(Volatile.Read(ref _generation));
         }
         else
         {
-            if (DateTime.UtcNow >= _nextRecoveryProbeUtc)
+            if (!_eventDebounceTimer.IsEnabled &&
+                DateTime.UtcNow >= _nextRecoveryProbeUtc)
             {
                 _nextRecoveryProbeUtc = DateTime.UtcNow.AddSeconds(2);
                 _requestRecoveryProbe();
@@ -171,11 +180,32 @@ public sealed class TaskbarMotionTracker : IDisposable
         _ = Interlocked.Increment(ref _generation);
         Unhook();
 
+        lock (_subtreeGate)
+        {
+            _confirmedSubtreeHandles.Clear();
+        }
+
         _taskbarHandle = FindWindow("Shell_TrayWnd", null);
         if (_taskbarHandle == nint.Zero || Volatile.Read(ref _closing) != 0)
         {
             return;
         }
+
+        lock (_subtreeGate)
+        {
+            _confirmedSubtreeHandles.Add(_taskbarHandle);
+        }
+        _ = EnumChildWindows(
+            _taskbarHandle,
+            (handle, _) =>
+            {
+                lock (_subtreeGate)
+                {
+                    _confirmedSubtreeHandles.Add(handle);
+                }
+                return true;
+            },
+            nint.Zero);
 
         _ = GetWindowThreadProcessId(_taskbarHandle, out uint processId);
         if (processId == 0)
@@ -210,9 +240,7 @@ public sealed class TaskbarMotionTracker : IDisposable
             generation == 0 ||
             !supportedEvent ||
             windowHandle == nint.Zero ||
-            (eventType != EventObjectDestroy &&
-             windowHandle != _taskbarHandle &&
-             !IsChild(_taskbarHandle, windowHandle)))
+            !AcceptEventHandle(eventType, windowHandle))
         {
             return;
         }
@@ -231,9 +259,7 @@ public sealed class TaskbarMotionTracker : IDisposable
                         return;
                     }
 
-                    _eventGeneration = generation;
-                    _eventDebounceTimer.Stop();
-                    _eventDebounceTimer.Start();
+                    ScheduleQuietProbe(generation);
                 }));
         }
         catch (InvalidOperationException)
@@ -254,20 +280,54 @@ public sealed class TaskbarMotionTracker : IDisposable
             return;
         }
 
+        nint currentTaskbar = FindWindow("Shell_TrayWnd", null);
+        if (currentTaskbar != _taskbarHandle || _hook == nint.Zero)
+        {
+            RebuildHook();
+        }
+
         bool signatureChanged = UpdateTaskbarSignature();
         if (regionDirty || signatureChanged)
         {
             _requestRegionProbe();
         }
+    }
 
-        // When the root taskbar rectangle changes (especially auto-hide), the
-        // band must ride with its native parent. Reposition only after a fresh
-        // snapshot arrives; using visible-state screen coordinates here would
-        // hold the child on-screen while Explorer is sliding the taskbar away.
-        if (!signatureChanged && !regionDirty)
+    private bool AcceptEventHandle(uint eventType, nint windowHandle)
+    {
+        nint taskbar = _taskbarHandle;
+        if (eventType == EventObjectDestroy)
         {
-            _reposition();
+            lock (_subtreeGate)
+            {
+                return windowHandle == taskbar ||
+                    _confirmedSubtreeHandles.Remove(windowHandle);
+            }
         }
+
+        if (windowHandle != taskbar && !IsChild(taskbar, windowHandle))
+        {
+            return false;
+        }
+
+        lock (_subtreeGate)
+        {
+            _confirmedSubtreeHandles.Add(windowHandle);
+        }
+        return true;
+    }
+
+    private void ScheduleQuietProbe(int generation)
+    {
+        if (Volatile.Read(ref _closing) != 0 ||
+            generation != Volatile.Read(ref _generation))
+        {
+            return;
+        }
+
+        _eventGeneration = generation;
+        _eventDebounceTimer.Stop();
+        _eventDebounceTimer.Start();
     }
 
     private bool UpdateTaskbarSignature()
@@ -324,6 +384,8 @@ public sealed class TaskbarMotionTracker : IDisposable
         uint eventThread,
         uint eventTime);
 
+    private delegate bool EnumWindowsProc(nint windowHandle, nint parameter);
+
     private readonly record struct TaskbarSignature(
         nint Handle,
         bool Visible,
@@ -366,6 +428,13 @@ public sealed class TaskbarMotionTracker : IDisposable
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsChild(nint parentWindow, nint windowHandle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumChildWindows(
+        nint parentWindow,
+        EnumWindowsProc callback,
+        nint parameter);
 
     [DllImport("user32.dll")]
     private static extern nint SetWinEventHook(

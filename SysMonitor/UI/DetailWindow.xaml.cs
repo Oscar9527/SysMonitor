@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using SysMonitor.Models;
+using SysMonitor.Services;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
@@ -22,6 +23,7 @@ public partial class DetailWindow : Window
     private static readonly Brush PinnedForegroundBrush = CreateFrozenBrush("#007AFF");
     private static readonly Brush UnpinnedForegroundBrush = CreateFrozenBrush("#6E6E73");
 
+    private MonitorSnapshot _latestSnapshot = MonitorSnapshot.Empty;
     private bool _allowClose;
     private bool _isPinned;
 
@@ -29,6 +31,9 @@ public partial class DetailWindow : Window
     {
         InitializeComponent();
         Closing += DetailWindow_Closing;
+        Closed += DetailWindow_Closed;
+        LocalizationService.Current.CultureChanged += OnCultureChanged;
+        RefreshLocalizedText();
         UpdateSnapshot(MonitorSnapshot.Empty);
         SetPinned(false);
     }
@@ -36,37 +41,26 @@ public partial class DetailWindow : Window
     public bool IsPinned => _isPinned;
 
     public event EventHandler? PinChanged;
-
     public event EventHandler? HideRequested;
 
     public void UpdateSnapshot(MonitorSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.BeginInvoke(() => UpdateSnapshot(snapshot));
             return;
         }
 
-        UpdateMetric(
-            snapshot.CpuUsagePercent,
-            CpuBrush,
-            CpuValueText,
-            CpuProgress);
-
+        _latestSnapshot = snapshot;
+        UpdateMetric(snapshot.CpuUsagePercent, CpuBrush, CpuValueText, CpuProgress);
         CpuDetailsText.Text = BuildCpuDetails(
             snapshot.LogicalProcessorCount,
             snapshot.CpuTemperatureCelsius);
 
-        UpdateMetric(
-            snapshot.MemoryUsagePercent,
-            MemoryBrush,
-            MemoryValueText,
-            MemoryProgress);
-
+        UpdateMetric(snapshot.MemoryUsagePercent, MemoryBrush, MemoryValueText, MemoryProgress);
         MemoryDetailsText.Text = string.Format(
-            CultureInfo.CurrentCulture,
+            LocalizationService.Current.ActiveCulture,
             "{0} / {1} GB",
             FormatGigabytes(snapshot.MemoryUsedBytes),
             FormatGigabytes(snapshot.MemoryTotalBytes));
@@ -76,7 +70,7 @@ public partial class DetailWindow : Window
             GpuCard.Visibility = Visibility.Visible;
             UpdateOptionalMetric(gpu.UsagePercent, GpuBrush, GpuValueText, GpuProgress);
             GpuNameText.Text = string.IsNullOrWhiteSpace(gpu.Name)
-                ? "Graphics adapter"
+                ? LocalizationService.Current.GetString("GpuFallbackName")
                 : gpu.Name.Trim();
             GpuDetailsText.Text = BuildGpuDetails(gpu);
         }
@@ -88,14 +82,14 @@ public partial class DetailWindow : Window
         DownloadValueText.Text = FormatRate(snapshot.DownloadBytesPerSecond);
         UploadValueText.Text = FormatRate(snapshot.UploadBytesPerSecond);
 
-        var driveUsage = ClampPercent(snapshot.SystemDriveUsagePercent);
+        double driveUsage = ClampPercent(snapshot.SystemDriveUsagePercent);
         DriveNameText.Text = string.IsNullOrWhiteSpace(snapshot.SystemDriveName)
-            ? "System disk"
-            : $"{snapshot.SystemDriveName.Trim()}  System disk";
+            ? LocalizationService.Current.GetString("SystemDisk")
+            : LocalizationService.Current.Format("SystemDiskNamed", snapshot.SystemDriveName.Trim());
         DriveValueText.Text = FormatPercent(driveUsage);
         DriveProgress.Value = driveUsage;
 
-        var driveBrush = SelectBrush(driveUsage, CpuBrush);
+        Brush driveBrush = SelectBrush(driveUsage, CpuBrush);
         DriveValueText.Foreground = driveBrush;
         DriveProgress.Foreground = driveBrush;
     }
@@ -108,13 +102,12 @@ public partial class DetailWindow : Window
             return;
         }
 
-        var changed = _isPinned != isPinned;
+        bool changed = _isPinned != isPinned;
         _isPinned = isPinned;
         Topmost = isPinned;
-
         PinButton.Background = isPinned ? PinnedBackgroundBrush : Brushes.Transparent;
         PinIcon.Fill = isPinned ? PinnedForegroundBrush : UnpinnedForegroundBrush;
-        PinButton.ToolTip = isPinned ? "Stop keeping on top" : "Keep on top";
+        UpdatePinTooltip();
 
         if (changed)
         {
@@ -134,15 +127,105 @@ public partial class DetailWindow : Window
         Close();
     }
 
+    internal void RefreshLocalizedText()
+    {
+        LocalizationService localization = LocalizationService.Current;
+        ProcessorLabelText.Text = localization.GetString("DetailProcessor");
+        MemoryLabelText.Text = localization.GetString("DetailMemory");
+        GraphicsLabelText.Text = localization.GetString("DetailGraphics");
+        DownloadLabelText.Text = localization.GetString("DetailDownload");
+        UploadLabelText.Text = localization.GetString("DetailUpload");
+        System.Windows.Automation.AutomationProperties.SetName(
+            CpuProgress,
+            localization.GetString("DetailProcessor"));
+        System.Windows.Automation.AutomationProperties.SetName(
+            MemoryProgress,
+            localization.GetString("DetailMemory"));
+        System.Windows.Automation.AutomationProperties.SetName(
+            GpuProgress,
+            localization.GetString("DetailGraphics"));
+        System.Windows.Automation.AutomationProperties.SetName(
+            DriveProgress,
+            localization.GetString("SystemDisk"));
+        MinimizeButton.ToolTip = localization.GetString("MinimizeTooltip");
+        CloseButton.ToolTip = localization.GetString("CloseTooltip");
+        System.Windows.Automation.AutomationProperties.SetName(
+            MinimizeButton,
+            localization.GetString("MinimizeTooltip"));
+        System.Windows.Automation.AutomationProperties.SetName(
+            CloseButton,
+            localization.GetString("CloseTooltip"));
+        UpdatePinTooltip();
+    }
+
+    internal static string BuildCpuDetails(int logicalProcessorCount, double? temperature)
+    {
+        LocalizationService localization = LocalizationService.Current;
+        string processorText = logicalProcessorCount > 0
+            ? localization.Format("CpuLogicalProcessors", logicalProcessorCount)
+            : localization.GetString("CpuLogicalProcessorsUnavailable");
+        return IsFinite(temperature)
+            ? $"{processorText} · {FormatTemperature(temperature!.Value)}"
+            : processorText;
+    }
+
+    internal static string BuildGpuDetails(GpuSnapshot gpu)
+    {
+        LocalizationService localization = LocalizationService.Current;
+        var details = new List<string>();
+        if (IsFinite(gpu.TemperatureCelsius))
+        {
+            details.Add(FormatTemperature(gpu.TemperatureCelsius!.Value));
+        }
+
+        if (gpu.MemoryTotalBytes is { } total && total > 0)
+        {
+            string used = gpu.MemoryUsedBytes is { } memoryUsed && memoryUsed >= 0
+                ? FormatGigabytes(memoryUsed)
+                : "--";
+            details.Add(localization.Format(
+                "GpuVramUsage",
+                used,
+                FormatGigabytes(total)));
+        }
+        else if (gpu.MemoryUsedBytes is { } allocated && allocated >= 0)
+        {
+            details.Add(localization.Format(
+                "GpuDedicatedAllocated",
+                FormatGigabytes(allocated)));
+        }
+
+        return string.Join(" · ", details);
+    }
+
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => OnCultureChanged(sender, e));
+            return;
+        }
+
+        RefreshLocalizedText();
+        UpdateSnapshot(_latestSnapshot);
+    }
+
+    private void UpdatePinTooltip()
+    {
+        string tooltip = LocalizationService.Current.GetString(
+            _isPinned ? "PinDisableTooltip" : "PinEnableTooltip");
+        PinButton.ToolTip = tooltip;
+        System.Windows.Automation.AutomationProperties.SetName(PinButton, tooltip);
+    }
+
     private static void UpdateMetric(
         double rawValue,
         Brush normalBrush,
         System.Windows.Controls.TextBlock valueText,
         System.Windows.Controls.ProgressBar progress)
     {
-        var value = ClampPercent(rawValue);
-        var brush = SelectBrush(value, normalBrush);
-
+        double value = ClampPercent(rawValue);
+        Brush brush = SelectBrush(value, normalBrush);
         valueText.Text = FormatPercent(value);
         valueText.Foreground = brush;
         progress.Value = value;
@@ -167,103 +250,47 @@ public partial class DetailWindow : Window
         progress.Foreground = normalBrush;
     }
 
-    private static string BuildCpuDetails(int logicalProcessorCount, double? temperature)
-    {
-        var processorText = logicalProcessorCount > 0
-            ? string.Format(
-                CultureInfo.CurrentCulture,
-                "{0:N0} logical processors",
-                logicalProcessorCount)
-            : "Logical processors unavailable";
-
-        return IsFinite(temperature)
-            ? $"{processorText} · {FormatTemperature(temperature!.Value)}"
-            : processorText;
-    }
-
-    private static string BuildGpuDetails(GpuSnapshot gpu)
-    {
-        var details = new List<string>();
-        if (IsFinite(gpu.TemperatureCelsius))
-        {
-            details.Add(FormatTemperature(gpu.TemperatureCelsius!.Value));
-        }
-
-        if (gpu.MemoryTotalBytes is { } total && total > 0)
-        {
-            string used = gpu.MemoryUsedBytes is { } memoryUsed && memoryUsed >= 0
-                ? FormatGigabytes(memoryUsed)
-                : "--";
-            details.Add(string.Format(
-                CultureInfo.CurrentCulture,
-                "{0} / {1} GB VRAM",
-                used,
-                FormatGigabytes(total)));
-        }
-        else if (gpu.MemoryUsedBytes is { } allocated && allocated >= 0)
-        {
-            details.Add(string.Format(
-                CultureInfo.CurrentCulture,
-                "{0} GB dedicated allocated",
-                FormatGigabytes(allocated)));
-        }
-
-        return string.Join(" · ", details);
-    }
-
     private static string FormatGigabytes(long bytes)
     {
-        var safeBytes = Math.Max(0L, bytes);
-        var gigabytes = safeBytes / (1024d * 1024d * 1024d);
-        return gigabytes.ToString("0.0", CultureInfo.CurrentCulture);
+        double gigabytes = Math.Max(0L, bytes) / (1024d * 1024d * 1024d);
+        return gigabytes.ToString("0.0", LocalizationService.Current.ActiveCulture);
     }
 
     private static string FormatRate(double bytesPerSecond)
     {
-        var value = IsFinite(bytesPerSecond) && bytesPerSecond > 0
-            ? bytesPerSecond
-            : 0d;
-
+        double value = IsFinite(bytesPerSecond) && bytesPerSecond > 0 ? bytesPerSecond : 0d;
+        CultureInfo culture = LocalizationService.Current.ActiveCulture;
         if (value < 1024d)
         {
-            return string.Format(CultureInfo.CurrentCulture, "{0:0} B/s", value);
+            return string.Format(culture, "{0:0} B/s", value);
         }
 
         if (value < 1024d * 1024d)
         {
-            return string.Format(CultureInfo.CurrentCulture, "{0:0.0} KB/s", value / 1024d);
+            return string.Format(culture, "{0:0.0} KB/s", value / 1024d);
         }
 
-        return string.Format(
-            CultureInfo.CurrentCulture,
-            "{0:0.0} MB/s",
-            value / (1024d * 1024d));
+        if (value < 1024d * 1024d * 1024d)
+        {
+            return string.Format(culture, "{0:0.0} MB/s", value / (1024d * 1024d));
+        }
+
+        return string.Format(culture, "{0:0.0} GB/s", value / (1024d * 1024d * 1024d));
     }
 
-    private static string FormatTemperature(double temperature)
-    {
-        return string.Format(CultureInfo.CurrentCulture, "{0:0}℃", temperature);
-    }
+    private static string FormatTemperature(double temperature) =>
+        string.Format(LocalizationService.Current.ActiveCulture, "{0:0}°C", temperature);
 
-    private static string FormatPercent(double value)
-    {
-        return string.Format(CultureInfo.CurrentCulture, "{0:0}%", value);
-    }
+    private static string FormatPercent(double value) =>
+        string.Format(LocalizationService.Current.ActiveCulture, "{0:0}%", value);
 
-    private static double ClampPercent(double value)
-    {
-        return IsFinite(value) ? Math.Clamp(value, 0d, 100d) : 0d;
-    }
+    private static double ClampPercent(double value) =>
+        IsFinite(value) ? Math.Clamp(value, 0d, 100d) : 0d;
 
-    private static bool IsFinite(double value)
-    {
-        return !double.IsNaN(value) && !double.IsInfinity(value);
-    }
+    private static bool IsFinite(double value) =>
+        !double.IsNaN(value) && !double.IsInfinity(value);
 
-    private static bool IsFinite(double? value)
-    {
-        return value.HasValue && IsFinite(value.Value);
-    }
+    private static bool IsFinite(double? value) => value.HasValue && IsFinite(value.Value);
 
     private static Brush SelectBrush(double value, Brush normalBrush)
     {
@@ -282,20 +309,12 @@ public partial class DetailWindow : Window
         return brush;
     }
 
-    private void PinButton_Click(object sender, RoutedEventArgs e)
-    {
-        SetPinned(!_isPinned);
-    }
+    private void PinButton_Click(object sender, RoutedEventArgs e) => SetPinned(!_isPinned);
 
-    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
-    {
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) =>
         WindowState = WindowState.Minimized;
-    }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -325,4 +344,7 @@ public partial class DetailWindow : Window
         HideRequested?.Invoke(this, EventArgs.Empty);
         Hide();
     }
+
+    private void DetailWindow_Closed(object? sender, EventArgs e) =>
+        LocalizationService.Current.CultureChanged -= OnCultureChanged;
 }

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AppearanceApply" xml:space="preserve"><value>应用</value></data>
+  <data name="AppearanceApplied" xml:space="preserve"><value>已应用</value></data>
+  <data name="AppearanceClose" xml:space="preserve"><value>关闭</value></data>
+  <data name="AppearanceFont" xml:space="preserve"><value>字体</value></data>
+  <data name="AppearanceFontSize" xml:space="preserve"><value>字号</value></data>
+  <data name="AppearanceItemSpacing" xml:space="preserve"><value>项目间距</value></data>
+  <data name="AppearanceLanguage" xml:space="preserve"><value>语言</value></data>
+  <data name="AppearancePosition" xml:space="preserve"><value>左右位置</value></data>
+  <data name="AppearancePositionHelp" xml:space="preserve"><value>0% 最左，100% 最右；减小间距可扩大安全移动范围。</value></data>
+  <data name="AppearancePreview" xml:space="preserve"><value>预览</value></data>
+  <data name="AppearanceRestoreDefaults" xml:space="preserve"><value>恢复默认</value></data>
+  <data name="AppearanceTitle" xml:space="preserve"><value>任务栏外观</value></data>
+  <data name="CloseTooltip" xml:space="preserve"><value>关闭</value></data>
+  <data name="CpuLogicalProcessors" xml:space="preserve"><value>{0:N0} 个逻辑处理器</value></data>
+  <data name="CpuLogicalProcessorsUnavailable" xml:space="preserve"><value>逻辑处理器信息不可用</value></data>
+  <data name="DetailDownload" xml:space="preserve"><value>下载</value></data>
+  <data name="DetailGraphics" xml:space="preserve"><value>图形处理器</value></data>
+  <data name="DetailMemory" xml:space="preserve"><value>内存</value></data>
+  <data name="DetailProcessor" xml:space="preserve"><value>处理器</value></data>
+  <data name="DetailUpload" xml:space="preserve"><value>上传</value></data>
+  <data name="GpuDedicatedAllocated" xml:space="preserve"><value>专用显存：已分配 {0} GB</value></data>
+  <data name="GpuFallbackName" xml:space="preserve"><value>图形适配器</value></data>
+  <data name="GpuVramUsage" xml:space="preserve"><value>{0} / {1} GB VRAM</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
+  <data name="LanguageSystem" xml:space="preserve"><value>跟随系统</value></data>
+  <data name="MinimizeTooltip" xml:space="preserve"><value>最小化</value></data>
+  <data name="PinDisableTooltip" xml:space="preserve"><value>取消置顶</value></data>
+  <data name="PinEnableTooltip" xml:space="preserve"><value>保持置顶</value></data>
+  <data name="PositionCenter" xml:space="preserve"><value>中间 {0:0}%</value></data>
+  <data name="PositionLeft" xml:space="preserve"><value>左侧 {0:0}%</value></data>
+  <data name="PositionRight" xml:space="preserve"><value>右侧 {0:0}%</value></data>
+  <data name="SystemDisk" xml:space="preserve"><value>系统磁盘</value></data>
+  <data name="SystemDiskNamed" xml:space="preserve"><value>{0} · 系统磁盘</value></data>
+  <data name="TrayAppearance" xml:space="preserve"><value>任务栏外观…</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>退出</value></data>
+  <data name="TrayHidePanel" xml:space="preserve"><value>隐藏面板</value></data>
+  <data name="TrayPin" xml:space="preserve"><value>面板置顶</value></data>
+  <data name="TrayShowPanel" xml:space="preserve"><value>显示面板</value></data>
+  <data name="TrayStartup" xml:space="preserve"><value>开机自启</value></data>
+</root>

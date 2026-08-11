@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$version = '1.2.14'
+$version = '1.2.15'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $artifactDirectory = Join-Path $repositoryRoot 'artifacts'
 $corePath = Join-Path $artifactDirectory "SysMonitor.Core.$version.exe"

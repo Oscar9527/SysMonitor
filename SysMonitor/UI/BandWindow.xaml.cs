@@ -78,6 +78,10 @@ public partial class BandWindow : Window
     private bool _dpiRepositionPending;
     private bool _degraded;
     private bool _safetyParked;
+    private bool _placementInvalidated = true;
+    private bool _constraintExpansionPending;
+    private bool _constraintConfirmationInFlight;
+    private long _constraintConfirmationBlockedThroughGeneration = long.MinValue;
     private int _retryDelayMilliseconds = 150;
     private nint _nativeHandle;
 
@@ -172,6 +176,7 @@ public partial class BandWindow : Window
         _legacyHorizontalOffsetDip = double.IsFinite(appearance.LegacyHorizontalOffsetDip)
             ? appearance.LegacyHorizontalOffsetDip
             : 0;
+        _placementInvalidated = true;
         TaskbarPositioner.Invalidate();
         if (_positionTracking)
         {
@@ -344,7 +349,7 @@ public partial class BandWindow : Window
 
         if (_positionTracking)
         {
-            Reposition();
+            CheckAttachedWindowHealth();
         }
     }
 
@@ -494,6 +499,7 @@ public partial class BandWindow : Window
                     _dpiRepositionPending = false;
                     if (!_explicitClose && !Dispatcher.HasShutdownStarted)
                     {
+                        _placementInvalidated = true;
                         Reposition();
                     }
                 }));
@@ -515,6 +521,7 @@ public partial class BandWindow : Window
             Dispatcher.BeginInvoke(() =>
             {
                 TaskbarPositioner.Invalidate();
+                _placementInvalidated = true;
                 InvalidateRegionSnapshotAndRequestProbe();
                 Reposition();
                 _motionTracker.NotifyTaskbarStateChanged();
@@ -530,6 +537,7 @@ public partial class BandWindow : Window
             {
                 ApplySystemTheme();
                 TaskbarPositioner.Invalidate();
+                _placementInvalidated = true;
                 InvalidateRegionSnapshotAndRequestProbe();
                 Reposition();
                 _motionTracker.NotifyTaskbarStateChanged();
@@ -560,7 +568,20 @@ public partial class BandWindow : Window
             _regionSnapshot,
             _horizontalPositionPercent,
             _legacyHorizontalOffsetDip,
-            _itemSpacingDip);
+            _itemSpacingDip,
+            _placementInvalidated);
+        _constraintExpansionPending = result.ConstraintConfirmationSuggested;
+        if (result.ConstraintConfirmationSuggested &&
+            !_constraintConfirmationInFlight &&
+            _regionSnapshot is { } confirmationSource &&
+            confirmationSource.Generation > _constraintConfirmationBlockedThroughGeneration)
+        {
+            // One real asynchronous probe may confirm this outward candidate.
+            // Its callback blocks this generation from requesting again, even
+            // when the second observation changes or fails.
+            _constraintConfirmationInFlight = true;
+            _regionMonitor.RequestProbe();
+        }
         if (!result.NativeParentValid)
         {
             SafetyPark("taskbar snapshot no longer matches native parent");
@@ -590,6 +611,7 @@ public partial class BandWindow : Window
 
         if (result.LayoutValid)
         {
+            _placementInvalidated = false;
             if (_safetyParked)
             {
                 _safetyParked = false;
@@ -606,14 +628,23 @@ public partial class BandWindow : Window
             }
         }
 
-        if (result.RetrySuggested)
+        bool confirmationSettledOnCurrentSnapshot =
+            _regionSnapshot is { } currentSnapshot &&
+            currentSnapshot.Generation <= _constraintConfirmationBlockedThroughGeneration;
+        if (result.RetrySuggested &&
+            !_constraintExpansionPending &&
+            !_constraintConfirmationInFlight &&
+            !confirmationSettledOnCurrentSnapshot)
         {
             ScheduleRetry("taskbar layout unavailable");
         }
         else
         {
             _layoutRetryTimer.Stop();
-            MarkHealthy();
+            if (!result.RetrySuggested)
+            {
+                MarkHealthy();
+            }
         }
     }
 
@@ -626,6 +657,27 @@ public partial class BandWindow : Window
 
         if (_regionSnapshot is not null && snapshot.Generation <= _regionSnapshot.Generation)
         {
+            return;
+        }
+
+        bool completesConstraintConfirmation = _constraintConfirmationInFlight;
+        if (completesConstraintConfirmation)
+        {
+            _constraintConfirmationInFlight = false;
+            _constraintConfirmationBlockedThroughGeneration = snapshot.Generation;
+        }
+
+        if (!snapshot.IsValid &&
+            !snapshot.HasTrustedBounds &&
+            _regionSnapshot is { IsValid: true } trustedPrior &&
+            snapshot.TaskbarHandle == trustedPrior.TaskbarHandle &&
+            (completesConstraintConfirmation || _constraintExpansionPending))
+        {
+            // A failed real observation terminates confirmation without
+            // replacing the last trusted geometry or expanding a boundary.
+            TaskbarPositioner.RejectConstraintExpansion(snapshot.Generation);
+            _constraintExpansionPending = false;
+            _layoutRetryTimer.Stop();
             return;
         }
 
@@ -655,7 +707,9 @@ public partial class BandWindow : Window
             snapshot.TaskbarBottom == priorValid.TaskbarBottom &&
             snapshot.SafeLeft == priorValid.SafeLeft &&
             snapshot.SafeRight == priorValid.SafeRight &&
-            snapshot.TaskbarDpi == priorValid.TaskbarDpi)
+            snapshot.TaskbarDpi == priorValid.TaskbarDpi &&
+            !completesConstraintConfirmation &&
+            !_constraintExpansionPending)
         {
             return;
         }
@@ -914,11 +968,24 @@ public partial class BandWindow : Window
             return;
         }
 
-        // Health polling must only validate the native contract. Repositioning
-        // once per second forces Windows 10 Explorer to recompose the taskbar's
-        // sibling children, which makes running-app indicator lines blink.
         nint taskbar = TaskbarPositioner.FindTaskbarWindow();
-        _ = ValidateAttachedContract(handle, taskbar, "health");
+        NativeIntegritySnapshot snapshot = CaptureIntegritySnapshot(handle, taskbar);
+        if (IsAttachedContractValid(snapshot, taskbar))
+        {
+            MarkHealthy();
+            return;
+        }
+
+        LogIntegritySnapshot("health", snapshot);
+        BandDiagnostics.Log(
+            $"band integrity invalid at health; attempting in-place repair " +
+            $"generation={Generation} hwnd=0x{handle.ToInt64():X}");
+        if (EnsureTaskbarChild(handle))
+        {
+            // A repaired parent/style contract is the exceptional health path
+            // that needs placement restored from the latest safe snapshot.
+            Reposition();
+        }
     }
 
     private bool ValidateAttachedContract(

@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using SysMonitor.Models;
+using SysMonitor.Services;
 using MediaFontFamily = System.Windows.Media.FontFamily;
 using WpfTextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
 
@@ -19,25 +20,22 @@ public partial class AppearanceSettingsWindow : Window
     private const double DefaultItemSpacingDip = 10d;
     private const double DefaultPositionPercent = 100d;
     private readonly DispatcherTimer _previewTimer;
+    private readonly string _displayVersion;
     private bool _allowClose;
     private bool _controlsReady;
     private bool _loading;
+    private bool _loadingLanguage;
+    private bool _showingAppliedStatus;
     private BandAppearanceSettings _lastApplied =
-        new(
-            DefaultFontFamily,
-            DefaultFontSize,
-            DefaultPositionPercent,
-            DefaultItemSpacingDip);
+        new(DefaultFontFamily, DefaultFontSize, DefaultPositionPercent, DefaultItemSpacingDip);
 
     public AppearanceSettingsWindow()
     {
         InitializeComponent();
         Version? assemblyVersion = typeof(AppearanceSettingsWindow).Assembly.GetName().Version;
-        string displayVersion = assemblyVersion is null
-            ? ""
+        _displayVersion = assemblyVersion is null
+            ? string.Empty
             : $" · v{assemblyVersion.Major}.{assemblyVersion.Minor}.{assemblyVersion.Build}";
-        WindowTitleText.Text = "任务栏外观" + displayVersion;
-        Title = WindowTitleText.Text;
         _previewTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
         {
             Interval = TimeSpan.FromMilliseconds(125)
@@ -53,12 +51,18 @@ public partial class AppearanceSettingsWindow : Window
             WpfTextBoxBase.TextChangedEvent,
             new TextChangedEventHandler(FontFamilyComboBox_TextChanged));
         Closing += AppearanceSettingsWindow_Closing;
+        Closed += AppearanceSettingsWindow_Closed;
+        LocalizationService.Current.CultureChanged += OnCultureChanged;
+
         _controlsReady = true;
+        LoadUiCulture(LocalizationService.Current.CulturePreference);
+        RefreshLocalizedText();
         LoadAppearanceCore(_lastApplied, true);
     }
 
     public event EventHandler<BandAppearanceSettings>? AppearanceApplied;
     public event EventHandler<BandAppearanceSettings>? AppearancePreviewChanged;
+    public event Action<string>? UiCultureChanged;
 
     public void LoadAppearance(BandAppearanceSettings value)
     {
@@ -72,6 +76,28 @@ public partial class AppearanceSettingsWindow : Window
         LoadAppearanceCore(value, true);
     }
 
+    public void LoadUiCulture(string? culturePreference)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => LoadUiCulture(culturePreference));
+            return;
+        }
+
+        string normalized = LocalizationService.NormalizeCulturePreference(culturePreference);
+        _loadingLanguage = true;
+        try
+        {
+            LanguageComboBox.SelectedItem = LanguageComboBox.Items
+                .OfType<ComboBoxItem>()
+                .First(item => string.Equals(item.Tag as string, normalized, StringComparison.Ordinal));
+        }
+        finally
+        {
+            _loadingLanguage = false;
+        }
+    }
+
     public void ForceClose()
     {
         if (!Dispatcher.CheckAccess())
@@ -83,6 +109,47 @@ public partial class AppearanceSettingsWindow : Window
         _allowClose = true;
         _previewTimer.Stop();
         Close();
+    }
+
+    internal void RefreshLocalizedText()
+    {
+        LocalizationService localization = LocalizationService.Current;
+        string title = localization.GetString("AppearanceTitle");
+        WindowTitleText.Text = title + _displayVersion;
+        Title = WindowTitleText.Text;
+        FontLabelText.Text = localization.GetString("AppearanceFont");
+        FontSizeLabelText.Text = localization.GetString("AppearanceFontSize");
+        ItemSpacingLabelText.Text = localization.GetString("AppearanceItemSpacing");
+        PositionLabelText.Text = localization.GetString("AppearancePosition");
+        PositionHelpText.Text = localization.GetString("AppearancePositionHelp");
+        LanguageLabelText.Text = localization.GetString("AppearanceLanguage");
+        PreviewLabelText.Text = localization.GetString("AppearancePreview");
+        ApplyButton.Content = localization.GetString("AppearanceApply");
+        RestoreDefaultsButton.Content = localization.GetString("AppearanceRestoreDefaults");
+        BottomCloseButton.Content = localization.GetString("AppearanceClose");
+        string close = localization.GetString("CloseTooltip");
+        TitleCloseButton.ToolTip = close;
+        System.Windows.Automation.AutomationProperties.SetName(TitleCloseButton, close);
+        SystemLanguageItem.Content = localization.GetString("LanguageSystem");
+        ChineseLanguageItem.Content = localization.GetString("LanguageSimplifiedChinese");
+        EnglishLanguageItem.Content = localization.GetString("LanguageEnglish");
+        SetAutomationName(FontFamilyComboBox, localization.GetString("AppearanceFont"));
+        SetAutomationName(FontSizeSlider, localization.GetString("AppearanceFontSize"));
+        SetAutomationName(ItemSpacingSlider, localization.GetString("AppearanceItemSpacing"));
+        SetAutomationName(HorizontalOffsetSlider, localization.GetString("AppearancePosition"));
+        SetAutomationName(LanguageComboBox, localization.GetString("AppearanceLanguage"));
+        SetAutomationName(ApplyButton, localization.GetString("AppearanceApply"));
+        SetAutomationName(RestoreDefaultsButton, localization.GetString("AppearanceRestoreDefaults"));
+        SetAutomationName(BottomCloseButton, localization.GetString("AppearanceClose"));
+        if (_showingAppliedStatus)
+        {
+            StatusText.Text = localization.GetString("AppearanceApplied");
+        }
+
+        if (_controlsReady)
+        {
+            UpdatePreview();
+        }
     }
 
     private void LoadAppearanceCore(BandAppearanceSettings value, bool markApplied)
@@ -106,6 +173,7 @@ public partial class AppearanceSettingsWindow : Window
                     value.LegacyHorizontalOffsetDip);
             }
 
+            _showingAppliedStatus = false;
             StatusText.Text = string.Empty;
             UpdatePreview();
         }
@@ -125,8 +193,9 @@ public partial class AppearanceSettingsWindow : Window
     private void UpdatePreview()
     {
         BandAppearanceSettings value = ReadControls();
-        FontSizeValueText.Text = value.FontSize.ToString("0", CultureInfo.CurrentCulture);
-        ItemSpacingValueText.Text = $"{value.ItemSpacingDip.ToString("0", CultureInfo.CurrentCulture)} px";
+        CultureInfo culture = LocalizationService.Current.ActiveCulture;
+        FontSizeValueText.Text = value.FontSize.ToString("0", culture);
+        ItemSpacingValueText.Text = $"{value.ItemSpacingDip.ToString("0", culture)} px";
         HorizontalOffsetValueText.Text = FormatPosition(value.HorizontalPositionPercent ?? 100);
         PreviewText.FontSize = value.FontSize;
         int previewSpaces = 1 + (int)Math.Round(value.ItemSpacingDip / 3);
@@ -149,6 +218,7 @@ public partial class AppearanceSettingsWindow : Window
             return;
         }
 
+        _showingAppliedStatus = false;
         StatusText.Text = string.Empty;
         UpdatePreview();
         _previewTimer.Stop();
@@ -181,9 +251,13 @@ public partial class AppearanceSettingsWindow : Window
 
     private static string FormatPosition(double value)
     {
-        string label = value <= 20 ? "左" : value >= 80 ? "右" : "中";
-        return $"{label} {value.ToString("0", CultureInfo.CurrentCulture)}%";
+        LocalizationService localization = LocalizationService.Current;
+        string key = value <= 20 ? "PositionLeft" : value >= 80 ? "PositionRight" : "PositionCenter";
+        return localization.Format(key, value);
     }
+
+    private static void SetAutomationName(DependencyObject element, string name) =>
+        System.Windows.Automation.AutomationProperties.SetName(element, name);
 
     private void ApplyButton_Click(object sender, RoutedEventArgs e)
     {
@@ -191,7 +265,8 @@ public partial class AppearanceSettingsWindow : Window
         LoadAppearanceCore(value, true);
         _previewTimer.Stop();
         AppearanceApplied?.Invoke(this, value);
-        StatusText.Text = "已应用";
+        _showingAppliedStatus = true;
+        StatusText.Text = LocalizationService.Current.GetString("AppearanceApplied");
     }
 
     private void RestoreDefaultsButton_Click(object sender, RoutedEventArgs e)
@@ -235,6 +310,28 @@ public partial class AppearanceSettingsWindow : Window
         }
     }
 
+    private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingLanguage || LanguageComboBox.SelectedItem is not ComboBoxItem item ||
+            item.Tag is not string culturePreference)
+        {
+            return;
+        }
+
+        UiCultureChanged?.Invoke(LocalizationService.NormalizeCulturePreference(culturePreference));
+    }
+
+    private void OnCultureChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => OnCultureChanged(sender, e));
+            return;
+        }
+
+        RefreshLocalizedText();
+    }
+
     private void FontFamilyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_controlsReady)
@@ -246,19 +343,13 @@ public partial class AppearanceSettingsWindow : Window
     private void FontFamilyComboBox_TextChanged(object sender, TextChangedEventArgs e) =>
         ScheduleLivePreview();
 
-    private void FontSizeSlider_ValueChanged(
-        object sender,
-        RoutedPropertyChangedEventArgs<double> e) =>
+    private void FontSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) =>
         ScheduleLivePreview();
 
-    private void ItemSpacingSlider_ValueChanged(
-        object sender,
-        RoutedPropertyChangedEventArgs<double> e) =>
+    private void ItemSpacingSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) =>
         ScheduleLivePreview();
 
-    private void HorizontalOffsetSlider_ValueChanged(
-        object sender,
-        RoutedPropertyChangedEventArgs<double> e) =>
+    private void HorizontalOffsetSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) =>
         ScheduleLivePreview();
 
     private void AppearanceSettingsWindow_Closing(object? sender, CancelEventArgs e)
@@ -272,4 +363,7 @@ public partial class AppearanceSettingsWindow : Window
         RestoreLastAppliedPreview();
         Hide();
     }
+
+    private void AppearanceSettingsWindow_Closed(object? sender, EventArgs e) =>
+        LocalizationService.Current.CultureChanged -= OnCultureChanged;
 }

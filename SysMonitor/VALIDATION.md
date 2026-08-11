@@ -1,18 +1,22 @@
 # SysMonitor 1.2 validation
 
-Validation date: 2026-08-10  
+Validation date: 2026-08-11
 Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, auto-hidden taskbar
 
 ## Build
 
 - Release build: passed, 0 warnings, 0 errors
 - Publish: win-x64, framework-dependent, single EXE
-- Version: 1.2.14
+- Version: 1.2.15
 - Runtime: Microsoft .NET 8 Desktop Runtime x64
 - LibreHardwareMonitorLib: 0.9.4 (selected after a 0.9.5/0.9.6 Ryzen temperature regression comparison)
 
 ## Safe-range positioning
 
+- Positioning now uses taskbar-client relative X/Y coordinates. A stale visible-state `TaskbarTop` is never converted through a moving parent, so native parent motion cannot be cancelled by a compensating child offset.
+- Safe constraints contract immediately and expand only after two consecutive matching observations. The applied Band X remains unchanged while its full rectangle is still safe.
+- A 12-second read-only live sample collected 186 Band observations: one HWND, one parent, 0 px X/Y/width variance, 100% visible, child, tool-window and no-activate states, with every parent equal to the current `Shell_TrayWnd`.
+- Stable-state diagnostics recorded one initial placement and no periodic placement calls afterward.
 - Horizontal control spans 0%–100% of the currently available taskbar gap.
 - The full Band rectangle is clamped after the last task/app icon and before the first notification-area icon.
 - UI Automation probing runs on a dedicated STA worker; Win32 fallback accepts only explicit task-list and notification classes.
@@ -22,6 +26,15 @@ Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, 
 - Healthy-state polling validates the native child contract without repositioning the Band; normal moves preserve child z-order and `WS_CLIPSIBLINGS` isolates Windows 10 taskbar siblings.
 - Metric values use clipped fixed Grid slots with tabular numerals, so changing digit counts and rate units do not move adjacent columns.
 - Taskbar UI Automation uses actual Button/ListItem/TabItem edges and ignores broad empty task-list containers, maximizing safe travel without covering icons.
+- Horizontal top/bottom taskbars are supported. A vertical taskbar has no legal horizontal Band layout and therefore uses the existing safety park; tray and detail functions remain available.
+
+## Localization and interface
+
+- Runtime culture choices are `system`, `en-US` and `zh-CN`; any `zh-*` system UI culture resolves to simplified Chinese and all other system cultures resolve to English.
+- Switching language updates the open detail window, appearance window and tray menu without recreating the Band HWND.
+- English and Chinese resources contain identical key sets and matching format placeholders. Chinese text is embedded in the final single-file core.
+- Legacy settings without `UiCulture` load as `system`; invalid values normalize safely without losing existing appearance settings.
+- The detail and appearance windows use shared modern-light design tokens, opaque WPF rendering, rounded grouped surfaces and `Segoe UI Variable Text` with `Segoe UI` fallback for Windows 10.
 
 ## Appearance range
 
@@ -61,7 +74,13 @@ Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, 
 - NVIDIA, AMD and Intel selector/coordinator behavior is covered by 22 deterministic tests. AMD and Intel physical GPU validation was not available on this machine and is not claimed.
 - Missing usage, core temperature or VRAM remains nullable and renders as unavailable instead of a false zero.
 
-## GPU automated checks
+## Automated checks
+
+- Full result: 58 passed, 0 failed, 0 skipped; Release build completed with 0 warnings and 0 errors.
+- Added parent-relative geometry, vertical-taskbar safety, constraint contraction/expansion, boundary jitter, width growth and no-feasible-region coverage.
+- Added culture resolution, bilingual resource parity, dynamic detail copy, legacy settings migration and corrupt/invalid settings coverage.
+
+### GPU checks retained
 
 - Exact NVIDIA/AMD `GPU Core` load selection; controller, video and bus loads are excluded.
 - Intel uses the maximum finite D3D engine load.
@@ -70,21 +89,23 @@ Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, 
 - Quoted CSV fields, `N/A` metrics, timestamp cycle boundaries, partial/corrupt rows and adapter-set changes.
 - Fresh NVIDIA-primary suppression of duplicate LibreHardwareMonitor NVIDIA devices, exact-identity-only merge, stale fallback, out-of-order rejection and two-tick selection hysteresis.
 - Repeated start/stop/dispose is idempotent and awaited.
-- Result: 22 passed, 0 failed, 0 skipped; Release build completed with 0 warnings and 0 errors.
+- The original 22 GPU checks remain part of the 58-test full suite.
 
 ## Portable upgrade and process cleanup
 
-- Starting the 1.2.14 launcher over a running extracted 1.2.13 core stopped the old core and its persistent `nvidia-smi` child as one process tree.
-- Observed old PID 9212 and child PID 2380: both gone after upgrade; no old child remained orphaned.
-- Extracted `SysMonitor.Core.1.2.14.exe` SHA-256 matched the embedded publish core exactly.
-- Startup registration migrated to the 1.2.14 portable launcher, and the new core responded normally.
+- Starting the 1.2.15 launcher over a running extracted 1.2.14 core stopped the old core and started exactly one 1.2.15 core; no 1.2.14 core remained.
+- Extracted `SysMonitor.Core.1.2.15.exe` ran from the versioned runtime cache and startup registration migrated to the 1.2.15 portable launcher.
 - The application manifest remains `asInvoker`; the launcher only detects the .NET 8 Desktop Runtime and opens the official page when missing. This host session runs at high integrity, so a clean standard-user machine validation was unavailable and is not claimed.
 
 ## Resource target
 
 - Sampling interval: 1 second.
-- After a 30-second warm-up, three complete-process-tree windows ran for 61.69, 61.56 and 61.61 seconds.
-- Each window measured 0.0000% normalized average, p95 and peak CPU across 16 logical processors (no additional measurable CPU quantum), below the 1% target.
-- Working set at the end of the three windows: 159.15, 159.47 and 161.17 MiB; private memory: 137.37, 136.02 and 138.00 MiB; thread count: 29, 27 and 28.
-- Final portable launcher: 6,740,480 bytes (6.43 MiB), inside the requested 5–50 MB range.
-- Final SHA-256: `BE2B79C08661BC38294425BFF84C1FCF61C5D721CE7995E10E0C17F066ABC7D6`.
+- The final packaged core ran for a 182.1-second stable-state sample at 0.0257% of one core, or 0.0016% normalized across 16 logical processors, below the 1% target.
+- Average/max working set was 160.00/161.42 MiB; maximum private memory was 140.01 MiB and maximum handle count was 867.
+- Final portable launcher: 6,798,336 bytes (6.48 MiB), inside the requested 5–50 MB range.
+- Final SHA-256: `F4C3A8E621DC7735023C60F2E528F582261448131A4DC14D3D736BF55AE04ED0`.
+
+## Hardware coverage boundary for this release
+
+- This pass did not move the user's mouse or toggle their taskbar settings. The live check therefore proves stable attachment and zero stationary jitter on the available Windows 11 host, while the parent-motion path is covered deterministically by relative-coordinate tests.
+- A separate physical Windows 10 auto-hide transition and secondary-monitor shell animation were not available in this environment and are not claimed as hardware-tested in this release.

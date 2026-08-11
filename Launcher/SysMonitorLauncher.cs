@@ -7,9 +7,16 @@ using System.Security.Cryptography;
 using Microsoft.Win32;
 using System.Windows.Forms;
 
+[assembly: AssemblyTitle("SysMonitor")]
+[assembly: AssemblyProduct("SysMonitor")]
+[assembly: AssemblyDescription("Portable Windows taskbar system monitor")]
+[assembly: AssemblyVersion("1.2.15.0")]
+[assembly: AssemblyFileVersion("1.2.15.0")]
+[assembly: AssemblyInformationalVersion("1.2.15")]
+
 internal static class SysMonitorLauncher
 {
-    private const string CoreResourceName = "SysMonitor.Core.1.2.14.exe";
+    private const string CoreResourceName = "SysMonitor.Core.1.2.15.exe";
     private const string RuntimeDownloadUrl = "https://dotnet.microsoft.com/download/dotnet/8.0/runtime";
 
     [STAThread]

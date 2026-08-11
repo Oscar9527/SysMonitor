@@ -12,11 +12,10 @@ public sealed class SettingsService
         PropertyNameCaseInsensitive = true
     };
 
-    public SettingsService()
+    public SettingsService(string? settingsDirectory = null)
     {
-        SettingsDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "SysMonitor");
+        SettingsDirectory = settingsDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SysMonitor");
         SettingsPath = Path.Combine(SettingsDirectory, "settings.json");
     }
 
@@ -84,8 +83,9 @@ public sealed class SettingsService
         }
     }
 
-    private static void Normalize(AppSettings settings)
+    internal static void Normalize(AppSettings settings)
     {
+        settings.UiCulture = LocalizationService.NormalizeCulturePreference(settings.UiCulture);
         settings.BandFontFamily = string.IsNullOrWhiteSpace(settings.BandFontFamily)
             ? "Segoe UI Variable Text"
             : settings.BandFontFamily.Trim();

@@ -2,5 +2,27 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
+        <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F5F7" />
+        <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="AppTextBrush" Color="#1D1D1F" />
+        <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#6E6E73" />
+        <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#8E8E93" />
+        <SolidColorBrush x:Key="AppSeparatorBrush" Color="#E5E5EA" />
+        <SolidColorBrush x:Key="AppControlBrush" Color="#F0F0F3" />
+        <SolidColorBrush x:Key="AppAccentBrush" Color="#007AFF" />
+
+        <Style x:Key="AppWindowStyle" TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource AppTextBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        </Style>
+
+        <Style x:Key="AppGroupStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AppSeparatorBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="16" />
+        </Style>
     </Application.Resources>
 </Application>

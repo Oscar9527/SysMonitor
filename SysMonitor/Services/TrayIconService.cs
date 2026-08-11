@@ -18,37 +18,31 @@ public sealed class TrayIconService : IDisposable
     private readonly Forms.ToolStripMenuItem _exitItem;
     private readonly Icon _icon;
     private bool _syncingState;
+    private bool _panelVisible;
     private bool _disposed;
 
     public TrayIconService()
     {
         _icon = CreateIcon();
 
-        _panelItem = new Forms.ToolStripMenuItem("显示面板");
+        _panelItem = new Forms.ToolStripMenuItem();
         _panelItem.Click += OnPanelItemClick;
 
-        _appearanceItem = new Forms.ToolStripMenuItem("任务栏外观…");
+        _appearanceItem = new Forms.ToolStripMenuItem();
         _appearanceItem.Click += OnAppearanceItemClick;
 
-        _pinItem = new Forms.ToolStripMenuItem("窗口置顶")
-        {
-            CheckOnClick = true
-        };
+        _pinItem = new Forms.ToolStripMenuItem { CheckOnClick = true };
         _pinItem.CheckedChanged += OnPinCheckedChanged;
 
-        _startupItem = new Forms.ToolStripMenuItem("开机自启")
-        {
-            CheckOnClick = true
-        };
+        _startupItem = new Forms.ToolStripMenuItem { CheckOnClick = true };
         _startupItem.CheckedChanged += OnStartupCheckedChanged;
 
-        _exitItem = new Forms.ToolStripMenuItem("退出");
+        _exitItem = new Forms.ToolStripMenuItem();
         _exitItem.Click += OnExitItemClick;
 
         _contextMenu = new Forms.ContextMenuStrip();
         _contextMenu.Items.AddRange(
-        new Forms.ToolStripItem[]
-        {
+        [
             _panelItem,
             _appearanceItem,
             new Forms.ToolStripSeparator(),
@@ -56,7 +50,7 @@ public sealed class TrayIconService : IDisposable
             _startupItem,
             new Forms.ToolStripSeparator(),
             _exitItem
-        });
+        ]);
 
         _notifyIcon = new Forms.NotifyIcon
         {
@@ -66,22 +60,21 @@ public sealed class TrayIconService : IDisposable
             Visible = true
         };
         _notifyIcon.MouseUp += OnNotifyIconMouseUp;
+        LocalizationService.Current.CultureChanged += OnCultureChanged;
+        ApplyLocalizedText();
     }
 
     public event EventHandler? ToggleDetailsRequested;
-
     public event EventHandler? AppearanceSettingsRequested;
-
     public event Action<bool>? PinToggled;
-
     public event Action<bool>? StartupToggled;
-
     public event EventHandler? ExitRequested;
 
     public void SetPanelVisible(bool visible)
     {
         ThrowIfDisposed();
-        _panelItem.Text = visible ? "隐藏面板" : "显示面板";
+        _panelVisible = visible;
+        SetPanelItemText();
     }
 
     public void SetPinned(bool pinned)
@@ -104,6 +97,7 @@ public sealed class TrayIconService : IDisposable
         }
 
         _disposed = true;
+        LocalizationService.Current.CultureChanged -= OnCultureChanged;
         _notifyIcon.Visible = false;
         _notifyIcon.MouseUp -= OnNotifyIconMouseUp;
         _panelItem.Click -= OnPanelItemClick;
@@ -115,6 +109,27 @@ public sealed class TrayIconService : IDisposable
         _contextMenu.Dispose();
         _icon.Dispose();
     }
+
+    internal void ApplyLocalizedText()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        LocalizationService localization = LocalizationService.Current;
+        SetPanelItemText();
+        _appearanceItem.Text = localization.GetString("TrayAppearance");
+        _pinItem.Text = localization.GetString("TrayPin");
+        _startupItem.Text = localization.GetString("TrayStartup");
+        _exitItem.Text = localization.GetString("TrayExit");
+    }
+
+    private void SetPanelItemText() =>
+        _panelItem.Text = LocalizationService.Current.GetString(
+            _panelVisible ? "TrayHidePanel" : "TrayShowPanel");
+
+    private void OnCultureChanged(object? sender, EventArgs e) => ApplyLocalizedText();
 
     private void OnNotifyIconMouseUp(object? sender, Forms.MouseEventArgs e)
     {
@@ -167,10 +182,7 @@ public sealed class TrayIconService : IDisposable
         }
     }
 
-    private void ThrowIfDisposed()
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-    }
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     private static Icon CreateIcon()
     {
@@ -209,15 +221,10 @@ public sealed class TrayIconService : IDisposable
         graphics.DrawPath(borderPen, backgroundPath);
 
         PointF[] waveform =
-        {
-            new(6, 17),
-            new(10, 17),
-            new(12.5f, 10),
-            new(16, 23),
-            new(19, 14),
-            new(21.5f, 17),
-            new(26, 17)
-        };
+        [
+            new(6, 17), new(10, 17), new(12.5f, 10), new(16, 23),
+            new(19, 14), new(21.5f, 17), new(26, 17)
+        ];
         using var waveformPen = new Pen(Color.FromArgb(255, 56, 217, 197), 2.4f)
         {
             StartCap = LineCap.Round,

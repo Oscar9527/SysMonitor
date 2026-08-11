@@ -10,6 +10,7 @@ public static class TaskbarPositioner
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoSendChanging = 0x0400;
     private static readonly nint HwndTop = nint.Zero;
+    private static readonly TaskbarSafeConstraintTracker ConstraintTracker = new();
 
     public const double BandHeightDip = 34;
     public const double MinimumBandWidthDip = 320;
@@ -21,6 +22,11 @@ public static class TaskbarPositioner
     }
 
     public static bool IsTaskbarAvailable() => FindTaskbarWindow() != nint.Zero;
+
+    public static void RejectConstraintExpansion(long observedGeneration)
+    {
+        ConstraintTracker.RejectPendingExpansion(observedGeneration);
+    }
 
     public static nint FindTaskbarWindow() => FindWindow("Shell_TrayWnd", null);
 
@@ -38,7 +44,8 @@ public static class TaskbarPositioner
         TaskbarRegionSnapshot? snapshot,
         double? horizontalPositionPercent,
         double legacyHorizontalOffsetDip,
-        double itemSpacingDip)
+        double itemSpacingDip,
+        bool explicitLayoutChange = false)
     {
         ArgumentNullException.ThrowIfNull(window);
         nint bandHandle = new WindowInteropHelper(window).Handle;
@@ -47,7 +54,7 @@ public static class TaskbarPositioner
             return TaskbarPositionResult.Hide(window.Width);
         }
 
-        if (snapshot is not { IsValid: true } ||
+        if (snapshot is null ||
             snapshot.TaskbarHandle == nint.Zero ||
             !IsWindow(snapshot.TaskbarHandle) ||
             GetParent(bandHandle) != snapshot.TaskbarHandle)
@@ -61,11 +68,24 @@ public static class TaskbarPositioner
 
         int taskbarWidth = snapshot.TaskbarRight - snapshot.TaskbarLeft;
         int taskbarHeight = snapshot.TaskbarBottom - snapshot.TaskbarTop;
-        int availableWidth = snapshot.SafeRight - snapshot.SafeLeft;
-        if (taskbarWidth <= 0 || taskbarHeight <= 4 || availableWidth <= 0)
+        if (!TaskbarPlacementStabilizer.IsHorizontal(taskbarWidth, taskbarHeight))
         {
-            return TaskbarPositionResult.Hide(window.Width);
+            return TaskbarPositionResult.Hide(
+                window.Width,
+                retrySuggested: false);
         }
+
+        TaskbarSafeConstraint? observedConstraint = ConstraintTracker.Observe(snapshot);
+        bool constraintConfirmationSuggested = ConstraintTracker.HasPendingExpansion;
+        if (observedConstraint is not { IsValid: true } constraint)
+        {
+            return TaskbarPositionResult.Hide(
+                window.Width,
+                retrySuggested: !snapshot.HasTrustedBounds,
+                constraintConfirmationSuggested: constraintConfirmationSuggested);
+        }
+
+        int availableWidth = constraint.Right - constraint.Left;
 
         uint bandDpi = GetDpiForWindow(bandHandle);
         if (bandDpi == 0)
@@ -84,35 +104,45 @@ public static class TaskbarPositioner
         double widthDip = Math.Min(desiredWidthDip, availableWidthDip);
         if (widthDip < MinimumBandWidthDip)
         {
-            return TaskbarPositionResult.Hide(window.Width);
+            return TaskbarPositionResult.Hide(
+                window.Width,
+                constraintConfirmationSuggested: constraintConfirmationSuggested);
         }
 
         int widthPixels = Math.Max(1, (int)Math.Floor(widthDip * bandScale));
         int heightPixels = Math.Max(1, (int)Math.Round(BandHeightDip * bandScale));
-        int minimumX = snapshot.SafeLeft;
-        int maximumX = snapshot.SafeRight - widthPixels;
-        if (minimumX > maximumX)
-        {
-            return TaskbarPositionResult.Hide(window.Width);
-        }
-
-        double travelDip = (maximumX - minimumX) / bandScale;
+        int maximumX = constraint.Right - widthPixels;
+        double travelDip = Math.Max(0, maximumX - constraint.Left) / bandScale;
         double resolvedPercent = ResolvePositionPercent(
             horizontalPositionPercent,
             legacyHorizontalOffsetDip,
             travelDip);
-        int screenX = minimumX + (int)Math.Round(
-            (maximumX - minimumX) * resolvedPercent / 100d,
-            MidpointRounding.AwayFromZero);
-        screenX = Math.Clamp(screenX, minimumX, maximumX);
-        int screenY = taskbarHeight >= heightPixels
-            ? snapshot.TaskbarTop + (taskbarHeight - heightPixels) / 2
-            : snapshot.TaskbarTop;
 
-        var clientPoint = new NativePoint(screenX, screenY);
-        if (!ScreenToClient(snapshot.TaskbarHandle, ref clientPoint))
+        TaskbarBandRect? currentBand = null;
+        var clientOrigin = new NativePoint(0, 0);
+        if (GetWindowRect(bandHandle, out NativeRect current) &&
+            ClientToScreen(snapshot.TaskbarHandle, ref clientOrigin))
         {
-            return TaskbarPositionResult.Hide(window.Width);
+            currentBand = new TaskbarBandRect(
+                current.Left - clientOrigin.X,
+                current.Top - clientOrigin.Y,
+                current.Width,
+                current.Height);
+        }
+
+        TaskbarPlacementDecision placement = TaskbarPlacementStabilizer.Decide(
+            constraint,
+            taskbarHeight,
+            widthPixels,
+            heightPixels,
+            resolvedPercent,
+            currentBand,
+            explicitLayoutChange);
+        if (placement.HideRequested)
+        {
+            return TaskbarPositionResult.Hide(
+                window.Width,
+                constraintConfirmationSuggested: constraintConfirmationSuggested);
         }
 
         if (Math.Abs(window.Width - widthDip) > 0.1)
@@ -125,25 +155,23 @@ public static class TaskbarPositioner
             window.Height = BandHeightDip;
         }
 
-        bool matches = GetWindowRect(bandHandle, out NativeRect current) &&
-            current.Left == screenX && current.Top == screenY &&
-            current.Width == widthPixels && current.Height == heightPixels;
-        if (!matches)
+        if (placement.SetWindowPosition)
         {
             bool positioned = SetWindowPos(
                 bandHandle,
                 HwndTop,
-                clientPoint.X,
-                clientPoint.Y,
-                widthPixels,
-                heightPixels,
+                placement.Rect.X,
+                placement.Rect.Y,
+                placement.Rect.Width,
+                placement.Rect.Height,
                 SwpNoActivate | SwpNoZOrder | SwpNoSendChanging);
             if (positioned)
             {
                 BandDiagnostics.Log(
-                    $"band positioned x={screenX} y={screenY} widthPx={widthPixels} " +
-                    $"widthDip={widthDip:0.##} safeLeft={snapshot.SafeLeft} " +
-                    $"safeRight={snapshot.SafeRight} travelPx={maximumX - minimumX} " +
+                    $"band positioned localX={placement.Rect.X} localY={placement.Rect.Y} " +
+                    $"widthPx={widthPixels} widthDip={widthDip:0.##} " +
+                    $"safeLeftLocal={constraint.Left} safeRightLocal={constraint.Right} " +
+                    $"travelPx={Math.Max(0, maximumX - constraint.Left)} " +
                     $"position={resolvedPercent:0.##}% spacingDip={itemSpacingDip:0.##}");
             }
         }
@@ -156,7 +184,8 @@ public static class TaskbarPositioner
             false,
             compactLayout,
             wideLayout,
-            horizontalPositionPercent is null ? resolvedPercent : null);
+            horizontalPositionPercent is null ? resolvedPercent : null,
+            constraintConfirmationSuggested);
     }
 
     public static double ResolvePositionPercent(
@@ -226,7 +255,7 @@ public static class TaskbarPositioner
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ScreenToClient(nint windowHandle, ref NativePoint point);
+    private static extern bool ClientToScreen(nint windowHandle, ref NativePoint point);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -248,18 +277,22 @@ public readonly record struct TaskbarPositionResult(
     bool HideRequested = false,
     bool CompactLayout = false,
     bool WideLayout = false,
-    double? ResolvedMigratedPositionPercent = null)
+    double? ResolvedMigratedPositionPercent = null,
+    bool ConstraintConfirmationSuggested = false)
 {
     public static TaskbarPositionResult Hide(
         double currentWidthDip,
-        bool nativeParentValid = true) =>
+        bool nativeParentValid = true,
+        bool retrySuggested = true,
+        bool constraintConfirmationSuggested = false) =>
         new(
             double.IsFinite(currentWidthDip) ? Math.Max(0, currentWidthDip) : 0,
-            true,
+            retrySuggested,
             false,
             nativeParentValid,
             true,
             false,
             false,
-            null);
+            null,
+            constraintConfirmationSuggested);
 }

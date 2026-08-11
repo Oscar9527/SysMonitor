@@ -2,6 +2,8 @@ namespace SysMonitor.Models;
 
 public sealed class AppSettings
 {
+    public string UiCulture { get; set; } = "system";
+
     public bool BandVisible { get; set; } = true;
 
     public string BandFontFamily { get; set; } = "Segoe UI Variable Text";

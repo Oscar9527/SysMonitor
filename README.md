@@ -29,17 +29,17 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 网络 | 所有活动 IPv4 网卡合计的下载/上传速率 |
 | 磁盘 | 首个固定磁盘的使用率 |
 | 托盘 | 显示/隐藏面板、窗口置顶、开机自启、退出 |
-| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置和安全区域 |
-| 稳定性 | 固定指标槽位、等宽数字、任务栏图标边界保护、Windows 10 重绘抑制 |
+| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置、简体中文/English 和安全区域 |
+| 稳定性 | 父任务栏相对定位、固定指标槽位、等宽数字、边界迟滞和 Windows 10 重绘抑制 |
 | 便携运行 | 单文件启动器自动释放核心程序，不写入安装目录，不需要管理员权限 |
 
 ## 下载与发行版
 
 - [下载最新 Release](https://github.com/Oscar9527/SysMonitor/releases)
-- [SysMonitor v1.2.14](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.14)
-- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.14/SysMonitor.exe)
+- [SysMonitor v1.2.15](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.15)
+- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.15/SysMonitor.exe)
 
-当前版本：**1.2.14**
+当前版本：**1.2.15**
 
 发行包信息：
 
@@ -48,8 +48,8 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 文件名 | `SysMonitor.exe` |
 | 平台 | Windows 10/11 x64 |
 | 类型 | 便携式、单文件、无需安装 |
-| 大小 | 6,740,480 字节（约 6.43 MiB） |
-| SHA-256 | `BE2B79C08661BC38294425BFF84C1FCF61C5D721CE7995E10E0C17F066ABC7D6` |
+| 大小 | 6,798,336 字节（约 6.48 MiB） |
+| SHA-256 | `F4C3A8E621DC7735023C60F2E528F582261448131A4DC14D3D736BF55AE04ED0` |
 
 > 这是 framework-dependent 单文件版本，目标电脑需要安装 Microsoft .NET 8 Desktop Runtime x64。启动器检测到运行时缺失时，会打开官方 .NET 下载页面；不会静默安装或提权。
 
@@ -59,7 +59,7 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 2. 双击运行，不需要安装，也不需要管理员权限。
 3. 程序启动后，Band 会出现在任务栏附近，托盘区会出现 SysMonitor 图标。
 4. 点击 Band 或托盘图标打开详情面板。
-5. 在托盘菜单中打开“任务栏外观”，调整字体、字号、间距和左右位置。
+5. 在托盘菜单中打开“任务栏外观 / Taskbar appearance”，调整语言、字体、字号、间距和左右位置。
 
 关闭详情窗口只会隐藏面板，程序仍会在托盘和任务栏 Band 中运行；需要完全退出时，请使用托盘菜单的“退出”。
 
@@ -73,7 +73,9 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 - 任务栏在底部时，Band 显示在任务栏上方；任务栏在顶部时，Band 显示在任务栏下方。
 - 支持 100%–200% DPI 缩放。
 - 指标槽位固定宽度，数值使用等宽数字，避免数值变化造成左右晃动。
-- 自动隐藏任务栏进入隐藏状态时，Band 会跟随任务栏一起隐藏。
+- Band 是 `Shell_TrayWnd` 的原生子窗口，自动隐藏时保持客户区相对坐标并随任务栏一起移动，不使用 Explorer 注入。
+- 安全边界向内变化会立即生效；向外扩大需要连续确认。只要当前 Band 仍在安全区内，1–2 px 的图标边界波动不会触发移动。
+- Band 当前支持底部和顶部的水平任务栏。Windows 10 左/右侧竖直任务栏会安全隐藏 Band，托盘图标和详情面板仍可使用。
 
 ### 详情面板颜色
 
@@ -132,6 +134,7 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SysMonitor
 
 设置项包括：
 
+- 界面语言：跟随系统、简体中文或 English；切换后立即生效。
 - Band 字体和字号。
 - CPU、内存、GPU、下载、上传、磁盘项目之间的间距。
 - Band 左右位置偏移。
@@ -168,7 +171,7 @@ SysMonitor/
 ├─ UI/           # Band、详情面板和外观设置窗口
 ├─ Assets/       # 图标与资源
 └─ SysMonitor.csproj
-SysMonitor.Tests/ # GPU 解析、选择、回退和生命周期测试
+SysMonitor.Tests/ # GPU、任务栏稳定、本地化和设置迁移测试
 Launcher/         # 最终便携单文件启动器与构建脚本
 docs/images/     # README 界面预览图
 release/         # 可直接分发的单文件版本
@@ -195,8 +198,9 @@ release/         # 可直接分发的单文件版本
 ### Windows 10 任务栏出现闪烁
 
 1. 确认使用的是最新 Release。
-2. 在“任务栏外观”中调整左右位置和项目间距，避开通知区和任务栏图标安全区域。
-3. 不要同时运行多个旧版本 SysMonitor；新版启动器会迁移并清理旧核心进程。
+2. 1.2.15 已取消健康状态下的周期性重新定位，并过滤任务栏安全边界的像素级波动。
+3. 在“任务栏外观”中调整左右位置和项目间距，避开通知区和任务栏图标安全区域。
+4. 不要同时运行多个旧版本 SysMonitor；新版启动器会迁移并清理旧核心进程。
 
 ## 隐私与安全
 

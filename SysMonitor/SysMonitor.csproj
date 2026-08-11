@@ -15,7 +15,7 @@
     <DebugType>embedded</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
-    <Version>1.2.14</Version>
+    <Version>1.2.15</Version>
   </PropertyGroup>
 
   <ItemGroup>
