@@ -5,8 +5,16 @@ Environment: Windows 11 x64; interactive user session left untouched
 
 ## v1.5.0 game-safe overlay development build
 
-- Release build completed with 0 warnings and 0 errors; the full deterministic suite passed 211/211 tests.
-- The final portable launcher is one `SysMonitor.exe`, version 1.5.0, 8,342,528 bytes (7.96 MiB), SHA-256 `83A8D4D8BE021CE4A1AF6412055254C4B691BC0C3C95552DCB5E0054B8881219`.
+### Read-only shared-memory repair
+
+- RTSS `RTSSSharedMemoryV2` and MSI Afterburner `MAHMSharedMemory` are opened with read rights and read-only views only; the readers reopen on every sample and contain no create/write path.
+- Deterministic byte fixtures cover signatures, v2 layouts, checked capacities, stale samples, RTSS rolling/frame-time/frame-counter formulas, MAHM sentinel values, aggregate-vs-device selection, and ambiguous aggregate temperatures.
+- The adaptive frame provider polls only while started, delays the SysMonitor-owned PresentMon fallback by about one second, and switches back after two valid RTSS recovery samples.
+- Game-safe monitor options enable only the MAHM shared-memory temperature source and keep LibreHardwareMonitor and the elevated CPU helper disabled. If the external producer is absent, the UI retains `--`.
+
+- Release build completed with 0 warnings and 0 errors; the full suite passed 228/228 tests.
+- A read-only production-reader probe matched the active Delta Force process (PID 28276) and returned 88.9 FPS from RTSS plus 93.9 °C from the unique aggregate MAHM CPU sensor. Both values remained nullable and were not asserted as fixed environmental values.
+- The final portable launcher is one `SysMonitor.exe`, version 1.5.0, 8,391,680 bytes (8.00 MiB), SHA-256 `CA3A428818CD7C2CE7EDE5C5C49202F6A73AA33A2B41C747DE21B26C15B8A843`.
 - The launcher contains the versioned `SysMonitor.Core.1.5.0.exe` resource. The core embeds the pinned official PresentMon 2.5.1 x64 binary, its MIT license, and the project third-party notice.
 - The embedded PresentMon binary is verified by test and at extraction time against SHA-256 `9BEC3083069F58F911E6A512F4806DB51A27BD096103087BC1D05EF54C80A191`.
 - Exact collector arguments, owned-session termination arguments, bounded output, comma-bearing application names, invalid/overlong rows, per-swapchain aggregation, hysteresis and stale clearing have deterministic coverage.
@@ -14,7 +22,7 @@ Environment: Windows 11 x64; interactive user session left untouched
 - Static audit found no DLL injection, graphics API hook, game-process memory read/write, low-level input hook or frame-rate kernel driver path in SysMonitor.
 - Overlay tests cover no-activate/tool/transparent styles, `HTTRANSPARENT`, hotkey registration/disposal, rapid cancellation, target exclusion/PID identity, negative monitor coordinates and DPI placement without sending physical input.
 - CPU frequency is nullable and comes from Windows `CallNtPowerInformation`; GPU clocks are nullable and come from `nvidia-smi` or compatibility sensors. No nominal clock or zero-value substitute is shown when unavailable.
-- A pre-existing v1.4.1 instance was running in the user's interactive session. The v1.5.0 launcher was therefore not started, because doing so would replace that process and disturb the user's foreground session. No PresentMon collector was left running.
+- A hidden portable-launcher smoke run exited successfully and replaced/restarted only the versioned SysMonitor runtime core as designed; it did not activate a foreground window. The restarted core logged `gameSafe=True`, `sharedMemoryCpuTemperature=True`, `cpuTemperature=False`, and selected `MsiAfterburnerSharedMemory` for CPU temperature.
 - Physical game/ACE compatibility, exclusive-fullscreen z-order and multi-GPU sensor coverage are not claimed by this deterministic pass. ETW is non-injection system observation, not an anti-cheat certification.
 
 Validation date: 2026-08-11

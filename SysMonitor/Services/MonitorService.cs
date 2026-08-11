@@ -6,6 +6,14 @@ using SysMonitor.Models;
 
 namespace SysMonitor.Services;
 
+internal enum CpuTemperatureSource
+{
+    None,
+    Unavailable,
+    MsiAfterburnerSharedMemory,
+    CompatibilitySensors,
+}
+
 public sealed class MonitorService : IMonitorService
 {
     private static long s_nextProducerId;
@@ -19,6 +27,7 @@ public sealed class MonitorService : IMonitorService
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly CpuUsageReader _cpuReader = new();
     private readonly CpuTemperatureReader? _cpuTemperatureReader;
+    private readonly ICpuTemperatureSource? _sharedMemoryCpuTemperature;
     private readonly CpuFrequencyReader _cpuFrequencyReader = new();
     private readonly GpuTelemetryCoordinator _gpuCoordinator;
     private readonly DriveTelemetryCache _driveTelemetry = new(GetSystemDriveRoot());
@@ -35,6 +44,7 @@ public sealed class MonitorService : IMonitorService
     private long _networkRefreshTimestamp;
     private long _driveRefreshTimestamp;
     private bool _disposed;
+    private CpuTemperatureSource _cpuTemperatureSource;
 
     public event EventHandler<MonitorSnapshot>? SnapshotUpdated;
 
@@ -51,9 +61,13 @@ public sealed class MonitorService : IMonitorService
         _cpuTemperatureReader = options.EnableCpuTemperatureReader
             ? new CpuTemperatureReader()
             : null;
+        _sharedMemoryCpuTemperature = options.EnableSharedMemoryCpuTemperature
+            ? new MahmSharedMemoryReader()
+            : null;
         _gpuCoordinator = new GpuTelemetryCoordinator(options.EnableLibreHardwareMonitor);
         BandDiagnostics.Log(
             $"monitor options gameSafe={!options.EnableLibreHardwareMonitor && !options.EnableCpuTemperatureReader} " +
+            $"sharedMemoryCpuTemperature={options.EnableSharedMemoryCpuTemperature} " +
             $"cpuTemperature={options.EnableCpuTemperatureReader} " +
             $"libreHardwareMonitor={options.EnableLibreHardwareMonitor}");
     }
@@ -147,7 +161,7 @@ public sealed class MonitorService : IMonitorService
         do
         {
             double cpuUsage = ReadCpuUsage();
-            double? cpuTemperature = _cpuTemperatureReader?.Read();
+            double? cpuTemperature = ReadCpuTemperature();
             double? cpuFrequency = _cpuFrequencyReader.ReadCurrentMhz();
             (double usage, long used, long total) memory = ReadMemory();
             (double download, double upload) network = ReadNetwork();
@@ -180,6 +194,41 @@ public sealed class MonitorService : IMonitorService
             RaiseSnapshotUpdated(snapshot);
         }
         while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    private double? ReadCpuTemperature()
+    {
+        SharedMemoryValue shared = _sharedMemoryCpuTemperature?.Read(DateTimeOffset.UtcNow) ??
+            SharedMemoryValue.Missing("MAHM shared-memory reader disabled");
+        if (shared.Value is double sharedValue)
+        {
+            LogCpuTemperatureSource(CpuTemperatureSource.MsiAfterburnerSharedMemory, shared.Reason);
+            return sharedValue;
+        }
+
+        double? compatibilityValue = _cpuTemperatureReader?.Read();
+        if (compatibilityValue is double value)
+        {
+            LogCpuTemperatureSource(CpuTemperatureSource.CompatibilitySensors, "LibreHardwareMonitor");
+            return value;
+        }
+
+        LogCpuTemperatureSource(CpuTemperatureSource.Unavailable, shared.Reason);
+        return null;
+    }
+
+    private void LogCpuTemperatureSource(CpuTemperatureSource source, string detail)
+    {
+        if (_cpuTemperatureSource == source)
+        {
+            return;
+        }
+
+        _cpuTemperatureSource = source;
+        BandDiagnostics.LogRateLimited(
+            "cpu-temperature-source-change",
+            $"CPU temperature source={source} detail={detail}",
+            TimeSpan.FromSeconds(30));
     }
 
     private void PrimeCpu()

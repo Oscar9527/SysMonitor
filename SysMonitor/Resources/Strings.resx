@@ -94,7 +94,7 @@
   <data name="TrayHideGameOverlay" xml:space="preserve"><value>Hide game overlay  Ctrl+Shift+F10</value></data>
   <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>Game overlay unavailable (compatibility mode)</value></data>
   <data name="TrayGameSafeMode" xml:space="preserve"><value>Game safe mode (recommended)</value></data>
-  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>Compatibility sensors are opt-in. Changes take effect after restart.</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>Read-only Afterburner data is allowed; compatibility sensors are opt-in and require restart.</value></data>
   <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>Restart required</value></data>
   <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>Restart SysMonitor to apply the sensor mode. The game overlay stays unavailable while compatibility mode is running.</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 is already registered by another application.</value></data>

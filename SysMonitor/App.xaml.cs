@@ -143,7 +143,7 @@ public partial class App : System.Windows.Application
             if (_sessionGameSafeMode)
             {
                 _gameOverlayFrameProvider = new GameOverlayFrameProviderAdapter(
-                    new PresentMonFrameRateProvider());
+                    new AdaptiveFrameRateProvider());
                 _gameOverlayWindow = new GameOverlayWindow();
                 _gameOverlayController = new GameOverlayController(
                     _gameOverlayFrameProvider,

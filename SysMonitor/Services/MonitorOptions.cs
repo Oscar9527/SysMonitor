@@ -7,11 +7,12 @@ namespace SysMonitor.Services;
 /// </summary>
 public sealed record MonitorOptions(
     bool EnableLibreHardwareMonitor,
-    bool EnableCpuTemperatureReader)
+    bool EnableCpuTemperatureReader,
+    bool EnableSharedMemoryCpuTemperature)
 {
-    public static MonitorOptions GameSafe { get; } = new(false, false);
+    public static MonitorOptions GameSafe { get; } = new(false, false, true);
 
-    public static MonitorOptions CompatibilitySensors { get; } = new(true, true);
+    public static MonitorOptions CompatibilitySensors { get; } = new(true, true, true);
 
     public static MonitorOptions FromGameSafeMode(bool gameSafeMode) =>
         gameSafeMode ? GameSafe : CompatibilitySensors;

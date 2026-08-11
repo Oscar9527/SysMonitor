@@ -16,7 +16,9 @@ public enum GameOverlayFrameStatus
 public sealed record GameOverlayFrameSnapshot(
     double? FramesPerSecond,
     GameOverlayFrameStatus Status,
-    DateTimeOffset SampledAt)
+    DateTimeOffset SampledAt,
+    FrameRateSource Source = FrameRateSource.None,
+    string? Detail = null)
 {
     public static GameOverlayFrameSnapshot Unavailable { get; } =
         new(null, GameOverlayFrameStatus.Unavailable, DateTimeOffset.MinValue);

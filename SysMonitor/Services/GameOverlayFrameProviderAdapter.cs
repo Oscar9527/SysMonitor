@@ -62,5 +62,7 @@ internal sealed class GameOverlayFrameProviderAdapter :
                 FrameRateStatus.Disabled => GameOverlayFrameStatus.Unavailable,
                 _ => GameOverlayFrameStatus.Faulted,
             },
-            snapshot.SampledAt);
+            snapshot.SampledAt,
+            snapshot.Source,
+            snapshot.Detail);
 }

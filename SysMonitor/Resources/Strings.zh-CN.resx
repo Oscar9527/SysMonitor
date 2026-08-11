@@ -94,7 +94,7 @@
   <data name="TrayHideGameOverlay" xml:space="preserve"><value>隐藏游戏叠加层  Ctrl+Shift+F10</value></data>
   <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层不可用（兼容模式）</value></data>
   <data name="TrayGameSafeMode" xml:space="preserve"><value>游戏安全模式（推荐）</value></data>
-  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>兼容传感器需主动选择；更改将在重启后生效。</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>允许只读 Afterburner 数据；兼容传感器需主动选择并重启。</value></data>
   <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>需要重启</value></data>
   <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用传感器模式。兼容模式运行时，游戏叠加层保持不可用。</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 已被其他应用注册。</value></data>

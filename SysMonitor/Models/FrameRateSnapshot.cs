@@ -16,12 +16,20 @@ public enum FrameRateStatus
     Stopping,
 }
 
+public enum FrameRateSource
+{
+    None,
+    RtssSharedMemory,
+    PresentMon,
+}
+
 public sealed record FrameRateSnapshot(
     double? PresentFps,
     FrameRateStatus Status,
     int? TargetProcessId,
     DateTimeOffset SampledAt,
-    string? Detail = null)
+    string? Detail = null,
+    FrameRateSource Source = FrameRateSource.None)
 {
     public static FrameRateSnapshot Disabled { get; } = new(
         null,
