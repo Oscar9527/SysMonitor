@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using SysMonitor.Models;
 using SysMonitor.Services;
 
@@ -38,6 +39,18 @@ public sealed record OverlaySettingsCoordinateContext(
     int? MinimumY = null,
     int? MaximumY = null);
 
+/// <summary>
+/// Immutable data sent to the host while the settings session is being edited.
+/// The monitor context is the snapshot captured when the edit was made, so the
+/// host can reject a stale preview without displaying a modal dialog.
+/// </summary>
+public sealed record GameOverlayPreviewRequest(
+    string LayoutMode,
+    OverlaySettingsCoordinateContext? Monitor,
+    bool ExactEnabled,
+    int X,
+    int Y);
+
 public sealed record GameOverlayConfigurationRequest(
     GameOverlayMetricVisibility Metrics,
     string Sampling,
@@ -58,18 +71,28 @@ public partial class GameOverlaySettingsWindow : Window
 {
     private readonly ObservableCollection<MetricItem> _items = [];
     private readonly ObservableCollection<LegacyFpsTargetView> _legacyTargets = [];
+    private readonly DispatcherTimer _previewDebounceTimer;
     private bool _allowClose;
     private bool _loadingLegacy;
     private bool _loadedLegacyEnabled;
     private bool _loadingCoordinates;
     private bool _coordinateDirty;
+    private bool _suppressPreview;
+    private bool _previewSessionActive;
+    private bool _sessionFinalized = true;
     private OverlaySettingsCoordinateContext? _coordinateContext;
+    private string _previewStatus = string.Empty;
 
     public GameOverlaySettingsWindow()
     {
         InitializeComponent();
         MetricList.ItemsSource = _items;
         LegacyTargetBox.ItemsSource = _legacyTargets;
+        _previewDebounceTimer = new DispatcherTimer(DispatcherPriority.Input)
+        {
+            Interval = TimeSpan.FromMilliseconds(45)
+        };
+        _previewDebounceTimer.Tick += PreviewDebounceTimer_Tick;
         Closing += (_, e) =>
         {
             if (_allowClose)
@@ -78,9 +101,13 @@ public partial class GameOverlaySettingsWindow : Window
             }
 
             e.Cancel = true;
-            Hide();
+            FinalizeAndHide(committed: false);
         };
-        Closed += (_, _) => LocalizationService.Current.CultureChanged -= OnCultureChanged;
+        Closed += (_, _) =>
+        {
+            _previewDebounceTimer.Stop();
+            LocalizationService.Current.CultureChanged -= OnCultureChanged;
+        };
         LocalizationService.Current.CultureChanged += OnCultureChanged;
         RefreshLocalizedText();
         LoadLayoutItems("vertical");
@@ -88,6 +115,51 @@ public partial class GameOverlaySettingsWindow : Window
     }
 
     public Func<GameOverlayConfigurationRequest, bool>? ApplyRequested { get; set; }
+
+    /// <summary>Raised after a valid novice-setting edit should be shown immediately.</summary>
+    public Action<GameOverlayPreviewRequest>? PreviewRequested { get; set; }
+
+    /// <summary>Raised once when the current preview session ends (true means Apply succeeded).</summary>
+    public Action<bool>? PreviewSessionFinished { get; set; }
+
+    /// <summary>Inline status supplied by the host for stale monitor or unavailable preview.</summary>
+    public string PreviewStatus => _previewStatus;
+
+    /// <summary>
+    /// Starts a fresh preview lifecycle. Call this before showing the window for a new open.
+    /// It is also called automatically by LoadConfiguration for compatibility with older hosts.
+    /// </summary>
+    public void BeginPreviewSession()
+    {
+        _previewDebounceTimer.Stop();
+        _sessionFinalized = false;
+        _previewSessionActive = true;
+        SetPreviewStatus(_coordinateContext is null ? L("HudPreviewNoMonitor") : string.Empty);
+    }
+
+    /// <summary>
+    /// Re-arms preview callbacks after a failed Apply was restored or reloaded by the host.
+    /// This does not hide the window or mutate the saved configuration.
+    /// </summary>
+    public void RebasePreviewSession()
+    {
+        _previewDebounceTimer.Stop();
+        _sessionFinalized = false;
+        _previewSessionActive = true;
+    }
+
+    public void ResetAfterFailedApply() => RebasePreviewSession();
+
+    public void SetPreviewStatus(string? message)
+    {
+        _previewStatus = message ?? string.Empty;
+        if (PreviewStatusText is not null)
+        {
+            PreviewStatusText.Text = _previewStatus;
+        }
+    }
+
+    public void ReportPreviewStatus(string? message) => SetPreviewStatus(message);
 
     /// <summary>
     /// Reloads the monitor snapshot and current exact-position values after a stale-target rejection.
@@ -104,47 +176,61 @@ public partial class GameOverlaySettingsWindow : Window
         string layoutMode = "vertical",
         OverlaySettingsCoordinateContext? coordinateContext = null)
     {
-        var enabled = new Dictionary<string, bool>(StringComparer.Ordinal)
+        if (!_previewSessionActive || _sessionFinalized)
         {
-            ["fps"] = visibility.FrameRate, ["cpu"] = visibility.Cpu, ["gpu"] = visibility.Gpu,
-            ["memory"] = visibility.Memory, ["network"] = visibility.Network
-        };
-        _items.Clear();
-        foreach (string id in GameOverlayMetricOrder.Normalize(visibility.Order))
-        {
-            _items.Add(new MetricItem(id, NameFor(id), enabled[id]));
+            BeginPreviewSession();
         }
 
-        LoadSamplingItems(sampling);
-        LoadLayoutItems(layoutMode);
-        MetricList.SelectedIndex = _items.Count == 0 ? -1 : 0;
-
-        LoadCoordinateContext(coordinateContext);
-
-        _loadingLegacy = true;
+        _suppressPreview = true;
         try
         {
-            _legacyTargets.Clear();
-            foreach (LegacyFpsTargetView target in legacyTargets)
+            var enabled = new Dictionary<string, bool>(StringComparer.Ordinal)
             {
-                _legacyTargets.Add(target);
+                ["fps"] = visibility.FrameRate, ["cpu"] = visibility.Cpu, ["gpu"] = visibility.Gpu,
+                ["memory"] = visibility.Memory, ["network"] = visibility.Network
+            };
+            _items.Clear();
+            foreach (string id in GameOverlayMetricOrder.Normalize(visibility.Order))
+            {
+                _items.Add(new MetricItem(id, NameFor(id), enabled[id]));
             }
 
-            LegacyTargetBox.SelectedItem = _legacyTargets.FirstOrDefault(target =>
-                    string.Equals(target.ExecutablePath, preferredLegacyPath, StringComparison.OrdinalIgnoreCase)) ??
-                _legacyTargets.FirstOrDefault();
+            LoadSamplingItems(sampling);
+            LoadLayoutItems(layoutMode);
+            MetricList.SelectedIndex = _items.Count == 0 ? -1 : 0;
+
+            LoadCoordinateContext(coordinateContext);
+
+            _loadingLegacy = true;
+            try
+            {
+                _legacyTargets.Clear();
+                foreach (LegacyFpsTargetView target in legacyTargets)
+                {
+                    _legacyTargets.Add(target);
+                }
+
+                LegacyTargetBox.SelectedItem = _legacyTargets.FirstOrDefault(target =>
+                        string.Equals(target.ExecutablePath, preferredLegacyPath, StringComparison.OrdinalIgnoreCase)) ??
+                    _legacyTargets.FirstOrDefault();
+            }
+            finally
+            {
+                _loadingLegacy = false;
+            }
+
+            RefreshLegacySelection();
+            RefreshLocalizedText();
         }
         finally
         {
-            _loadingLegacy = false;
+            _suppressPreview = false;
         }
-
-        RefreshLegacySelection();
-        RefreshLocalizedText();
     }
 
     public void CloseForExit()
     {
+        FinalizePreviewSession(committed: false);
         _allowClose = true;
         Close();
     }
@@ -159,6 +245,16 @@ public partial class GameOverlaySettingsWindow : Window
         if (current < 0 || target < 0 || target >= _items.Count) return;
         _items.Move(current, target);
         MetricList.SelectedIndex = target;
+    }
+
+    private void LayoutMode_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_suppressPreview || sender is not System.Windows.Controls.RadioButton { IsChecked: true })
+        {
+            return;
+        }
+
+        RequestPreviewNow();
     }
 
     private void LegacyTargetBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -252,7 +348,7 @@ public partial class GameOverlaySettingsWindow : Window
             target?.ExecutablePath,
             legacyEnabled,
             legacyChanged,
-            LayoutModeBox.SelectedValue as string ?? "vertical",
+            GetLayoutMode(),
             context?.StableMonitorId,
             context?.Left ?? 0,
             context?.Top ?? 0,
@@ -264,11 +360,11 @@ public partial class GameOverlaySettingsWindow : Window
         if (ApplyRequested?.Invoke(request) != false)
         {
             _coordinateDirty = false;
-            Hide();
+            FinalizeAndHide(committed: true);
         }
     }
 
-    private void Cancel_Click(object sender, RoutedEventArgs e) => Hide();
+    private void Cancel_Click(object sender, RoutedEventArgs e) => FinalizeAndHide(committed: false);
 
     private void ExactPositionBox_Click(object sender, RoutedEventArgs e)
     {
@@ -279,6 +375,7 @@ public partial class GameOverlaySettingsWindow : Window
 
         _coordinateDirty = true;
         RefreshCoordinateEnabled();
+        RequestPreviewNow();
     }
 
     private void PositionCoordinateTextChanged(object sender, TextChangedEventArgs e)
@@ -291,6 +388,7 @@ public partial class GameOverlaySettingsWindow : Window
         _coordinateDirty = true;
         SyncSliderFromText(sender as System.Windows.Controls.TextBox);
         RefreshSelectedCoordinateText();
+        QueuePreviewRequest();
     }
 
     private void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -319,6 +417,7 @@ public partial class GameOverlaySettingsWindow : Window
 
         _coordinateDirty = true;
         RefreshSelectedCoordinateText();
+        QueuePreviewRequest();
     }
 
     private void ResetPosition_Click(object sender, RoutedEventArgs e)
@@ -331,21 +430,37 @@ public partial class GameOverlaySettingsWindow : Window
         _coordinateDirty = true;
         ExactPositionBox.IsChecked = false;
         RefreshCoordinateEnabled();
+        RequestPreviewNow();
+    }
+
+    private void PreviewDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _previewDebounceTimer.Stop();
+        RequestPreviewNow();
     }
 
     private void OnCultureChanged(object? sender, EventArgs e)
     {
-        foreach (MetricItem item in _items)
+        bool previous = _suppressPreview;
+        _suppressPreview = true;
+        try
         {
-            item.Name = NameFor(item.Id);
-        }
+            foreach (MetricItem item in _items)
+            {
+                item.Name = NameFor(item.Id);
+            }
 
-        string sampling = SamplingBox.SelectedValue as string ?? "standard";
-        string layoutMode = LayoutModeBox.SelectedValue as string ?? "vertical";
-        LoadSamplingItems(sampling);
-        LoadLayoutItems(layoutMode);
-        RefreshLocalizedText();
-        RefreshLegacySelection();
+            string sampling = SamplingBox.SelectedValue as string ?? "standard";
+            string layoutMode = GetLayoutMode();
+            LoadSamplingItems(sampling);
+            LoadLayoutItems(layoutMode);
+            RefreshLocalizedText();
+            RefreshLegacySelection();
+        }
+        finally
+        {
+            _suppressPreview = previous;
+        }
     }
 
     private void LoadSamplingItems(string? sampling)
@@ -364,16 +479,17 @@ public partial class GameOverlaySettingsWindow : Window
 
     private void LoadLayoutItems(string? layoutMode)
     {
-        LayoutModeBox.Items.Clear();
-        LayoutModeBox.Items.Add(new ComboBoxItem { Content = L("HudLayoutVertical"), Tag = "vertical" });
-        LayoutModeBox.Items.Add(new ComboBoxItem { Content = L("HudLayoutHorizontal"), Tag = "horizontal" });
-        LayoutModeBox.SelectedValue = string.Equals(layoutMode?.Trim(), "horizontal", StringComparison.OrdinalIgnoreCase)
-            ? "horizontal"
-            : "vertical";
+        bool horizontal = string.Equals(layoutMode?.Trim(), "horizontal", StringComparison.OrdinalIgnoreCase);
+        VerticalLayoutRadio.IsChecked = !horizontal;
+        HorizontalLayoutRadio.IsChecked = horizontal;
     }
+
+    private string GetLayoutMode() => HorizontalLayoutRadio.IsChecked == true ? "horizontal" : "vertical";
 
     private void LoadCoordinateContext(OverlaySettingsCoordinateContext? coordinateContext)
     {
+        bool previous = _suppressPreview;
+        _suppressPreview = true;
         _loadingCoordinates = true;
         try
         {
@@ -398,6 +514,7 @@ public partial class GameOverlaySettingsWindow : Window
         finally
         {
             _loadingCoordinates = false;
+            _suppressPreview = previous;
         }
 
         RefreshCoordinateDisplay();
@@ -412,12 +529,20 @@ public partial class GameOverlaySettingsWindow : Window
             : context.DisplayName;
         PositionBoundsText.Text = context is null
             ? L("HudPositionUnavailable")
-            : string.Format(CultureInfo.InvariantCulture, "{0}, {1} – {2}, {3}",
+            : string.Format(CultureInfo.InvariantCulture, "{0}, {1} - {2}, {3}",
                 context.Left, context.Top, context.Right, context.Bottom);
         PositionCurrentText.Text = context is null
             ? L("HudPositionUnavailable")
             : string.Format(CultureInfo.InvariantCulture, "{0}, {1}",
                 Math.Round(PositionXSlider.Value), Math.Round(PositionYSlider.Value));
+        if (context is null)
+        {
+            SetPreviewStatus(L("HudPreviewNoMonitor"));
+        }
+        else if (string.Equals(_previewStatus, L("HudPreviewNoMonitor"), StringComparison.Ordinal))
+        {
+            SetPreviewStatus(string.Empty);
+        }
     }
 
     private void RefreshCoordinateEnabled()
@@ -476,12 +601,80 @@ public partial class GameOverlaySettingsWindow : Window
                 : L("HudPositionUnavailable");
     }
 
-    private static bool TryReadCoordinate(string? text, out int value)
+    private void QueuePreviewRequest()
     {
-        value = 0;
-        return !string.IsNullOrEmpty(text) &&
-            int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out value) &&
-            value is >= -1_000_000 and <= 1_000_000;
+        if (_suppressPreview || !_previewSessionActive || _coordinateContext is null)
+        {
+            return;
+        }
+
+        _previewDebounceTimer.Stop();
+        _previewDebounceTimer.Start();
+    }
+
+    private void RequestPreviewNow()
+    {
+        if (_suppressPreview || !_previewSessionActive)
+        {
+            return;
+        }
+
+        if (!TryBuildPreviewRequest(out GameOverlayPreviewRequest request))
+        {
+            if (_coordinateContext is null)
+            {
+                SetPreviewStatus(L("HudPreviewNoMonitor"));
+            }
+            else if (ExactPositionBox.IsChecked == true)
+            {
+                SetPreviewStatus(L("HudPreviewInvalid"));
+            }
+
+            return;
+        }
+
+        SetPreviewStatus(string.Empty);
+        try
+        {
+            PreviewRequested?.Invoke(request);
+        }
+        catch (Exception ex)
+        {
+            SetPreviewStatus(ex.Message);
+        }
+    }
+
+    private bool TryBuildPreviewRequest(out GameOverlayPreviewRequest request)
+    {
+        request = null!;
+        OverlaySettingsCoordinateContext? context = _coordinateContext;
+        if (context is null)
+        {
+            request = new GameOverlayPreviewRequest(
+                GetLayoutMode(), Monitor: null, ExactEnabled: false, X: 0, Y: 0);
+            return true;
+        }
+
+        int x;
+        int y;
+        if (ExactPositionBox.IsChecked == true)
+        {
+            if (!TryReadCoordinate(PositionXBox.Text, out x) ||
+                !TryReadCoordinate(PositionYBox.Text, out y) ||
+                x < PositionXSlider.Minimum || x > PositionXSlider.Maximum ||
+                y < PositionYSlider.Minimum || y > PositionYSlider.Maximum)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            x = context.CurrentX;
+            y = context.CurrentY;
+        }
+
+        request = new GameOverlayPreviewRequest(GetLayoutMode(), context, ExactPositionBox.IsChecked == true, x, y);
+        return true;
     }
 
     internal static bool TryResolvePositionRequest(
@@ -520,12 +713,56 @@ public partial class GameOverlaySettingsWindow : Window
         return true;
     }
 
+    private void FinalizeAndHide(bool committed)
+    {
+        FinalizePreviewSession(committed);
+        Hide();
+    }
+
+    private void FinalizePreviewSession(bool committed)
+    {
+        if (!TryFinalizePreviewSessionState(ref _sessionFinalized, ref _previewSessionActive))
+        {
+            return;
+        }
+
+        _previewDebounceTimer.Stop();
+        try
+        {
+            PreviewSessionFinished?.Invoke(committed);
+        }
+        catch (Exception ex)
+        {
+            SetPreviewStatus(ex.Message);
+        }
+    }
+
+    internal static bool TryFinalizePreviewSessionState(
+        ref bool sessionFinalized,
+        ref bool sessionActive)
+    {
+        if (sessionFinalized)
+        {
+            return false;
+        }
+
+        sessionFinalized = true;
+        sessionActive = false;
+        return true;
+    }
+
     private void RefreshLocalizedText()
     {
         Title = L("HudSettingsTitle");
-        MetricsTitleText.Text = L("HudMetricsTitle");
+        MetricsTitleText.Text = L("HudSettingsTitle");
         LayoutTitleText.Text = L("HudLayoutTitle");
         LayoutLabelText.Text = L("HudLayoutLabel");
+        VerticalLayoutTitleText.Text = L("HudLayoutVertical");
+        VerticalLayoutDescriptionText.Text = L("HudLayoutVerticalDescription");
+        HorizontalLayoutTitleText.Text = L("HudLayoutHorizontal");
+        HorizontalLayoutDescriptionText.Text = L("HudLayoutHorizontalDescription");
+        AdvancedTitleText.Text = L("HudAdvancedTitle");
+        AdvancedMetricsTitleText.Text = L("HudMetricsTitle");
         PositionTitleText.Text = L("HudPositionTitle");
         PositionHelpText.Text = L("HudPositionHelp");
         PositionMonitorLabelText.Text = L("HudPositionCurrentMonitor");
@@ -559,6 +796,14 @@ public partial class GameOverlaySettingsWindow : Window
     };
 
     private static string L(string key) => LocalizationService.Current.GetString(key);
+
+    private static bool TryReadCoordinate(string? text, out int value)
+    {
+        value = 0;
+        return !string.IsNullOrEmpty(text) &&
+            int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out value) &&
+            value is >= -1_000_000 and <= 1_000_000;
+    }
 
     private sealed class MetricItem : System.ComponentModel.INotifyPropertyChanged
     {

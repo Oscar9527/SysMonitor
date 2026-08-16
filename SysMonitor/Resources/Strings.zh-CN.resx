@@ -146,18 +146,21 @@
   <data name="HudLegacyRestartTitle" xml:space="preserve"><value>请重启游戏</value></data>
   <data name="HudLegacyRestartEnabledMessage" xml:space="preserve"><value>已为“{0}”启用旧游戏兼容模式。请完全退出并重新启动游戏；无需重启 RTSS。</value></data>
   <data name="HudLegacyRestartDisabledMessage" xml:space="preserve"><value>已恢复“{0}”原来的 RTSS 配置。请完全退出并重新启动游戏；无需重启 RTSS。</value></data>
-  <data name="HudApply" xml:space="preserve"><value>应用</value></data>
+  <data name="HudApply" xml:space="preserve"><value>保存</value></data>
   <data name="HudCancel" xml:space="preserve"><value>取消</value></data>
-  <data name="HudLayoutTitle" xml:space="preserve"><value>HUD 排版</value></data>
-  <data name="HudLayoutLabel" xml:space="preserve"><value>显示模式（横向仅显示 CPU、GPU 和 FPS）</value></data>
+  <data name="HudLayoutTitle" xml:space="preserve"><value>显示方式</value></data>
+  <data name="HudLayoutLabel" xml:space="preserve"><value>点击即可立即预览；横向模式只显示 CPU、GPU 和 FPS。</value></data>
   <data name="HudLayoutVertical" xml:space="preserve"><value>垂直</value></data>
+  <data name="HudLayoutVerticalDescription" xml:space="preserve"><value>完整显示 CPU、GPU、FPS、内存和网络</value></data>
   <data name="HudLayoutHorizontal" xml:space="preserve"><value>水平</value></data>
-  <data name="HudPositionTitle" xml:space="preserve"><value>精确屏幕位置</value></data>
-  <data name="HudPositionHelp" xml:space="preserve"><value>拖动 X/Y 滑块后点击“应用”即可调整位置；右侧数值框可做 1 像素精确微调。</value></data>
+  <data name="HudLayoutHorizontalDescription" xml:space="preserve"><value>紧凑显示 CPU、GPU 和 FPS</value></data>
+  <data name="HudAdvancedTitle" xml:space="preserve"><value>高级设置（一般无需修改）</value></data>
+  <data name="HudPositionTitle" xml:space="preserve"><value>悬浮窗位置</value></data>
+  <data name="HudPositionHelp" xml:space="preserve"><value>拖动滑块会立即预览位置；点击“保存”保留更改，右侧数字框可做 1 像素微调。</value></data>
   <data name="HudPositionCurrentMonitor" xml:space="preserve"><value>当前显示器</value></data>
   <data name="HudPositionBounds" xml:space="preserve"><value>显示器边界</value></data>
   <data name="HudPositionCurrent" xml:space="preserve"><value>所选坐标</value></data>
-  <data name="HudPositionUseExact" xml:space="preserve"><value>使用精确屏幕位置</value></data>
+  <data name="HudPositionUseExact" xml:space="preserve"><value>自定义位置（拖动滑块）</value></data>
   <data name="HudPositionX" xml:space="preserve"><value>X</value></data>
   <data name="HudPositionY" xml:space="preserve"><value>Y</value></data>
   <data name="HudPositionReset" xml:space="preserve"><value>重置</value></data>
@@ -167,4 +170,9 @@
   <data name="HudPositionInvalidMessage" xml:space="preserve"><value>请输入 -1,000,000 到 1,000,000 之间的整数 X/Y 坐标，不接受小数或空值。</value></data>
   <data name="HudPositionStaleTitle" xml:space="preserve"><value>显示器已更改</value></data>
   <data name="HudPositionStaleMessage" xml:space="preserve"><value>应用位置前，所选显示器或其边界已发生变化。请检查当前显示器坐标后重试。</value></data>
+  <data name="HudPreviewNoMonitor" xml:space="preserve"><value>选择显示器后才能预览。</value></data>
+  <data name="HudPreviewInvalid" xml:space="preserve"><value>请输入有效坐标后才能预览此位置。</value></data>
+  <data name="HudPreviewActive" xml:space="preserve"><value>正在实时预览，点击“保存”即可保留更改。</value></data>
+  <data name="HudSettingsSaveFailedTitle" xml:space="preserve"><value>设置保存失败</value></data>
+  <data name="HudSettingsSaveFailedMessage" xml:space="preserve"><value>SysMonitor 无法写入设置文件，已经恢复原来的 HUD 排版和位置。请检查文件夹权限或磁盘空间后重试。</value></data>
 </root>

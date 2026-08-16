@@ -1,6 +1,6 @@
 # SysMonitor 1.5.0 validation
 
-Validation date: 2026-08-16
+Validation date: 2026-08-17
 Environment: Windows 11 x64; running game and foreground input left untouched
 
 ## Exact per-monitor HUD positioning and horizontal mode
@@ -20,13 +20,23 @@ Environment: Windows 11 x64; running game and foreground input left untouched
   usage/temperature, and a valid FPS sample; unavailable FPS remains hidden.
 - X/Y sliders use the current HUD size to expose only fully visible positions;
   synchronized numeric boxes remain available for one-pixel adjustment.
+- Slider, numeric, exact/default-position, and vertical/horizontal edits now
+  preview directly on the HUD without calling the settings save path. Cancel and
+  title-bar close restore an immutable snapshot of the actual pre-open runtime
+  layout and complete per-monitor position map; successful Save adopts it.
+- The novice view contains only display style and position. Metric order,
+  sampling, and per-game RTSS compatibility are grouped in one collapsed
+  Advanced section.
 - Unrelated Apply actions do not create or reset exact coordinates. Position
   mutations revalidate the selected monitor before and after any slower RTSS
   compatibility operation.
-- Full result: 289/289 tests passed. Release packaging completed with 0 warnings
+- A failed settings-file write restores the pre-apply fields and runtime preview,
+  keeps the dialog open, and reports the failure instead of pretending Save
+  succeeded.
+- Full result: 292/292 tests passed. Release packaging completed with 0 warnings
   and 0 errors without launching the application or taking foreground input.
-- Final framework-dependent single portable launcher: 8,842,240 bytes (8.43 MiB),
-  SHA-256 `6720932FC6499E33E4684D097C6FE79F1FE40A272B24CABDF2A49D19B40E9003`.
+- Final framework-dependent single portable launcher: 8,870,912 bytes (8.46 MiB),
+  SHA-256 `2AE0058EC2CB895B8571262D92AA2ACAB7D578425E61D5B23C2D2E31E139CA43`.
   The artifact directory contains exactly one file, `SysMonitor.exe`.
 
 ## Opt-in per-game RTSS compatibility

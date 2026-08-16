@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SysMonitor.Models;
 using SysMonitor.Services;
+using SysMonitor.UI;
 
 namespace SysMonitor.Tests;
 
@@ -290,6 +291,43 @@ public sealed class SettingsServiceTests
         Assert.Equal(@"\\.\DISPLAY2", position.GdiDeviceName);
         Assert.Equal(-2500, position.X);
         Assert.Equal(100, position.Y);
+    }
+
+    [Fact]
+    public void LivePreviewLeavesPersistedSettingsBytesAndInMemoryMapUnchanged()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        var position = new GameOverlayMonitorPositionSettings
+        {
+            StableMonitorId = "MONITOR-A",
+            GdiDeviceName = @"\\.\DISPLAY1",
+            Left = 0,
+            Top = 0,
+            Right = 1920,
+            Bottom = 1080,
+            X = 10,
+            Y = 20
+        };
+        var settings = new AppSettings
+        {
+            GameOverlayLayoutMode = "vertical",
+            GameOverlayMonitorPositions = [position]
+        };
+        service.Save(settings);
+        byte[] beforeFile = File.ReadAllBytes(service.SettingsPath);
+        string beforeMap = JsonSerializer.Serialize(settings.GameOverlayMonitorPositions);
+        OverlayMonitorIdentity identity = OverlayMonitorIdentity.CreateStable(
+            "monitor-a", @"\\.\DISPLAY1", "A", new ScreenPixelBounds(0, 0, 1920, 1080));
+
+        IReadOnlyList<GameOverlayMonitorPositionSettings> preview =
+            GameOverlayWindow.BuildPreviewMonitorPositions(
+                settings.GameOverlayMonitorPositions, identity, true, 500, 600);
+
+        Assert.Equal(beforeFile, File.ReadAllBytes(service.SettingsPath));
+        Assert.Equal(beforeMap, JsonSerializer.Serialize(settings.GameOverlayMonitorPositions));
+        Assert.Equal(500, Assert.Single(preview).X);
+        Assert.Equal(10, Assert.Single(settings.GameOverlayMonitorPositions!).X);
     }
 
     [Fact]

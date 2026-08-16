@@ -48,4 +48,16 @@ public sealed class GameOverlaySettingsLogicTests
             true, true, true, "1.5", "20",
             out _, out _, out _));
     }
+
+    [Fact]
+    public void PreviewSessionFinalizationIsIdempotent()
+    {
+        bool finalized = false;
+        bool active = true;
+
+        Assert.True(GameOverlaySettingsWindow.TryFinalizePreviewSessionState(ref finalized, ref active));
+        Assert.True(finalized);
+        Assert.False(active);
+        Assert.False(GameOverlaySettingsWindow.TryFinalizePreviewSessionState(ref finalized, ref active));
+    }
 }

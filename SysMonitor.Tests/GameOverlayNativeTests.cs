@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SysMonitor.Models;
 using SysMonitor.Services;
 using SysMonitor.UI;
@@ -174,6 +175,40 @@ public sealed class GameOverlayNativeTests
         Assert.True(GameOverlayWindow.TryFindExactPosition(identity, [first], out var match));
         Assert.Equal(20, match!.X);
         Assert.False(GameOverlayWindow.TryFindExactPosition(identity, [first, first], out _));
+    }
+
+    [Fact]
+    public void PreviewPositionClonesMapPreservesOtherMonitorsAndNeverMutatesBaseline()
+    {
+        OverlayMonitorIdentity selected = OverlayMonitorIdentity.CreateStable(
+            "monitor-a", @"\\.\DISPLAY1", "A", new ScreenPixelBounds(0, 0, 1920, 1080));
+        var selectedPosition = new GameOverlayMonitorPositionSettings
+        {
+            StableMonitorId = selected.StableMonitorId,
+            GdiDeviceName = selected.GdiDeviceName,
+            Left = 0, Top = 0, Right = 1920, Bottom = 1080, X = 10, Y = 20
+        };
+        var otherPosition = new GameOverlayMonitorPositionSettings
+        {
+            StableMonitorId = "MONITOR-B",
+            GdiDeviceName = @"\\.\DISPLAY2",
+            Left = 1920, Top = 0, Right = 3840, Bottom = 1080, X = 2000, Y = 30
+        };
+        GameOverlayMonitorPositionSettings[] baseline = [selectedPosition, otherPosition];
+        string before = JsonSerializer.Serialize(baseline);
+
+        IReadOnlyList<GameOverlayMonitorPositionSettings> preview =
+            GameOverlayWindow.BuildPreviewMonitorPositions(baseline, selected, true, 300, 400);
+        IReadOnlyList<GameOverlayMonitorPositionSettings> reset =
+            GameOverlayWindow.BuildPreviewMonitorPositions(baseline, selected, false, 0, 0);
+
+        Assert.Equal(before, JsonSerializer.Serialize(baseline));
+        Assert.Equal(2, preview.Count);
+        Assert.Contains(preview, item => item.StableMonitorId == "MONITOR-B" && item.X == 2000);
+        Assert.Contains(preview, item => item.StableMonitorId == selected.StableMonitorId && item.X == 300 && item.Y == 400);
+        Assert.Single(reset);
+        Assert.Equal("MONITOR-B", reset[0].StableMonitorId);
+        Assert.NotSame(otherPosition, preview.Single(item => item.StableMonitorId == "MONITOR-B"));
     }
 
     [Fact]

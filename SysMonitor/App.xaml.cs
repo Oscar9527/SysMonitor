@@ -28,6 +28,8 @@ public partial class App : System.Windows.Application
     private GameOverlayWindow? _gameOverlayWindow;
     private GameOverlayAppearanceWindow? _gameOverlayAppearanceWindow;
     private GameOverlaySettingsWindow? _gameOverlaySettingsWindow;
+    private GameOverlayPreviewState? _gameOverlayPreviewBaseline;
+    private bool _gameOverlayPreviewSessionActive;
     private TrayIconService? _trayIcon;
     private BandWindow? _bandWindow;
     private DetailWindow? _detailWindow;
@@ -937,6 +939,13 @@ public partial class App : System.Windows.Application
     {
         if (_isExiting || _gameOverlayWindow is null) return;
         GameOverlaySettingsWindow window = EnsureGameOverlaySettingsWindow();
+        if (window.IsVisible)
+        {
+            window.Activate();
+            return;
+        }
+
+        BeginGameOverlayPreviewSession(window);
         LoadGameOverlayConfiguration(window);
         window.Show();
         window.Activate();
@@ -947,8 +956,112 @@ public partial class App : System.Windows.Application
         if (_gameOverlaySettingsWindow is not null) return _gameOverlaySettingsWindow;
         var window = new GameOverlaySettingsWindow();
         window.ApplyRequested = OnGameOverlayConfigurationApplyRequested;
+        window.PreviewRequested = OnGameOverlayPreviewRequested;
+        window.PreviewSessionFinished = OnGameOverlayPreviewSessionFinished;
         _gameOverlaySettingsWindow = window;
         return window;
+    }
+
+    private void BeginGameOverlayPreviewSession(GameOverlaySettingsWindow window)
+    {
+        if (_gameOverlayPreviewSessionActive)
+        {
+            RestoreGameOverlayPreviewBaseline();
+        }
+
+        _gameOverlayPreviewBaseline = _gameOverlayWindow?.CapturePreviewState();
+        _gameOverlayPreviewSessionActive = _gameOverlayPreviewBaseline is not null;
+        window.BeginPreviewSession();
+    }
+
+    private void OnGameOverlayPreviewRequested(GameOverlayPreviewRequest request)
+    {
+        if (!_gameOverlayPreviewSessionActive ||
+            _gameOverlayPreviewBaseline is not GameOverlayPreviewState baseline ||
+            _gameOverlayWindow is null)
+        {
+            return;
+        }
+
+        // Layout is monitor-independent and remains safe to preview even when a
+        // display was hot-plugged. Only the physical position mutation is gated
+        // by the captured monitor snapshot below.
+        _gameOverlayWindow.SetLayoutMode(request.LayoutMode);
+        if (request.Monitor is null)
+        {
+            _gameOverlaySettingsWindow?.SetPreviewStatus(
+                _localizationService.GetString("HudPreviewActive"));
+            return;
+        }
+
+        if (!_gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext currentContext) ||
+            !_gameOverlayWindow.TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity currentIdentity) ||
+            !GameOverlayWindow.CoordinateContextMatches(request.Monitor, currentContext))
+        {
+            _gameOverlaySettingsWindow?.SetPreviewStatus(
+                _localizationService.GetString("HudPositionStaleMessage"));
+            _gameOverlaySettingsWindow?.ReloadCoordinateContext(
+                _gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext refreshed)
+                    ? refreshed
+                    : null);
+            return;
+        }
+
+        IReadOnlyList<GameOverlayMonitorPositionSettings> previewPositions =
+            GameOverlayWindow.BuildPreviewMonitorPositions(
+                baseline.MonitorPositions,
+                currentIdentity,
+                request.ExactEnabled,
+                request.X,
+                request.Y);
+        _gameOverlayWindow.SetMonitorPositions(previewPositions);
+        _gameOverlaySettingsWindow?.SetPreviewStatus(
+            _localizationService.GetString("HudPreviewActive"));
+    }
+
+    private void OnGameOverlayPreviewSessionFinished(bool committed)
+    {
+        if (!_gameOverlayPreviewSessionActive)
+        {
+            return;
+        }
+
+        GameOverlayPreviewState? baseline = _gameOverlayPreviewBaseline;
+        _gameOverlayPreviewBaseline = null;
+        _gameOverlayPreviewSessionActive = false;
+        if (!committed && baseline is not null)
+        {
+            _gameOverlayWindow?.RestorePreviewState(baseline);
+        }
+    }
+
+    private void RestoreGameOverlayPreviewBaseline()
+    {
+        if (_gameOverlayPreviewBaseline is GameOverlayPreviewState baseline)
+        {
+            _gameOverlayWindow?.RestorePreviewState(baseline);
+        }
+
+        _gameOverlayPreviewBaseline = null;
+        _gameOverlayPreviewSessionActive = false;
+    }
+
+    private void ResetGameOverlayPreviewAfterFailedApply(bool reloadConfiguration)
+    {
+        RestoreGameOverlayPreviewBaseline();
+        if (_gameOverlaySettingsWindow is null || _gameOverlayWindow is null)
+        {
+            return;
+        }
+
+        _gameOverlayPreviewBaseline = _gameOverlayWindow.CapturePreviewState();
+        _gameOverlayPreviewSessionActive = true;
+        if (reloadConfiguration)
+        {
+            LoadGameOverlayConfiguration(_gameOverlaySettingsWindow);
+        }
+
+        _gameOverlaySettingsWindow.ResetAfterFailedApply();
     }
 
     private void LoadGameOverlayConfiguration(GameOverlaySettingsWindow window)
@@ -1042,11 +1155,7 @@ public partial class App : System.Windows.Application
                     _localizationService.GetString("HudPositionStaleTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
-                _gameOverlaySettingsWindow?.ReloadCoordinateContext(
-                    _gameOverlayWindow is not null &&
-                    _gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext refreshed)
-                        ? refreshed
-                        : null);
+                ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: true);
                 return false;
             }
 
@@ -1057,6 +1166,7 @@ public partial class App : System.Windows.Application
         {
             if (string.IsNullOrWhiteSpace(request.LegacyExecutablePath))
             {
+                ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: false);
                 return false;
             }
 
@@ -1073,10 +1183,7 @@ public partial class App : System.Windows.Application
                     _localizationService.GetString("HudLegacyApplyFailedTitle"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
-                if (_gameOverlaySettingsWindow is not null)
-                {
-                    LoadGameOverlayConfiguration(_gameOverlaySettingsWindow);
-                }
+                ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: true);
                 return false;
             }
 
@@ -1105,12 +1212,15 @@ public partial class App : System.Windows.Application
                 _localizationService.GetString("HudPositionStaleTitle"),
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
-            if (_gameOverlaySettingsWindow is not null)
-            {
-                LoadGameOverlayConfiguration(_gameOverlaySettingsWindow);
-            }
+            ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: true);
             return false;
         }
+
+        string previousLayoutMode = _settings.GameOverlayLayoutMode;
+        List<GameOverlayMonitorPositionSettings> previousMonitorPositions =
+            SettingsService.NormalizeOverlayMonitorPositions(_settings.GameOverlayMonitorPositions);
+        GameOverlayMetricVisibilitySettings? previousMetrics = _settings.GameOverlayMetrics;
+        string previousSampling = _settings.GameOverlaySampling;
 
         GameOverlayMetricVisibility metrics = request.Metrics;
         string sampling = request.Sampling;
@@ -1150,7 +1260,21 @@ public partial class App : System.Windows.Application
         }
         _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
         _settings.GameOverlaySampling = sampling;
-        _settingsService.Save(_settings);
+        if (!_settingsService.TrySave(_settings))
+        {
+            _settings.GameOverlayLayoutMode = previousLayoutMode;
+            _settings.GameOverlayMonitorPositions = previousMonitorPositions;
+            _settings.GameOverlayMetrics = previousMetrics;
+            _settings.GameOverlaySampling = previousSampling;
+            ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: true);
+            System.Windows.MessageBox.Show(
+                _gameOverlaySettingsWindow,
+                _localizationService.GetString("HudSettingsSaveFailedMessage"),
+                _localizationService.GetString("HudSettingsSaveFailedTitle"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return false;
+        }
         _gameOverlayWindow?.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
         _gameOverlayWindow?.SetLayoutMode(_settings.GameOverlayLayoutMode);
         _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
@@ -1329,7 +1453,10 @@ public partial class App : System.Windows.Application
         {
             try
             {
+                RestoreGameOverlayPreviewBaseline();
                 _gameOverlaySettingsWindow.ApplyRequested = null;
+                _gameOverlaySettingsWindow.PreviewRequested = null;
+                _gameOverlaySettingsWindow.PreviewSessionFinished = null;
                 _gameOverlaySettingsWindow.CloseForExit();
             }
             catch (Exception exception)

@@ -90,9 +90,15 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     public void SetLayoutMode(string? layoutMode)
     {
-        _layoutMode = string.Equals(layoutMode, "horizontal", StringComparison.OrdinalIgnoreCase)
+        string normalized = string.Equals(layoutMode, "horizontal", StringComparison.OrdinalIgnoreCase)
             ? "horizontal"
             : "vertical";
+        if (string.Equals(_layoutMode, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _layoutMode = normalized;
         ConfigureGridLayout();
         SchedulePosition();
     }
@@ -102,6 +108,59 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _monitorPositions = SettingsService.NormalizeOverlayMonitorPositions(positions);
         PositionWithoutActivation();
     }
+
+    internal GameOverlayPreviewState CapturePreviewState() =>
+        new(_layoutMode, CloneMonitorPositions(_monitorPositions));
+
+    internal void RestorePreviewState(GameOverlayPreviewState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        SetLayoutMode(state.LayoutMode);
+        SetMonitorPositions(state.MonitorPositions);
+    }
+
+    internal static IReadOnlyList<GameOverlayMonitorPositionSettings> BuildPreviewMonitorPositions(
+        IEnumerable<GameOverlayMonitorPositionSettings>? baseline,
+        OverlayMonitorIdentity identity,
+        bool exactEnabled,
+        int requestedX,
+        int requestedY)
+    {
+        List<GameOverlayMonitorPositionSettings> preview = CloneMonitorPositions(baseline);
+        preview.RemoveAll(position => MatchesMonitorPosition(position, identity));
+        if (exactEnabled)
+        {
+            preview.Add(new GameOverlayMonitorPositionSettings
+            {
+                StableMonitorId = identity.StableMonitorId,
+                GdiDeviceName = identity.GdiDeviceName,
+                IsFallbackIdentity = identity.IsFallback,
+                Left = identity.Bounds.Left,
+                Top = identity.Bounds.Top,
+                Right = identity.Bounds.Right,
+                Bottom = identity.Bounds.Bottom,
+                X = requestedX,
+                Y = requestedY
+            });
+        }
+
+        return preview;
+    }
+
+    private static List<GameOverlayMonitorPositionSettings> CloneMonitorPositions(
+        IEnumerable<GameOverlayMonitorPositionSettings>? positions) =>
+        SettingsService.NormalizeOverlayMonitorPositions(positions);
+
+    private static bool MatchesMonitorPosition(
+        GameOverlayMonitorPositionSettings position,
+        OverlayMonitorIdentity identity) =>
+        identity.IsFallback
+            ? position.IsFallbackIdentity &&
+              string.Equals(position.GdiDeviceName, identity.GdiDeviceName, StringComparison.OrdinalIgnoreCase) &&
+              position.Left == identity.Bounds.Left && position.Top == identity.Bounds.Top &&
+              position.Right == identity.Bounds.Right && position.Bottom == identity.Bounds.Bottom
+            : !position.IsFallbackIdentity &&
+              string.Equals(position.StableMonitorId, identity.StableMonitorId, StringComparison.OrdinalIgnoreCase);
 
     internal bool TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity identity) =>
         _monitorIdentityResolver.TryResolveForWindow(

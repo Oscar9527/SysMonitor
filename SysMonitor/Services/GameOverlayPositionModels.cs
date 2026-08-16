@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using SysMonitor.Models;
 
 namespace SysMonitor.Services;
 
@@ -14,6 +15,14 @@ internal readonly record struct ScreenPixelBounds(int Left, int Top, int Right, 
     public int Height => Bottom - Top;
     public bool IsValid => Right > Left && Bottom > Top;
 }
+
+/// <summary>
+/// Immutable runtime snapshot used to roll a settings-window live preview back
+/// without reading or writing persisted settings.
+/// </summary>
+internal sealed record GameOverlayPreviewState(
+    string LayoutMode,
+    IReadOnlyList<GameOverlayMonitorPositionSettings> MonitorPositions);
 
 /// <summary>
 /// Read-only identity and physical bounds for a monitor used by the overlay.
