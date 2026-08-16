@@ -136,6 +136,14 @@ public sealed class SettingsService
             "compact" or "detailed" or "rivatuner" => settings.GameOverlayPreset.Trim().ToLowerInvariant(),
             _ => "rivatuner"
         };
+        settings.GameOverlayLayoutMode = string.Equals(
+            settings.GameOverlayLayoutMode?.Trim(),
+            "horizontal",
+            StringComparison.OrdinalIgnoreCase)
+                ? "horizontal"
+                : "vertical";
+        settings.GameOverlayMonitorPositions = NormalizeOverlayMonitorPositions(
+            settings.GameOverlayMonitorPositions);
         settings.GameOverlaySampling = settings.GameOverlaySampling?.Trim().ToLowerInvariant() switch
         {
             "low" or "standard" or "high" => settings.GameOverlaySampling.Trim().ToLowerInvariant(),
@@ -167,6 +175,49 @@ public sealed class SettingsService
         NormalizeColor(value.FpsColor, "#FF50FA7B"),
         NormalizeColor(value.MemoryColor, "#FFF1FA8C"),
         NormalizeColor(value.NetworkColor, "#FFFFB86C"));
+
+    internal static List<GameOverlayMonitorPositionSettings> NormalizeOverlayMonitorPositions(
+        IEnumerable<GameOverlayMonitorPositionSettings>? positions)
+    {
+        const int CoordinateLimit = 1_000_000;
+        var normalized = new List<GameOverlayMonitorPositionSettings>();
+        foreach (GameOverlayMonitorPositionSettings? value in positions ?? [])
+        {
+            if (value is null)
+            {
+                continue;
+            }
+
+            string stableId = value.StableMonitorId?.Trim().ToUpperInvariant() ?? string.Empty;
+            string gdiName = value.GdiDeviceName?.Trim().ToUpperInvariant() ?? string.Empty;
+            int left = Math.Clamp(value.Left, -CoordinateLimit, CoordinateLimit);
+            int top = Math.Clamp(value.Top, -CoordinateLimit, CoordinateLimit);
+            int right = Math.Clamp(value.Right, -CoordinateLimit, CoordinateLimit);
+            int bottom = Math.Clamp(value.Bottom, -CoordinateLimit, CoordinateLimit);
+            if (stableId.Length is 0 or > 1024 ||
+                gdiName.Length is 0 or > 128 ||
+                right <= left ||
+                bottom <= top)
+            {
+                continue;
+            }
+
+            normalized.Add(new GameOverlayMonitorPositionSettings
+            {
+                StableMonitorId = stableId,
+                GdiDeviceName = gdiName,
+                IsFallbackIdentity = value.IsFallbackIdentity,
+                Left = left,
+                Top = top,
+                Right = right,
+                Bottom = bottom,
+                X = Math.Clamp(value.X, -CoordinateLimit, CoordinateLimit),
+                Y = Math.Clamp(value.Y, -CoordinateLimit, CoordinateLimit)
+            });
+        }
+
+        return normalized;
+    }
 
     private static string NormalizeColor(string? value, string fallback)
     {

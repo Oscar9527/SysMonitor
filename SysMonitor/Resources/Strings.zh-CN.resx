@@ -148,4 +148,23 @@
   <data name="HudLegacyRestartDisabledMessage" xml:space="preserve"><value>已恢复“{0}”原来的 RTSS 配置。请完全退出并重新启动游戏；无需重启 RTSS。</value></data>
   <data name="HudApply" xml:space="preserve"><value>应用</value></data>
   <data name="HudCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="HudLayoutTitle" xml:space="preserve"><value>HUD 排版</value></data>
+  <data name="HudLayoutLabel" xml:space="preserve"><value>显示模式（横向仅显示 CPU、GPU 和 FPS）</value></data>
+  <data name="HudLayoutVertical" xml:space="preserve"><value>垂直</value></data>
+  <data name="HudLayoutHorizontal" xml:space="preserve"><value>水平</value></data>
+  <data name="HudPositionTitle" xml:space="preserve"><value>精确屏幕位置</value></data>
+  <data name="HudPositionHelp" xml:space="preserve"><value>将 HUD 固定到所选显示器的精确屏幕坐标。显示器边界会在打开此窗口时记录。</value></data>
+  <data name="HudPositionCurrentMonitor" xml:space="preserve"><value>当前显示器</value></data>
+  <data name="HudPositionBounds" xml:space="preserve"><value>显示器边界</value></data>
+  <data name="HudPositionCurrent" xml:space="preserve"><value>当前坐标</value></data>
+  <data name="HudPositionUseExact" xml:space="preserve"><value>使用精确屏幕位置</value></data>
+  <data name="HudPositionX" xml:space="preserve"><value>X</value></data>
+  <data name="HudPositionY" xml:space="preserve"><value>Y</value></data>
+  <data name="HudPositionReset" xml:space="preserve"><value>重置</value></data>
+  <data name="HudPositionNoMonitor" xml:space="preserve"><value>没有可用的显示器上下文。</value></data>
+  <data name="HudPositionUnavailable" xml:space="preserve"><value>不可用</value></data>
+  <data name="HudPositionInvalidTitle" xml:space="preserve"><value>坐标无效</value></data>
+  <data name="HudPositionInvalidMessage" xml:space="preserve"><value>请输入 -1,000,000 到 1,000,000 之间的整数 X/Y 坐标，不接受小数或空值。</value></data>
+  <data name="HudPositionStaleTitle" xml:space="preserve"><value>显示器已更改</value></data>
+  <data name="HudPositionStaleMessage" xml:space="preserve"><value>应用位置前，所选显示器或其边界已发生变化。请检查当前显示器坐标后重试。</value></data>
 </root>

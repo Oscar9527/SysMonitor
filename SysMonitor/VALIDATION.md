@@ -3,6 +3,30 @@
 Validation date: 2026-08-16
 Environment: Windows 11 x64; running game and foreground input left untouched
 
+## Exact per-monitor HUD positioning and horizontal mode
+
+- The game HUD can now use signed physical virtual-screen X/Y coordinates,
+  including negative coordinates for displays placed left of or above the
+  primary monitor. Coordinates are remembered independently for each monitor.
+- Stable DisplayConfig monitor device paths are preferred for persistence. A
+  conservative GDI-name plus exact-bounds identity is used only as a fallback;
+  missing, renamed, or duplicate identities fail closed instead of applying a
+  position to the wrong screen.
+- Exact placement uses the HUD's PerMonitorV2 DPI and full monitor bounds, then
+  clamps the complete HUD onscreen. The unchanged percentage fallback continues
+  to use the game client or monitor work area.
+- The settings window exposes vertical and horizontal modes in English and
+  Simplified Chinese. Horizontal mode contains only CPU usage/temperature, GPU
+  usage/temperature, and a valid FPS sample; unavailable FPS remains hidden.
+- Unrelated Apply actions do not create or reset exact coordinates. Position
+  mutations revalidate the selected monitor before and after any slower RTSS
+  compatibility operation.
+- Full result: 289/289 tests passed. Release packaging completed with 0 warnings
+  and 0 errors without launching the application or taking foreground input.
+- Final framework-dependent single portable launcher: 8,834,048 bytes (8.42 MiB),
+  SHA-256 `CCBB2546C8A5C1D20D6B2E05C0F7AE29BFBA7FE5EA3C342975EF28F4470BCC31`.
+  The artifact directory contains exactly one file, `SysMonitor.exe`.
+
 ## Opt-in per-game RTSS compatibility
 
 - The default FPS path remains read-only RTSS shared memory followed by the

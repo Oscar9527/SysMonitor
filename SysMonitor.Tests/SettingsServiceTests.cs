@@ -244,6 +244,69 @@ public sealed class SettingsServiceTests
         Assert.Equal("rivatuner", service.Load().GameOverlayPreset);
     }
 
+    [Fact]
+    public void Load_OldSettingsUseVerticalLayoutAndLegacyPositionFallback()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(service.SettingsPath, "{\"GameOverlayHorizontalPositionPercent\":75}");
+
+        AppSettings loaded = service.Load();
+
+        Assert.Equal("vertical", loaded.GameOverlayLayoutMode);
+        Assert.Equal(75, loaded.GameOverlayHorizontalPositionPercent);
+        Assert.Empty(loaded.GameOverlayMonitorPositions!);
+    }
+
+    [Fact]
+    public void SaveAndLoad_RoundTripsHorizontalLayoutAndPerMonitorCoordinates()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        service.Save(new AppSettings
+        {
+            GameOverlayLayoutMode = "HORIZONTAL",
+            GameOverlayMonitorPositions =
+            [
+                new GameOverlayMonitorPositionSettings
+                {
+                    StableMonitorId = " monitor-path ",
+                    GdiDeviceName = @" \\.\display2 ",
+                    Left = -2560,
+                    Top = 0,
+                    Right = 0,
+                    Bottom = 1440,
+                    X = -2500,
+                    Y = 100
+                }
+            ]
+        });
+
+        AppSettings loaded = service.Load();
+        GameOverlayMonitorPositionSettings position = Assert.Single(loaded.GameOverlayMonitorPositions!);
+        Assert.Equal("horizontal", loaded.GameOverlayLayoutMode);
+        Assert.Equal("MONITOR-PATH", position.StableMonitorId);
+        Assert.Equal(@"\\.\DISPLAY2", position.GdiDeviceName);
+        Assert.Equal(-2500, position.X);
+        Assert.Equal(100, position.Y);
+    }
+
+    [Fact]
+    public void Load_InvalidLayoutAndMonitorEntryFailClosed()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(service.SettingsPath,
+            "{\"GameOverlayLayoutMode\":\"diagonal\",\"GameOverlayMonitorPositions\":[{\"StableMonitorId\":\"x\",\"GdiDeviceName\":\"display\",\"Left\":0,\"Top\":0,\"Right\":0,\"Bottom\":0}]}");
+
+        AppSettings loaded = service.Load();
+
+        Assert.Equal("vertical", loaded.GameOverlayLayoutMode);
+        Assert.Empty(loaded.GameOverlayMonitorPositions!);
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

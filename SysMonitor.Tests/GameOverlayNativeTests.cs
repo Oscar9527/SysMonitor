@@ -128,6 +128,73 @@ public sealed class GameOverlayNativeTests
         Assert.Equal(204, result.Top);
     }
 
+    [Theory]
+    [InlineData(96, 300, 100)]
+    [InlineData(144, 450, 150)]
+    [InlineData(192, 600, 200)]
+    public void ExactPlacementUsesPhysicalCoordinatesAndScalesSizeOnce(uint dpi, int expectedWidth, int expectedHeight)
+    {
+        var screen = new OverlayPixelRect(-2560, 0, 0, 1440);
+
+        OverlayPixelRect result = GameOverlayWindow.CalculateExactPlacement(
+            screen, 300, 100, dpi, requestedX: -2500, requestedY: 100);
+
+        Assert.Equal(-2500, result.Left);
+        Assert.Equal(100, result.Top);
+        Assert.Equal(expectedWidth, result.Width);
+        Assert.Equal(expectedHeight, result.Height);
+    }
+
+    [Fact]
+    public void ExactPlacementClampsRightBottomAndOversizedHud()
+    {
+        var screen = new OverlayPixelRect(1920, -200, 2920, 400);
+        OverlayPixelRect clamped = GameOverlayWindow.CalculateExactPlacement(
+            screen, 300, 100, 144, 2900, 390);
+        OverlayPixelRect oversized = GameOverlayWindow.CalculateExactPlacement(
+            screen, 5000, 5000, 192, 9999, 9999);
+
+        Assert.Equal(2470, clamped.Left);
+        Assert.Equal(250, clamped.Top);
+        Assert.Equal(screen, oversized);
+    }
+
+    [Fact]
+    public void ExactPositionMatchesStableMonitorAndRejectsDuplicates()
+    {
+        OverlayMonitorIdentity identity = OverlayMonitorIdentity.CreateStable(
+            "monitor-path", @"\\.\DISPLAY1", "Display", new ScreenPixelBounds(0, 0, 1920, 1080));
+        var first = new GameOverlayMonitorPositionSettings
+        {
+            StableMonitorId = identity.StableMonitorId,
+            GdiDeviceName = identity.GdiDeviceName,
+            Left = 0, Top = 0, Right = 1920, Bottom = 1080, X = 20, Y = 30
+        };
+
+        Assert.True(GameOverlayWindow.TryFindExactPosition(identity, [first], out var match));
+        Assert.Equal(20, match!.X);
+        Assert.False(GameOverlayWindow.TryFindExactPosition(identity, [first, first], out _));
+    }
+
+    [Fact]
+    public void CoordinateContextDetectsTargetMovingToAnotherMonitor()
+    {
+        var original = new OverlaySettingsCoordinateContext("A", "One", 0, 0, 1920, 1080, 20, 20, true);
+        var same = original with { CurrentX = 300, CurrentY = 200 };
+        var moved = new OverlaySettingsCoordinateContext("B", "Two", 1920, 0, 3840, 1080, 2000, 20, false);
+
+        Assert.True(GameOverlayWindow.CoordinateContextMatches(original, same));
+        Assert.False(GameOverlayWindow.CoordinateContextMatches(original, moved));
+    }
+
+    [Theory]
+    [InlineData("42%", "71°C", "42%  71°C")]
+    [InlineData("--", "", "--  --")]
+    public void HorizontalMetricContainsOnlyUsageAndTemperature(string usage, string temperature, string expected)
+    {
+        Assert.Equal(expected, GameOverlayWindow.BuildHorizontalMetricValue(usage, temperature));
+    }
+
     [Fact]
     public void HudUsesShortLocalizedEtwDiagnostic()
     {

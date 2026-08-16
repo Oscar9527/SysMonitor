@@ -148,4 +148,23 @@
   <data name="HudLegacyRestartDisabledMessage" xml:space="preserve"><value>The original RTSS profile for “{0}” was restored. Fully exit and relaunch the game; RTSS does not need to restart.</value></data>
   <data name="HudApply" xml:space="preserve"><value>Apply</value></data>
   <data name="HudCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="HudLayoutTitle" xml:space="preserve"><value>HUD layout</value></data>
+  <data name="HudLayoutLabel" xml:space="preserve"><value>Display mode (horizontal shows CPU, GPU and FPS only)</value></data>
+  <data name="HudLayoutVertical" xml:space="preserve"><value>Vertical</value></data>
+  <data name="HudLayoutHorizontal" xml:space="preserve"><value>Horizontal</value></data>
+  <data name="HudPositionTitle" xml:space="preserve"><value>Exact screen position</value></data>
+  <data name="HudPositionHelp" xml:space="preserve"><value>Pin the HUD to an exact screen coordinate for the selected monitor. The monitor bounds are captured when this window opens.</value></data>
+  <data name="HudPositionCurrentMonitor" xml:space="preserve"><value>Current monitor</value></data>
+  <data name="HudPositionBounds" xml:space="preserve"><value>Monitor bounds</value></data>
+  <data name="HudPositionCurrent" xml:space="preserve"><value>Current coordinates</value></data>
+  <data name="HudPositionUseExact" xml:space="preserve"><value>Use exact screen position</value></data>
+  <data name="HudPositionX" xml:space="preserve"><value>X</value></data>
+  <data name="HudPositionY" xml:space="preserve"><value>Y</value></data>
+  <data name="HudPositionReset" xml:space="preserve"><value>Reset</value></data>
+  <data name="HudPositionNoMonitor" xml:space="preserve"><value>No monitor context is available.</value></data>
+  <data name="HudPositionUnavailable" xml:space="preserve"><value>Unavailable</value></data>
+  <data name="HudPositionInvalidTitle" xml:space="preserve"><value>Invalid coordinates</value></data>
+  <data name="HudPositionInvalidMessage" xml:space="preserve"><value>Enter whole-number X and Y coordinates between -1,000,000 and 1,000,000. Decimals and blank values are not accepted.</value></data>
+  <data name="HudPositionStaleTitle" xml:space="preserve"><value>Monitor changed</value></data>
+  <data name="HudPositionStaleMessage" xml:space="preserve"><value>The selected monitor or its bounds changed before the position was applied. Review the current monitor coordinates and try again.</value></data>
 </root>

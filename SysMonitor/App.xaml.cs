@@ -185,9 +185,11 @@ public partial class App : System.Windows.Application
             _gameOverlayWindow = new GameOverlayWindow();
             _gameOverlayWindow.SetHorizontalPositionPercent(
                 _settings.GameOverlayHorizontalPositionPercent);
+            _gameOverlayWindow.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
             _gameOverlayWindow.SetLayout(
                 _settings.GameOverlayPreset,
                 _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
+            _gameOverlayWindow.SetLayoutMode(_settings.GameOverlayLayoutMode);
             SetDetailedHudTelemetry(_settings.GameOverlayPreset);
             _gameOverlayWindow.SetAppearance(
                 _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
@@ -887,6 +889,12 @@ public partial class App : System.Windows.Application
             ? Math.Clamp(positionPercent, 0, 100)
             : 50d;
         _settings.GameOverlayHorizontalPositionPercent = normalized;
+        if (_gameOverlayWindow is not null &&
+            _gameOverlayWindow.TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity identity))
+        {
+            RemoveOverlayMonitorPosition(identity);
+            _gameOverlayWindow.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
+        }
         _settingsService.Save(_settings);
         _gameOverlayWindow?.SetHorizontalPositionPercent(normalized);
     }
@@ -992,7 +1000,12 @@ public partial class App : System.Windows.Application
             _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility(),
             _settings.GameOverlaySampling,
             targets,
-            preferredPath);
+            preferredPath,
+            _settings.GameOverlayLayoutMode,
+            _gameOverlayWindow is not null &&
+                _gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext coordinateContext)
+                    ? coordinateContext
+                    : null);
     }
 
     private static string BuildLegacyTargetDisplayName(string? executableName, string? executablePath)
@@ -1005,6 +1018,41 @@ public partial class App : System.Windows.Application
 
     private bool OnGameOverlayConfigurationApplyRequested(GameOverlayConfigurationRequest request)
     {
+        OverlayMonitorIdentity? positionIdentity = null;
+        if (request.PositionChange != GameOverlayPositionChange.None)
+        {
+            var requestedContext = new OverlaySettingsCoordinateContext(
+                request.PositionMonitorId ?? string.Empty,
+                string.Empty,
+                request.PositionLeft,
+                request.PositionTop,
+                request.PositionRight,
+                request.PositionBottom,
+                request.PositionX ?? 0,
+                request.PositionY ?? 0,
+                ExactEnabled: request.PositionChange == GameOverlayPositionChange.Set);
+            if (_gameOverlayWindow is null ||
+                !_gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext currentContext) ||
+                !_gameOverlayWindow.TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity currentIdentity) ||
+                !GameOverlayWindow.CoordinateContextMatches(requestedContext, currentContext))
+            {
+                System.Windows.MessageBox.Show(
+                    _gameOverlaySettingsWindow,
+                    _localizationService.GetString("HudPositionStaleMessage"),
+                    _localizationService.GetString("HudPositionStaleTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                _gameOverlaySettingsWindow?.ReloadCoordinateContext(
+                    _gameOverlayWindow is not null &&
+                    _gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext refreshed)
+                        ? refreshed
+                        : null);
+                return false;
+            }
+
+            positionIdentity = currentIdentity;
+        }
+
         if (request.LegacyChanged)
         {
             if (string.IsNullOrWhiteSpace(request.LegacyExecutablePath))
@@ -1046,11 +1094,65 @@ public partial class App : System.Windows.Application
             }
         }
 
+        if (positionIdentity is OverlayMonitorIdentity originallySelected &&
+            (_gameOverlayWindow is null ||
+             !_gameOverlayWindow.TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity nowSelected) ||
+             !SameOverlayMonitorSnapshot(originallySelected, nowSelected)))
+        {
+            System.Windows.MessageBox.Show(
+                _gameOverlaySettingsWindow,
+                _localizationService.GetString("HudPositionStaleMessage"),
+                _localizationService.GetString("HudPositionStaleTitle"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            if (_gameOverlaySettingsWindow is not null)
+            {
+                LoadGameOverlayConfiguration(_gameOverlaySettingsWindow);
+            }
+            return false;
+        }
+
         GameOverlayMetricVisibility metrics = request.Metrics;
         string sampling = request.Sampling;
+        _settings.GameOverlayLayoutMode = string.Equals(
+            request.LayoutMode,
+            "horizontal",
+            StringComparison.OrdinalIgnoreCase)
+                ? "horizontal"
+                : "vertical";
+        if (positionIdentity is OverlayMonitorIdentity identity)
+        {
+            RemoveOverlayMonitorPosition(identity);
+            if (request.PositionChange == GameOverlayPositionChange.Set &&
+                request.PositionX is int positionX &&
+                request.PositionY is int positionY)
+            {
+                if (_gameOverlayWindow is not null &&
+                    _gameOverlayWindow.TryClampCurrentExactPosition(positionX, positionY, out int clampedX, out int clampedY))
+                {
+                    positionX = clampedX;
+                    positionY = clampedY;
+                }
+                (_settings.GameOverlayMonitorPositions ??= []).Add(
+                    new GameOverlayMonitorPositionSettings
+                    {
+                        StableMonitorId = identity.StableMonitorId,
+                        GdiDeviceName = identity.GdiDeviceName,
+                        IsFallbackIdentity = identity.IsFallback,
+                        Left = identity.Bounds.Left,
+                        Top = identity.Bounds.Top,
+                        Right = identity.Bounds.Right,
+                        Bottom = identity.Bounds.Bottom,
+                        X = positionX,
+                        Y = positionY
+                    });
+            }
+        }
         _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
         _settings.GameOverlaySampling = sampling;
         _settingsService.Save(_settings);
+        _gameOverlayWindow?.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
+        _gameOverlayWindow?.SetLayoutMode(_settings.GameOverlayLayoutMode);
         _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
         _monitorService?.SetSamplingInterval(sampling switch
         {
@@ -1061,6 +1163,25 @@ public partial class App : System.Windows.Application
         _trayIcon?.SetGameOverlayMetrics(metrics);
         return true;
     }
+
+    private void RemoveOverlayMonitorPosition(OverlayMonitorIdentity identity)
+    {
+        List<GameOverlayMonitorPositionSettings> positions =
+            _settings.GameOverlayMonitorPositions ??= [];
+        positions.RemoveAll(position => identity.IsFallback
+            ? position.IsFallbackIdentity &&
+              string.Equals(position.GdiDeviceName, identity.GdiDeviceName, StringComparison.OrdinalIgnoreCase) &&
+              position.Left == identity.Bounds.Left && position.Top == identity.Bounds.Top &&
+              position.Right == identity.Bounds.Right && position.Bottom == identity.Bounds.Bottom
+            : !position.IsFallbackIdentity &&
+              string.Equals(position.StableMonitorId, identity.StableMonitorId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool SameOverlayMonitorSnapshot(
+        OverlayMonitorIdentity left,
+        OverlayMonitorIdentity right) =>
+        string.Equals(left.StableMonitorId, right.StableMonitorId, StringComparison.Ordinal) &&
+        left.Bounds == right.Bounds;
 
     private GameOverlayAppearanceWindow EnsureGameOverlayAppearanceWindow()
     {

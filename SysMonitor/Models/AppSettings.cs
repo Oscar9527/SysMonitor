@@ -19,6 +19,12 @@ public sealed class AppSettings
 
     public string GameOverlayPreset { get; set; } = "rivatuner";
 
+    /// <summary>HUD flow direction: vertical or horizontal.</summary>
+    public string GameOverlayLayoutMode { get; set; } = "vertical";
+
+    /// <summary>Exact physical-pixel coordinates remembered independently per monitor.</summary>
+    public List<GameOverlayMonitorPositionSettings>? GameOverlayMonitorPositions { get; set; } = [];
+
     public GameOverlayMetricVisibilitySettings? GameOverlayMetrics { get; set; } = new();
 
     /// <summary>Visual settings for the independent game HUD.</summary>
@@ -46,6 +52,19 @@ public sealed class AppSettings
     public double? PanelLeft { get; set; }
 
     public double? PanelTop { get; set; }
+}
+
+public sealed class GameOverlayMonitorPositionSettings
+{
+    public string StableMonitorId { get; set; } = string.Empty;
+    public string GdiDeviceName { get; set; } = string.Empty;
+    public bool IsFallbackIdentity { get; set; }
+    public int Left { get; set; }
+    public int Top { get; set; }
+    public int Right { get; set; }
+    public int Bottom { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
 }
 
 public sealed class GameOverlayMetricVisibilitySettings

@@ -35,10 +35,16 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static readonly nint HwndNoTopmost = new(-2);
 
     private readonly DispatcherTimer _positionTimer;
+    private readonly OverlayMonitorIdentityResolver _monitorIdentityResolver = new();
     private HwndSource? _source;
     private nint _targetWindow;
     private double _horizontalPositionPercent = 50d;
     private string _preset = "rivatuner";
+    private string _layoutMode = "vertical";
+    private IReadOnlyList<GameOverlayMonitorPositionSettings> _monitorPositions = [];
+    private OverlayPixelRect? _lastPlacement;
+    private string? _lastPlacementMonitorId;
+    private bool? _lastFrameRateVisible;
     private GameOverlayMetricVisibility _metrics = new();
     private GameOverlayAppearance _appearance = new();
 
@@ -78,11 +84,167 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             ? preset.ToLowerInvariant()
             : "rivatuner";
         _metrics = metrics ?? new GameOverlayMetricVisibility();
-        ApplyMetricOrder();
+        ConfigureGridLayout();
+        SchedulePosition();
     }
 
-    private void ApplyMetricOrder()
+    public void SetLayoutMode(string? layoutMode)
     {
+        _layoutMode = string.Equals(layoutMode, "horizontal", StringComparison.OrdinalIgnoreCase)
+            ? "horizontal"
+            : "vertical";
+        ConfigureGridLayout();
+        SchedulePosition();
+    }
+
+    public void SetMonitorPositions(IEnumerable<GameOverlayMonitorPositionSettings>? positions)
+    {
+        _monitorPositions = SettingsService.NormalizeOverlayMonitorPositions(positions);
+        PositionWithoutActivation();
+    }
+
+    internal bool TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity identity) =>
+        _monitorIdentityResolver.TryResolveForWindow(
+            _targetWindow != nint.Zero ? _targetWindow : _source?.Handle ?? nint.Zero,
+            out identity);
+
+    public bool TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext context)
+    {
+        context = default!;
+        if (!TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity identity))
+        {
+            return false;
+        }
+
+        bool exact = TryFindExactPosition(identity, _monitorPositions, out GameOverlayMonitorPositionSettings? position);
+        OverlayPixelRect placement = exact
+            ? CalculateExactPlacement(
+                ToOverlayRect(identity.Bounds),
+                GetWidthDip(),
+                GetHeightDip(),
+                GetCurrentDpi(),
+                position!.X,
+                position.Y)
+            : CalculateLegacyPlacementForContext(identity);
+        if (string.Equals(_lastPlacementMonitorId, identity.StableMonitorId, StringComparison.Ordinal) &&
+            _lastPlacement is OverlayPixelRect current)
+        {
+            placement = current;
+        }
+
+        context = new OverlaySettingsCoordinateContext(
+            identity.StableMonitorId,
+            $"{identity.DisplayName} ({identity.GdiDeviceName})",
+            identity.Bounds.Left,
+            identity.Bounds.Top,
+            identity.Bounds.Right,
+            identity.Bounds.Bottom,
+            placement.Left,
+            placement.Top,
+            exact);
+        return true;
+    }
+
+    internal static bool CoordinateContextMatches(
+        OverlaySettingsCoordinateContext requested,
+        OverlaySettingsCoordinateContext current) =>
+        string.Equals(requested.StableMonitorId, current.StableMonitorId, StringComparison.Ordinal) &&
+        requested.Left == current.Left &&
+        requested.Top == current.Top &&
+        requested.Right == current.Right &&
+        requested.Bottom == current.Bottom;
+
+    internal bool TryClampCurrentExactPosition(int requestedX, int requestedY, out int x, out int y)
+    {
+        x = requestedX;
+        y = requestedY;
+        if (!TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity identity))
+        {
+            return false;
+        }
+
+        OverlayPixelRect placement = CalculateExactPlacement(
+            ToOverlayRect(identity.Bounds),
+            GetWidthDip(),
+            GetHeightDip(),
+            GetCurrentDpi(),
+            requestedX,
+            requestedY);
+        x = placement.Left;
+        y = placement.Top;
+        return true;
+    }
+
+    internal static bool TryFindExactPosition(
+        OverlayMonitorIdentity identity,
+        IEnumerable<GameOverlayMonitorPositionSettings>? positions,
+        out GameOverlayMonitorPositionSettings? match)
+    {
+        match = null;
+        List<GameOverlayMonitorPositionSettings> all = (positions ?? []).ToList();
+        var stableIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (all.Any(candidate => !candidate.IsFallbackIdentity &&
+            !stableIds.Add(candidate.StableMonitorId)))
+        {
+            return false;
+        }
+
+        List<GameOverlayMonitorPositionSettings> candidates = all
+            .Where(candidate => identity.IsFallback
+                ? candidate.IsFallbackIdentity &&
+                  string.Equals(candidate.GdiDeviceName, identity.GdiDeviceName, StringComparison.OrdinalIgnoreCase) &&
+                  candidate.Left == identity.Bounds.Left && candidate.Top == identity.Bounds.Top &&
+                  candidate.Right == identity.Bounds.Right && candidate.Bottom == identity.Bounds.Bottom
+                : !candidate.IsFallbackIdentity &&
+                  string.Equals(candidate.StableMonitorId, identity.StableMonitorId, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (candidates.Count != 1)
+        {
+            return false;
+        }
+
+        match = candidates[0];
+        return true;
+    }
+
+    private void ConfigureGridLayout()
+    {
+        if (_layoutMode == "horizontal")
+        {
+            ConfigureHorizontalGrid();
+        }
+        else
+        {
+            ConfigureVerticalGrid();
+        }
+
+        bool horizontal = _layoutMode == "horizontal";
+        CpuLabel.Visibility = CpuValue.Visibility = horizontal || _metrics.Cpu
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        GpuLabel.Visibility = GpuValue.Visibility = horizontal || _metrics.Gpu
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        FpsLabel.Visibility = FpsValue.Visibility = _lastFrameRateVisible == true &&
+            (horizontal || _metrics.FrameRate)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        MemoryLabel.Visibility = MemoryValue.Visibility = !horizontal && _metrics.Memory
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        NetworkLabel.Visibility = NetworkValue.Visibility = !horizontal && _metrics.Network
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void ConfigureVerticalGrid()
+    {
+        OverlayGrid.MinWidth = 250;
+        OverlayGrid.RowDefinitions.Clear();
+        OverlayGrid.ColumnDefinitions.Clear();
+        for (int index = 0; index < 5; index++) OverlayGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        OverlayGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
+        OverlayGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         string[] order = GameOverlayMetricOrder.Normalize(_metrics.Order).ToArray();
         for (int index = 0; index < order.Length; index++)
         {
@@ -99,7 +261,42 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             };
             Grid.SetRow(label, row);
             Grid.SetRow(value, row);
+            Grid.SetColumn(label, 0);
+            Grid.SetColumn(value, 1);
+            label.Margin = value.Margin = new Thickness(0, 0, 8, 1);
+            label.HorizontalAlignment = value.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
         }
+    }
+
+    private void ConfigureHorizontalGrid()
+    {
+        OverlayGrid.MinWidth = 0;
+        OverlayGrid.RowDefinitions.Clear();
+        OverlayGrid.ColumnDefinitions.Clear();
+        OverlayGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (int index = 0; index < 6; index++) OverlayGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        (TextBlock label, TextBlock value)[] items =
+        [
+            (CpuLabel, CpuValue),
+            (GpuLabel, GpuValue),
+            (FpsLabel, FpsValue)
+        ];
+        for (int index = 0; index < items.Length; index++)
+        {
+            (TextBlock label, TextBlock value) = items[index];
+            Grid.SetRow(label, 0);
+            Grid.SetRow(value, 0);
+            Grid.SetColumn(label, index * 2);
+            Grid.SetColumn(value, (index * 2) + 1);
+            label.Margin = new Thickness(index == 0 ? 0 : 18, 0, 5, 0);
+            value.Margin = new Thickness(0);
+            label.HorizontalAlignment = value.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+        }
+
+        Grid.SetRow(MemoryLabel, 0);
+        Grid.SetRow(MemoryValue, 0);
+        Grid.SetRow(NetworkLabel, 0);
+        Grid.SetRow(NetworkValue, 0);
     }
 
     public void SetAppearance(GameOverlayAppearance appearance)
@@ -127,13 +324,14 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         FpsLabel.Foreground = FpsValue.Foreground = fpsBrush;
         MemoryLabel.Foreground = MemoryValue.Foreground = memoryBrush;
         NetworkLabel.Foreground = NetworkValue.Foreground = networkBrush;
-        PositionWithoutActivation();
+        SchedulePosition();
     }
 
     public void UpdateMetrics(MonitorSnapshot monitor, GameOverlayFrameSnapshot frame, double? currentFrequencyMegahertz = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
-        bool showFrameRate = ShouldShowFrameRate(frame, _metrics.FrameRate);
+        bool horizontal = _layoutMode == "horizontal";
+        bool showFrameRate = ShouldShowFrameRate(frame, horizontal || _metrics.FrameRate);
         string fps = showFrameRate && frame.FramesPerSecond is double fpsValue
             ? fpsValue.ToString("0", LocalizationService.Current.ActiveCulture)
             : "--";
@@ -142,12 +340,19 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         string gpu = FormatPercent(monitor.Gpu?.UsagePercent);
         string gpuTemperature = FormatTemperature(monitor.Gpu?.TemperatureCelsius);
 
-        SetRow(GpuLabel, GpuValue, _metrics.Gpu, BuildGpuValue(monitor, gpu, gpuTemperature));
-        SetRow(CpuLabel, CpuValue, _metrics.Cpu, BuildCpuValue(monitor, cpu, cpuTemperature));
+        SetRow(GpuLabel, GpuValue, horizontal || _metrics.Gpu,
+            horizontal ? BuildHorizontalMetricValue(gpu, gpuTemperature) : BuildGpuValue(monitor, gpu, gpuTemperature));
+        SetRow(CpuLabel, CpuValue, horizontal || _metrics.Cpu,
+            horizontal ? BuildHorizontalMetricValue(cpu, cpuTemperature) : BuildCpuValue(monitor, cpu, cpuTemperature));
         SetRow(FpsLabel, FpsValue, showFrameRate, fps);
-        SetRow(MemoryLabel, MemoryValue, _metrics.Memory, BuildMemoryValue(monitor, FormatPercent(monitor.MemoryUsagePercent)));
-        SetRow(NetworkLabel, NetworkValue, _metrics.Network,
+        SetRow(MemoryLabel, MemoryValue, !horizontal && _metrics.Memory, BuildMemoryValue(monitor, FormatPercent(monitor.MemoryUsagePercent)));
+        SetRow(NetworkLabel, NetworkValue, !horizontal && _metrics.Network,
             $"\u2193 {FormatRate(monitor.DownloadBytesPerSecond)}  \u2191 {FormatRate(monitor.UploadBytesPerSecond)}");
+        if (_lastFrameRateVisible != showFrameRate)
+        {
+            _lastFrameRateVisible = showFrameRate;
+            SchedulePosition();
+        }
     }
 
     public void ShowWithoutActivation()
@@ -183,6 +388,27 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         int y = Math.Clamp(workingArea.Top + margin, workingArea.Top, workingArea.Bottom - height);
         return new OverlayPixelRect(x, y, x + width, y + height);
     }
+
+    internal static OverlayPixelRect CalculateExactPlacement(
+        OverlayPixelRect screen,
+        double widthDip,
+        double heightDip,
+        uint dpi,
+        int requestedX,
+        int requestedY)
+    {
+        double scale = Math.Max(1, dpi) / 96d;
+        double safeWidth = double.IsFinite(widthDip) && widthDip > 0 ? widthDip : 1;
+        double safeHeight = double.IsFinite(heightDip) && heightDip > 0 ? heightDip : 1;
+        int width = Math.Min(screen.Width, Math.Max(1, (int)Math.Ceiling(safeWidth * scale)));
+        int height = Math.Min(screen.Height, Math.Max(1, (int)Math.Ceiling(safeHeight * scale)));
+        int x = Math.Clamp(requestedX, screen.Left, screen.Right - width);
+        int y = Math.Clamp(requestedY, screen.Top, screen.Bottom - height);
+        return new OverlayPixelRect(x, y, x + width, y + height);
+    }
+
+    internal static string BuildHorizontalMetricValue(string usage, string temperature) =>
+        $"{(string.IsNullOrWhiteSpace(usage) ? "--" : usage)}  {(string.IsNullOrWhiteSpace(temperature) ? "--" : temperature)}";
 
     internal static string BuildOverlayText(string fps, string frameState, string cpu, string cpuTemperature, string gpu, string gpuTemperature, string memory, string download = "--", string upload = "--", string preset = "rivatuner", GameOverlayMetricVisibility? metrics = null, string? memoryFrequency = null)
     {
@@ -291,8 +517,18 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     {
         if (message == WmMouseActivate) { handled = true; return new nint(MaNoActivate); }
         if (message == WmNcHitTest) { handled = true; return new nint(HtTransparent); }
-        if (message == WmDpiChanged) Dispatcher.BeginInvoke(PositionWithoutActivation, DispatcherPriority.Background);
+        if (message == WmDpiChanged) SchedulePosition();
         return nint.Zero;
+    }
+
+    private void SchedulePosition()
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(PositionWithoutActivation, DispatcherPriority.Render);
     }
 
     private void PositionWithoutActivation()
@@ -306,24 +542,50 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             target = nint.Zero;
         }
 
+        OverlayMonitorIdentity? monitorIdentity =
+            _monitorIdentityResolver.TryResolveForWindow(
+                target != nint.Zero ? target : _source.Handle,
+                out OverlayMonitorIdentity resolvedIdentity)
+                ? resolvedIdentity
+                : null;
+        GameOverlayMonitorPositionSettings? exactPosition = null;
+        bool hasExactPosition = monitorIdentity is OverlayMonitorIdentity identity &&
+            TryFindExactPosition(identity, _monitorPositions, out exactPosition);
+
         OverlayPixelRect placementArea;
-        if (target != nint.Zero && TryGetClientAreaOnScreen(target, out OverlayPixelRect clientArea))
+        if (!hasExactPosition && target != nint.Zero && TryGetClientAreaOnScreen(target, out OverlayPixelRect clientArea))
         {
             // A manually selected, windowed game must be anchored to its drawing
             // surface, not to the top-left corner of the physical display.
             placementArea = clientArea;
         }
-        else
+        else if (hasExactPosition && monitorIdentity is OverlayMonitorIdentity exactIdentity)
         {
-            nint monitor = MonitorFromWindow(target, target == nint.Zero ? MonitorDefaultToPrimary : MonitorDefaultToNearest);
-            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-            if (monitor == nint.Zero || !GetMonitorInfo(monitor, ref info)) return;
-            placementArea = new OverlayPixelRect(info.WorkArea.Left, info.WorkArea.Top, info.WorkArea.Right, info.WorkArea.Bottom);
+            placementArea = ToOverlayRect(exactIdentity.Bounds);
+        }
+        else if (!TryGetWorkArea(target, out placementArea))
+        {
+            return;
         }
 
-        uint dpi = target != nint.Zero ? GetDpiForWindow(target) : GetDpiForWindow(_source.Handle);
-        if (dpi == 0) dpi = 96;
-        OverlayPixelRect placement = CalculatePlacement(placementArea, Width, Height, dpi, marginDip: 4, horizontalPositionPercent: _horizontalPositionPercent);
+        uint dpi = GetCurrentDpi();
+        OverlayPixelRect placement = hasExactPosition
+            ? CalculateExactPlacement(
+                ToOverlayRect(monitorIdentity!.Value.Bounds),
+                GetWidthDip(),
+                GetHeightDip(),
+                dpi,
+                exactPosition!.X,
+                exactPosition.Y)
+            : CalculatePlacement(
+                placementArea,
+                GetWidthDip(),
+                GetHeightDip(),
+                dpi,
+                marginDip: 4,
+                horizontalPositionPercent: _horizontalPositionPercent);
+        _lastPlacement = placement;
+        _lastPlacementMonitorId = monitorIdentity?.StableMonitorId;
         nint overlay = _source.Handle;
         bool targetTopmost = target != nint.Zero && IsTopmost(target);
         SynchronizeTopmostTier(overlay, targetTopmost);
@@ -347,6 +609,71 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             placement.Width,
             placement.Height,
             flags);
+    }
+
+    private OverlayPixelRect CalculateLegacyPlacementForContext(OverlayMonitorIdentity identity)
+    {
+        OverlayPixelRect area = _targetWindow != nint.Zero &&
+            TryGetClientAreaOnScreen(_targetWindow, out OverlayPixelRect clientArea)
+                ? clientArea
+                : TryGetWorkArea(_targetWindow, out OverlayPixelRect workArea)
+                    ? workArea
+                    : ToOverlayRect(identity.Bounds);
+        return CalculatePlacement(
+            area,
+            GetWidthDip(),
+            GetHeightDip(),
+            GetCurrentDpi(),
+            marginDip: 4,
+            horizontalPositionPercent: _horizontalPositionPercent);
+    }
+
+    private uint GetCurrentDpi()
+    {
+        // The target game may be DPI-unaware and would report 96 even on a
+        // high-DPI monitor. The overlay is PerMonitorV2, so its own HWND is the
+        // authoritative rendered DPI. A first cross-monitor move is corrected
+        // by the ensuing WM_DPICHANGED render pass.
+        nint handle = _source?.Handle ?? nint.Zero;
+        uint dpi = handle != nint.Zero ? GetDpiForWindow(handle) : 96;
+        return dpi == 0 ? 96 : dpi;
+    }
+
+    private double GetWidthDip() =>
+        double.IsFinite(ActualWidth) && ActualWidth > 0
+            ? ActualWidth
+            : double.IsFinite(Width) && Width > 0
+                ? Width
+                : Math.Max(1, OverlayGrid.DesiredSize.Width + 12);
+
+    private double GetHeightDip() =>
+        double.IsFinite(ActualHeight) && ActualHeight > 0
+            ? ActualHeight
+            : double.IsFinite(Height) && Height > 0
+                ? Height
+                : Math.Max(1, OverlayGrid.DesiredSize.Height + 8);
+
+    private static OverlayPixelRect ToOverlayRect(ScreenPixelBounds bounds) =>
+        new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
+
+    private static bool TryGetWorkArea(nint windowHandle, out OverlayPixelRect area)
+    {
+        area = default;
+        nint monitor = MonitorFromWindow(
+            windowHandle,
+            windowHandle == nint.Zero ? MonitorDefaultToPrimary : MonitorDefaultToNearest);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (monitor == nint.Zero || !GetMonitorInfo(monitor, ref info))
+        {
+            return false;
+        }
+
+        area = new OverlayPixelRect(
+            info.WorkArea.Left,
+            info.WorkArea.Top,
+            info.WorkArea.Right,
+            info.WorkArea.Bottom);
+        return area.Width > 0 && area.Height > 0;
     }
 
     internal static OverlayZOrderDecision ResolveZOrder(
