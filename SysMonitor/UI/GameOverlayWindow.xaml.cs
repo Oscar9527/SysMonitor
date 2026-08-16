@@ -117,15 +117,21 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         }
 
         bool exact = TryFindExactPosition(identity, _monitorPositions, out GameOverlayMonitorPositionSettings? position);
+        OverlayPixelRect monitorBounds = ToOverlayRect(identity.Bounds);
+        uint dpi = GetCurrentDpi();
         OverlayPixelRect placement = exact
             ? CalculateExactPlacement(
-                ToOverlayRect(identity.Bounds),
+                monitorBounds,
                 GetWidthDip(),
                 GetHeightDip(),
-                GetCurrentDpi(),
+                dpi,
                 position!.X,
                 position.Y)
             : CalculateLegacyPlacementForContext(identity);
+        OverlayPixelRect minimumPlacement = CalculateExactPlacement(
+            monitorBounds, GetWidthDip(), GetHeightDip(), dpi, int.MinValue, int.MinValue);
+        OverlayPixelRect maximumPlacement = CalculateExactPlacement(
+            monitorBounds, GetWidthDip(), GetHeightDip(), dpi, int.MaxValue, int.MaxValue);
         if (string.Equals(_lastPlacementMonitorId, identity.StableMonitorId, StringComparison.Ordinal) &&
             _lastPlacement is OverlayPixelRect current)
         {
@@ -141,7 +147,11 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             identity.Bounds.Bottom,
             placement.Left,
             placement.Top,
-            exact);
+            exact,
+            minimumPlacement.Left,
+            maximumPlacement.Left,
+            minimumPlacement.Top,
+            maximumPlacement.Top);
         return true;
     }
 

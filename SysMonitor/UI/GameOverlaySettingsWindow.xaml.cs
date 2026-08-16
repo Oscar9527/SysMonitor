@@ -32,7 +32,11 @@ public sealed record OverlaySettingsCoordinateContext(
     int Bottom,
     int CurrentX,
     int CurrentY,
-    bool ExactEnabled);
+    bool ExactEnabled,
+    int? MinimumX = null,
+    int? MaximumX = null,
+    int? MinimumY = null,
+    int? MaximumY = null);
 
 public sealed record GameOverlayConfigurationRequest(
     GameOverlayMetricVisibility Metrics,
@@ -285,6 +289,36 @@ public partial class GameOverlaySettingsWindow : Window
         }
 
         _coordinateDirty = true;
+        SyncSliderFromText(sender as System.Windows.Controls.TextBox);
+        RefreshSelectedCoordinateText();
+    }
+
+    private void PositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loadingCoordinates || _coordinateContext is null)
+        {
+            return;
+        }
+
+        _loadingCoordinates = true;
+        try
+        {
+            if (ReferenceEquals(sender, PositionXSlider))
+            {
+                PositionXBox.Text = Math.Round(PositionXSlider.Value).ToString(CultureInfo.InvariantCulture);
+            }
+            else if (ReferenceEquals(sender, PositionYSlider))
+            {
+                PositionYBox.Text = Math.Round(PositionYSlider.Value).ToString(CultureInfo.InvariantCulture);
+            }
+        }
+        finally
+        {
+            _loadingCoordinates = false;
+        }
+
+        _coordinateDirty = true;
+        RefreshSelectedCoordinateText();
     }
 
     private void ResetPosition_Click(object sender, RoutedEventArgs e)
@@ -345,12 +379,20 @@ public partial class GameOverlaySettingsWindow : Window
         {
             _coordinateContext = coordinateContext;
             ExactPositionBox.IsChecked = coordinateContext?.ExactEnabled == true;
+            ConfigureCoordinateSlider(PositionXSlider,
+                coordinateContext?.MinimumX ?? coordinateContext?.Left ?? 0,
+                coordinateContext?.MaximumX ?? coordinateContext?.Right - 1 ?? 1,
+                coordinateContext?.CurrentX ?? 0);
+            ConfigureCoordinateSlider(PositionYSlider,
+                coordinateContext?.MinimumY ?? coordinateContext?.Top ?? 0,
+                coordinateContext?.MaximumY ?? coordinateContext?.Bottom - 1 ?? 1,
+                coordinateContext?.CurrentY ?? 0);
             PositionXBox.Text = coordinateContext is null
                 ? string.Empty
-                : coordinateContext.CurrentX.ToString(CultureInfo.InvariantCulture);
+                : Math.Round(PositionXSlider.Value).ToString(CultureInfo.InvariantCulture);
             PositionYBox.Text = coordinateContext is null
                 ? string.Empty
-                : coordinateContext.CurrentY.ToString(CultureInfo.InvariantCulture);
+                : Math.Round(PositionYSlider.Value).ToString(CultureInfo.InvariantCulture);
             _coordinateDirty = false;
         }
         finally
@@ -374,16 +416,64 @@ public partial class GameOverlaySettingsWindow : Window
                 context.Left, context.Top, context.Right, context.Bottom);
         PositionCurrentText.Text = context is null
             ? L("HudPositionUnavailable")
-            : string.Format(CultureInfo.InvariantCulture, "{0}, {1}", context.CurrentX, context.CurrentY);
+            : string.Format(CultureInfo.InvariantCulture, "{0}, {1}",
+                Math.Round(PositionXSlider.Value), Math.Round(PositionYSlider.Value));
     }
 
     private void RefreshCoordinateEnabled()
     {
         bool enabled = _coordinateContext is not null && ExactPositionBox.IsChecked == true;
         ExactPositionBox.IsEnabled = _coordinateContext is not null;
+        PositionXSlider.IsEnabled = enabled;
+        PositionYSlider.IsEnabled = enabled;
         PositionXBox.IsEnabled = enabled;
         PositionYBox.IsEnabled = enabled;
         ResetPositionButton.IsEnabled = _coordinateContext is not null;
+    }
+
+    private static void ConfigureCoordinateSlider(Slider slider, int minimum, int maximum, int value)
+    {
+        if (maximum < minimum)
+        {
+            maximum = minimum;
+        }
+
+        slider.Minimum = minimum;
+        slider.Maximum = maximum;
+        slider.Value = Math.Clamp(value, minimum, maximum);
+    }
+
+    private void SyncSliderFromText(System.Windows.Controls.TextBox? source)
+    {
+        if (source is null || !TryReadCoordinate(source.Text, out int value))
+        {
+            return;
+        }
+
+        Slider slider = ReferenceEquals(source, PositionXBox) ? PositionXSlider : PositionYSlider;
+        if (value < slider.Minimum || value > slider.Maximum)
+        {
+            return;
+        }
+
+        _loadingCoordinates = true;
+        try
+        {
+            slider.Value = value;
+        }
+        finally
+        {
+            _loadingCoordinates = false;
+        }
+    }
+
+    private void RefreshSelectedCoordinateText()
+    {
+        PositionCurrentText.Text = _coordinateContext is not null &&
+            TryReadCoordinate(PositionXBox.Text, out int x) &&
+            TryReadCoordinate(PositionYBox.Text, out int y)
+                ? string.Format(CultureInfo.InvariantCulture, "{0}, {1}", x, y)
+                : L("HudPositionUnavailable");
     }
 
     private static bool TryReadCoordinate(string? text, out int value)

@@ -153,10 +153,10 @@
   <data name="HudLayoutVertical" xml:space="preserve"><value>Vertical</value></data>
   <data name="HudLayoutHorizontal" xml:space="preserve"><value>Horizontal</value></data>
   <data name="HudPositionTitle" xml:space="preserve"><value>Exact screen position</value></data>
-  <data name="HudPositionHelp" xml:space="preserve"><value>Pin the HUD to an exact screen coordinate for the selected monitor. The monitor bounds are captured when this window opens.</value></data>
+  <data name="HudPositionHelp" xml:space="preserve"><value>Drag the X/Y sliders, then select Apply. The number boxes remain available for precise one-pixel adjustment.</value></data>
   <data name="HudPositionCurrentMonitor" xml:space="preserve"><value>Current monitor</value></data>
   <data name="HudPositionBounds" xml:space="preserve"><value>Monitor bounds</value></data>
-  <data name="HudPositionCurrent" xml:space="preserve"><value>Current coordinates</value></data>
+  <data name="HudPositionCurrent" xml:space="preserve"><value>Selected coordinates</value></data>
   <data name="HudPositionUseExact" xml:space="preserve"><value>Use exact screen position</value></data>
   <data name="HudPositionX" xml:space="preserve"><value>X</value></data>
   <data name="HudPositionY" xml:space="preserve"><value>Y</value></data>

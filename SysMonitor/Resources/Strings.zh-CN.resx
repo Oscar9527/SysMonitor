@@ -153,10 +153,10 @@
   <data name="HudLayoutVertical" xml:space="preserve"><value>垂直</value></data>
   <data name="HudLayoutHorizontal" xml:space="preserve"><value>水平</value></data>
   <data name="HudPositionTitle" xml:space="preserve"><value>精确屏幕位置</value></data>
-  <data name="HudPositionHelp" xml:space="preserve"><value>将 HUD 固定到所选显示器的精确屏幕坐标。显示器边界会在打开此窗口时记录。</value></data>
+  <data name="HudPositionHelp" xml:space="preserve"><value>拖动 X/Y 滑块后点击“应用”即可调整位置；右侧数值框可做 1 像素精确微调。</value></data>
   <data name="HudPositionCurrentMonitor" xml:space="preserve"><value>当前显示器</value></data>
   <data name="HudPositionBounds" xml:space="preserve"><value>显示器边界</value></data>
-  <data name="HudPositionCurrent" xml:space="preserve"><value>当前坐标</value></data>
+  <data name="HudPositionCurrent" xml:space="preserve"><value>所选坐标</value></data>
   <data name="HudPositionUseExact" xml:space="preserve"><value>使用精确屏幕位置</value></data>
   <data name="HudPositionX" xml:space="preserve"><value>X</value></data>
   <data name="HudPositionY" xml:space="preserve"><value>Y</value></data>

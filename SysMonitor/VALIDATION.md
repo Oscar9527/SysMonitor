@@ -18,13 +18,15 @@ Environment: Windows 11 x64; running game and foreground input left untouched
 - The settings window exposes vertical and horizontal modes in English and
   Simplified Chinese. Horizontal mode contains only CPU usage/temperature, GPU
   usage/temperature, and a valid FPS sample; unavailable FPS remains hidden.
+- X/Y sliders use the current HUD size to expose only fully visible positions;
+  synchronized numeric boxes remain available for one-pixel adjustment.
 - Unrelated Apply actions do not create or reset exact coordinates. Position
   mutations revalidate the selected monitor before and after any slower RTSS
   compatibility operation.
 - Full result: 289/289 tests passed. Release packaging completed with 0 warnings
   and 0 errors without launching the application or taking foreground input.
-- Final framework-dependent single portable launcher: 8,834,048 bytes (8.42 MiB),
-  SHA-256 `CCBB2546C8A5C1D20D6B2E05C0F7AE29BFBA7FE5EA3C342975EF28F4470BCC31`.
+- Final framework-dependent single portable launcher: 8,842,240 bytes (8.43 MiB),
+  SHA-256 `6720932FC6499E33E4684D097C6FE79F1FE40A272B24CABDF2A49D19B40E9003`.
   The artifact directory contains exactly one file, `SysMonitor.exe`.
 
 ## Opt-in per-game RTSS compatibility

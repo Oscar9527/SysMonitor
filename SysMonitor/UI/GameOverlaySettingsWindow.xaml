@@ -67,14 +67,26 @@
               <TextBlock x:Name="PositionCurrentText" Grid.Column="1" Foreground="#FF3A3A3C"/>
             </Grid>
             <CheckBox x:Name="ExactPositionBox" Click="ExactPositionBox_Click" FontWeight="SemiBold"/>
-            <Grid Margin="24,8,0,0">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="74"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="74"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-              <TextBlock x:Name="PositionXLabelText" VerticalAlignment="Center" Margin="0,0,6,0"/>
-              <TextBox x:Name="PositionXBox" Grid.Column="1" Height="32" TextChanged="PositionCoordinateTextChanged"/>
-              <TextBlock x:Name="PositionYLabelText" Grid.Column="2" VerticalAlignment="Center" Margin="12,0,6,0"/>
-              <TextBox x:Name="PositionYBox" Grid.Column="3" Height="32" TextChanged="PositionCoordinateTextChanged"/>
-              <Button x:Name="ResetPositionButton" Grid.Column="4" Width="76" Height="32" Margin="10,0,0,0" HorizontalAlignment="Left" Click="ResetPosition_Click"/>
+            <Grid Margin="24,10,0,0">
+              <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/><ColumnDefinition Width="82"/></Grid.ColumnDefinitions>
+              <TextBlock x:Name="PositionXLabelText" VerticalAlignment="Center"/>
+              <Slider x:Name="PositionXSlider" Grid.Column="1" Margin="4,0,12,0"
+                      SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                      IsMoveToPointEnabled="True"
+                      ValueChanged="PositionSlider_ValueChanged"/>
+              <TextBox x:Name="PositionXBox" Grid.Column="2" Height="32" VerticalContentAlignment="Center"
+                       TextChanged="PositionCoordinateTextChanged"/>
+              <TextBlock x:Name="PositionYLabelText" Grid.Row="1" VerticalAlignment="Center" Margin="0,9,0,0"/>
+              <Slider x:Name="PositionYSlider" Grid.Row="1" Grid.Column="1" Margin="4,9,12,0"
+                      SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                      IsMoveToPointEnabled="True"
+                      ValueChanged="PositionSlider_ValueChanged"/>
+              <TextBox x:Name="PositionYBox" Grid.Row="1" Grid.Column="2" Height="32" Margin="0,9,0,0"
+                       VerticalContentAlignment="Center" TextChanged="PositionCoordinateTextChanged"/>
             </Grid>
+            <Button x:Name="ResetPositionButton" Width="88" Height="32" Margin="24,10,0,0"
+                    HorizontalAlignment="Left" Click="ResetPosition_Click"/>
           </StackPanel>
         </Border>
 
