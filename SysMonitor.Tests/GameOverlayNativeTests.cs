@@ -156,12 +156,35 @@ public sealed class GameOverlayNativeTests
     [InlineData(GameOverlayFrameStatus.Unavailable, "未启用")]
     [InlineData(GameOverlayFrameStatus.WaitingForTarget, "未选择目标")]
     [InlineData(GameOverlayFrameStatus.Starting, "正在采集")]
-    [InlineData(GameOverlayFrameStatus.NoFrames, "未捕获到帧")]
+    [InlineData(GameOverlayFrameStatus.NoFrames, "")]
     [InlineData(GameOverlayFrameStatus.Faulted, "采集失败")]
     public void HudDoesNotExposeEnglishUnavailableState(GameOverlayFrameStatus status, string expected)
     {
         Assert.Equal(expected, GameOverlayWindow.GetCompactFrameState(
             new GameOverlayFrameSnapshot(null, status, DateTimeOffset.UtcNow)));
+    }
+
+    [Fact]
+    public void HudSilentlyShowsPlaceholderWhenNoFramesAreAvailable()
+    {
+        var frame = new GameOverlayFrameSnapshot(
+            null,
+            GameOverlayFrameStatus.NoFrames,
+            DateTimeOffset.UtcNow);
+
+        string state = GameOverlayWindow.GetCompactFrameState(frame);
+        string text = GameOverlayWindow.BuildOverlayText(
+            "--",
+            state,
+            "40%",
+            "72°C",
+            "55%",
+            "61°C",
+            "48%");
+
+        Assert.Equal(string.Empty, state);
+        Assert.Contains("FPS --", text);
+        Assert.DoesNotContain("未捕获到帧", text);
     }
 
     [Fact]

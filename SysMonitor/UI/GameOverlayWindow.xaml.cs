@@ -203,7 +203,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             GameOverlayFrameStatus.Unavailable => "未启用",
             GameOverlayFrameStatus.WaitingForTarget => "未选择目标",
             GameOverlayFrameStatus.Starting => "正在采集",
-            GameOverlayFrameStatus.NoFrames => "未捕获到帧",
+            GameOverlayFrameStatus.NoFrames => string.Empty,
             GameOverlayFrameStatus.Faulted when frame.Detail?.Contains("ACCESS DENIED", StringComparison.OrdinalIgnoreCase) == true => "权限不足",
             GameOverlayFrameStatus.Faulted when frame.Detail?.Contains("permission", StringComparison.OrdinalIgnoreCase) == true => "权限不足",
             GameOverlayFrameStatus.Faulted => "采集失败",

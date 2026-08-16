@@ -21,10 +21,12 @@ Environment: Windows 11 x64; running game and foreground input left untouched
 - Z-order tests cover normal and topmost targets, an existing predecessor, an
   already-correct overlay position, and no-target demotion. Controller tests
   prove that a tray request starts the HUD without a sensor-mode gate.
-- Full result: 250/250 tests passed. Release packaging completed with 0 warnings
+- When neither source has a valid value, the HUD now renders only `FPS --` and
+  does not add a distracting “no frames captured” status message.
+- Full result: 251/251 tests passed. Release packaging completed with 0 warnings
   and 0 errors. A separate read-only structural review found no blocking issue.
 - Final framework-dependent single portable launcher: 8,604,672 bytes,
-  SHA-256 `AE0BBE2284BD7CDF32A16C0BBE7B6ACDF14103E9B0112BB8B9A89EBB380BAE3F`.
+  SHA-256 `D33B3F7F8B3BE2FB155860E509363401E135B5D0A98633953858E5F899CF49BA`.
   The artifact directory contains exactly one file, `SysMonitor.exe`.
 - The repaired binary was not launched because the foreground game session was
   intentionally left untouched. The currently running damaged process must be
