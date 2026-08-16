@@ -65,7 +65,6 @@ public sealed class GameOverlayController : IAsyncDisposable
     private readonly object _stateGate = new();
     private CancellationTokenSource? _targetCancellation;
     private bool _desiredVisible;
-    private bool _compatibilityMode;
     private bool _disposed;
     private long _generation;
     private long _lastUiUpdate;
@@ -92,35 +91,7 @@ public sealed class GameOverlayController : IAsyncDisposable
         get { lock (_stateGate) { return _desiredVisible; } }
     }
 
-    public bool IsCompatibilityMode
-    {
-        get { lock (_stateGate) { return _compatibilityMode; } }
-    }
-
-    public bool IsOverlayAvailable => !IsCompatibilityMode;
-
     public bool IsVisible => _view.OverlayVisible;
-
-    public void SetCompatibilityMode(bool enabled)
-    {
-        bool hide;
-        lock (_stateGate)
-        {
-            if (_compatibilityMode == enabled)
-            {
-                return;
-            }
-
-            _compatibilityMode = enabled;
-            hide = enabled && _desiredVisible;
-        }
-
-        RaiseStateChanged();
-        if (hide)
-        {
-            _ = RequestVisibilityAsync(false, GameOverlayActivationSource.Tray, null);
-        }
-    }
 
     public Task ToggleFromHotkeyAsync()
     {
@@ -161,11 +132,6 @@ public sealed class GameOverlayController : IAsyncDisposable
         lock (_stateGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (visible && _compatibilityMode)
-            {
-                return Task.CompletedTask;
-            }
-
             _desiredVisible = visible;
             generation = ++_generation;
             _targetCancellation?.Cancel();
@@ -268,8 +234,7 @@ public sealed class GameOverlayController : IAsyncDisposable
         {
             return !_disposed &&
                 generation == _generation &&
-                _desiredVisible == visible &&
-                (!visible || !_compatibilityMode);
+                _desiredVisible == visible;
         }
     }
 
@@ -319,7 +284,7 @@ public sealed class GameOverlayController : IAsyncDisposable
         long generation;
         lock (_stateGate)
         {
-            if (_disposed || !_desiredVisible || _compatibilityMode)
+            if (_disposed || !_desiredVisible)
             {
                 return;
             }

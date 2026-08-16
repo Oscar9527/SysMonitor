@@ -1070,9 +1070,11 @@ public partial class BandWindow : Window
         }
 
         LogIntegritySnapshot("health", snapshot);
-        BandDiagnostics.Log(
+        BandDiagnostics.LogRateLimited(
+            $"band-health-invalid-{Generation}",
             $"band integrity invalid at health; attempting in-place repair " +
-            $"generation={Generation} hwnd=0x{handle.ToInt64():X}");
+            $"generation={Generation} hwnd=0x{handle.ToInt64():X}",
+            TimeSpan.FromSeconds(2));
         if (EnsureTaskbarChild(handle))
         {
             // A repaired parent/style contract is the exceptional health path

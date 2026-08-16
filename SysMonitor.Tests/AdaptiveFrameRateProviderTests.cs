@@ -61,6 +61,15 @@ public sealed class AdaptiveFrameRateProviderTests
     }
 
     [Fact]
+    public void CompatibilityOptionsEnableBothHardwareSensorReaders()
+    {
+        MonitorOptions options = MonitorOptions.FromGameSafeMode(gameSafeMode: false);
+
+        Assert.True(options.EnableCpuTemperatureReader);
+        Assert.True(options.EnableLibreHardwareMonitor);
+    }
+
+    [Fact]
     public async Task FactoryCreatesAdaptiveProvider()
     {
         await using IFrameRateProvider provider = GameOverlayFrameRateProviderFactory.Create();

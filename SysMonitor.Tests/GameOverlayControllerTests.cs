@@ -33,10 +33,16 @@ public sealed class GameOverlayControllerTests
     }
 
     [Fact]
-    public async Task CompatibilityMode_MakesOverlayUnavailableAndRejectsShow()
+    public async Task TrayToggleAlwaysStartsAvailableOverlay()
     {
-        var tracker = new ForegroundTargetTracker(new RepeatingSource(null), 999);
-        var provider = new BlockingFrameProvider();
+        DateTimeOffset started = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var candidate = new ForegroundWindowCandidate(
+            new nint(8), 88, started, "game", "GameWindow", true, true, false);
+        var tracker = new ForegroundTargetTracker(
+            new RepeatingSource(candidate),
+            999,
+            delay: (_, _) => Task.CompletedTask);
+        var provider = new ImmediateFrameProvider();
         var view = new FakeView();
         await using var controller = new GameOverlayController(
             provider,
@@ -44,12 +50,13 @@ public sealed class GameOverlayControllerTests
             tracker,
             view);
 
-        controller.SetCompatibilityMode(true);
         await controller.ToggleFromTrayAsync();
 
-        Assert.False(controller.IsOverlayAvailable);
-        Assert.False(controller.DesiredVisible);
-        Assert.Equal(0, provider.StartCalls);
+        Assert.True(controller.DesiredVisible);
+        Assert.True(view.Visible);
+        Assert.Equal(1, provider.StartCalls);
+
+        await controller.HideAsync();
     }
 
     private sealed class RepeatingSource(ForegroundWindowCandidate? candidate)
@@ -82,6 +89,35 @@ public sealed class GameOverlayControllerTests
         public Task StopAsync()
         {
             StopCalls++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ImmediateFrameProvider : IGameOverlayFrameProvider
+    {
+        public int StartCalls { get; private set; }
+        public GameOverlayFrameSnapshot Latest { get; private set; } =
+            GameOverlayFrameSnapshot.Unavailable;
+        public event EventHandler<GameOverlayFrameSnapshot>? SnapshotUpdated
+        {
+            add { }
+            remove { }
+        }
+
+        public Task StartAsync(int processId, CancellationToken cancellationToken)
+        {
+            StartCalls++;
+            Latest = new GameOverlayFrameSnapshot(
+                60,
+                GameOverlayFrameStatus.Active,
+                DateTimeOffset.UtcNow,
+                FrameRateSource.RtssSharedMemory);
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync()
+        {
+            Latest = GameOverlayFrameSnapshot.Unavailable;
             return Task.CompletedTask;
         }
     }

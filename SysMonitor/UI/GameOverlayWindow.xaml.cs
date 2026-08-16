@@ -15,7 +15,6 @@ namespace SysMonitor.UI;
 
 public partial class GameOverlayWindow : Window, IGameOverlayView
 {
-    private const int GwlStyle = -16;
     private const int GwlExStyle = -20;
     private const int WmMouseActivate = 0x0021;
     private const int WmNcHitTest = 0x0084;
@@ -24,17 +23,20 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private const int HtTransparent = -1;
     private const uint MonitorDefaultToPrimary = 0x00000001;
     private const uint MonitorDefaultToNearest = 0x00000002;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpShowWindow = 0x0040;
-    private const long WsChild = 0x40000000L;
-    private const long WsPopup = unchecked((long)0x80000000);
+    private const long WsExTopmost = 0x00000008L;
+    private const uint GwHwndPrev = 3;
     private static readonly nint HwndTop = nint.Zero;
+    private static readonly nint HwndTopmost = new(-1);
     private static readonly nint HwndNoTopmost = new(-2);
 
     private readonly DispatcherTimer _positionTimer;
     private HwndSource? _source;
     private nint _targetWindow;
-    private nint _embeddedParent;
     private double _horizontalPositionPercent = 50d;
     private string _preset = "rivatuner";
     private GameOverlayMetricVisibility _metrics = new();
@@ -276,7 +278,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private void OnClosed(object? sender, EventArgs e)
     {
         _positionTimer.Stop();
-        DetachFromTarget();
         if (_source is not null) { _source.RemoveHook(WindowProc); _source = null; }
     }
 
@@ -295,30 +296,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         if (target != nint.Zero && !IsWindow(target))
         {
             _targetWindow = nint.Zero;
-            DetachFromTarget();
             TargetInvalidated?.Invoke(this, EventArgs.Empty);
             target = nint.Zero;
         }
 
-        if (target != nint.Zero && TryEmbedInTarget(target, out OverlayPixelRect targetClientArea))
-        {
-            uint targetDpi = GetDpiForWindow(target);
-            if (targetDpi == 0) targetDpi = 96;
-            OverlayPixelRect embeddedPlacement = CalculatePlacement(
-                targetClientArea, Width, Height, targetDpi, marginDip: 4,
-                horizontalPositionPercent: _horizontalPositionPercent);
-            _ = SetWindowPos(
-                _source.Handle,
-                HwndTop,
-                embeddedPlacement.Left,
-                embeddedPlacement.Top,
-                embeddedPlacement.Width,
-                embeddedPlacement.Height,
-                SwpNoActivate | SwpShowWindow);
-            return;
-        }
-
-        DetachFromTarget();
         OverlayPixelRect placementArea;
         if (target != nint.Zero && TryGetClientAreaOnScreen(target, out OverlayPixelRect clientArea))
         {
@@ -337,65 +318,74 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         uint dpi = target != nint.Zero ? GetDpiForWindow(target) : GetDpiForWindow(_source.Handle);
         if (dpi == 0) dpi = 96;
         OverlayPixelRect placement = CalculatePlacement(placementArea, Width, Height, dpi, marginDip: 4, horizontalPositionPercent: _horizontalPositionPercent);
-        // Keep the overlay in the target window's z-order band. HWND_TOPMOST
-        // made it float over unrelated applications after switching away from
-        // the selected game.
-        nint insertAfter = target != nint.Zero ? target : HwndNoTopmost;
-        _ = SetWindowPos(_source.Handle, insertAfter, placement.Left, placement.Top, placement.Width, placement.Height, SwpNoActivate | SwpShowWindow);
-    }
-
-    private bool TryEmbedInTarget(nint target, out OverlayPixelRect clientArea)
-    {
-        clientArea = default;
-        if (_source is null || !TryGetClientArea(target, out clientArea))
-        {
-            return false;
-        }
-
         nint overlay = _source.Handle;
-        if (_embeddedParent != target)
+        bool targetTopmost = target != nint.Zero && IsTopmost(target);
+        SynchronizeTopmostTier(overlay, targetTopmost);
+        nint predecessor = target != nint.Zero ? GetWindow(target, GwHwndPrev) : nint.Zero;
+        OverlayZOrderDecision zOrder = ResolveZOrder(
+            overlay,
+            target,
+            predecessor,
+            targetTopmost);
+        uint flags = SwpNoActivate | SwpShowWindow;
+        if (zOrder.PreserveZOrder)
         {
-            DetachFromTarget();
-            try
-            {
-                long childStyle = GameOverlayNativeStyles.ApplyEmbeddedChild(GetWindowLongPtr(overlay, GwlStyle).ToInt64());
-                _ = SetWindowLongPtr(overlay, GwlStyle, new nint(childStyle));
-                _ = SetParent(overlay, target);
-                if (GetParent(overlay) != target)
-                {
-                    long topLevelStyle = GameOverlayNativeStyles.RestoreTopLevel(GetWindowLongPtr(overlay, GwlStyle).ToInt64());
-                    _ = SetWindowLongPtr(overlay, GwlStyle, new nint(topLevelStyle));
-                    return false;
-                }
-
-                _embeddedParent = target;
-                BandDiagnostics.Log($"game overlay embedded parent=0x{target.ToInt64():X}");
-            }
-            catch (Exception exception) when (exception is ArgumentException or System.ComponentModel.Win32Exception)
-            {
-                BandDiagnostics.Log($"game overlay embed fallback type={exception.GetType().Name}");
-                return false;
-            }
+            flags |= SwpNoZOrder;
         }
 
-        // Child window coordinates are relative to the game client area.
-        clientArea = new OverlayPixelRect(0, 0, clientArea.Width, clientArea.Height);
-        return clientArea.Width > 0 && clientArea.Height > 0;
+        _ = SetWindowPos(
+            overlay,
+            zOrder.InsertAfter,
+            placement.Left,
+            placement.Top,
+            placement.Width,
+            placement.Height,
+            flags);
     }
 
-    private void DetachFromTarget()
+    internal static OverlayZOrderDecision ResolveZOrder(
+        nint overlay,
+        nint target,
+        nint targetPredecessor,
+        bool targetTopmost)
     {
-        if (_source is null || _embeddedParent == nint.Zero)
+        if (target == nint.Zero)
+        {
+            return new OverlayZOrderDecision(false, HwndNoTopmost, false);
+        }
+
+        if (targetPredecessor == overlay)
+        {
+            return new OverlayZOrderDecision(targetTopmost, nint.Zero, true);
+        }
+
+        nint insertAfter = targetPredecessor != nint.Zero
+            ? targetPredecessor
+            : targetTopmost
+                ? HwndTopmost
+                : HwndTop;
+        return new OverlayZOrderDecision(targetTopmost, insertAfter, false);
+    }
+
+    private static bool IsTopmost(nint windowHandle) =>
+        (GetWindowLongPtr(windowHandle, GwlExStyle).ToInt64() & WsExTopmost) != 0;
+
+    private static void SynchronizeTopmostTier(nint overlay, bool topmost)
+    {
+        bool currentlyTopmost = IsTopmost(overlay);
+        if (currentlyTopmost == topmost)
         {
             return;
         }
 
-        nint overlay = _source.Handle;
-        _ = SetParent(overlay, nint.Zero);
-        long topLevelStyle = GameOverlayNativeStyles.RestoreTopLevel(GetWindowLongPtr(overlay, GwlStyle).ToInt64());
-        _ = SetWindowLongPtr(overlay, GwlStyle, new nint(topLevelStyle));
-        BandDiagnostics.Log($"game overlay detached parent=0x{_embeddedParent.ToInt64():X}");
-        _embeddedParent = nint.Zero;
+        _ = SetWindowPos(
+            overlay,
+            topmost ? HwndTopmost : HwndNoTopmost,
+            0,
+            0,
+            0,
+            0,
+            SwpNoMove | SwpNoSize | SwpNoActivate);
     }
 
     private static bool TryGetClientAreaOnScreen(nint windowHandle, out OverlayPixelRect area)
@@ -420,18 +410,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         return area.Width > 0 && area.Height > 0;
     }
 
-    private static bool TryGetClientArea(nint windowHandle, out OverlayPixelRect area)
-    {
-        area = default;
-        if (!GetClientRect(windowHandle, out NativeRect client) || client.Right <= client.Left || client.Bottom <= client.Top)
-        {
-            return false;
-        }
-
-        area = new OverlayPixelRect(client.Left, client.Top, client.Right, client.Bottom);
-        return true;
-    }
-
     private static nint GetWindowLongPtr(nint windowHandle, int index) => IntPtr.Size == 8 ? GetWindowLongPtr64(windowHandle, index) : new nint(GetWindowLong32(windowHandle, index));
     private static nint SetWindowLongPtr(nint windowHandle, int index, nint value) => IntPtr.Size == 8 ? SetWindowLongPtr64(windowHandle, index, value) : new nint(SetWindowLong32(windowHandle, index, value.ToInt32()));
 
@@ -439,8 +417,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X; public int Y; }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect MonitorArea; public NativeRect WorkArea; public uint Flags; }
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindow(nint windowHandle);
-    [DllImport("user32.dll", SetLastError = true)] private static extern nint SetParent(nint child, nint newParent);
-    [DllImport("user32.dll")] private static extern nint GetParent(nint windowHandle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetClientRect(nint windowHandle, out NativeRect rectangle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ClientToScreen(nint windowHandle, ref NativePoint point);
     [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint windowHandle, uint flags);
@@ -450,6 +426,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")] private static extern nint GetWindowLongPtr64(nint windowHandle, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLong", SetLastError = true)] private static extern int SetWindowLong32(nint windowHandle, int index, int value);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)] private static extern nint SetWindowLongPtr64(nint windowHandle, int index, nint value);
+    [DllImport("user32.dll")] private static extern nint GetWindow(nint windowHandle, uint command);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetWindowPos(nint windowHandle, nint insertAfter, int x, int y, int width, int height, uint flags);
 }
 
@@ -460,9 +437,12 @@ internal static class GameOverlayNativeStyles
     internal const long ToolWindow = 0x00000080L;
     internal const long NoActivate = 0x08000000L;
     internal static long Apply(long existing) => (existing | ToolWindow | NoActivate | Transparent) & ~AppWindow;
-    internal static long ApplyEmbeddedChild(long existing) => (existing | 0x40000000L) & ~unchecked((long)0x80000000);
-    internal static long RestoreTopLevel(long existing) => (existing | unchecked((long)0x80000000)) & ~0x40000000L;
 }
+
+internal readonly record struct OverlayZOrderDecision(
+    bool Topmost,
+    nint InsertAfter,
+    bool PreserveZOrder);
 
 internal readonly record struct OverlayPixelRect(int Left, int Top, int Right, int Bottom)
 {

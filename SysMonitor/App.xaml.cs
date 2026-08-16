@@ -177,32 +177,29 @@ public partial class App : System.Windows.Application
             _monitorService = new MonitorService(monitorOptions);
             BandDiagnostics.Log("monitor service created");
 
-            if (_sessionGameSafeMode)
+            _gameOverlayFrameProvider = new GameOverlayFrameProviderAdapter(
+                GameOverlayFrameRateProviderFactory.Create());
+            _gameOverlayWindow = new GameOverlayWindow();
+            _gameOverlayWindow.SetHorizontalPositionPercent(
+                _settings.GameOverlayHorizontalPositionPercent);
+            _gameOverlayWindow.SetLayout(
+                _settings.GameOverlayPreset,
+                _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
+            SetDetailedHudTelemetry(_settings.GameOverlayPreset);
+            _gameOverlayWindow.SetAppearance(
+                _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
+            _gameOverlayController = new GameOverlayController(
+                _gameOverlayFrameProvider,
+                _monitorService,
+                new ForegroundTargetTracker(new Win32ForegroundWindowSource()),
+                _gameOverlayWindow);
+            _gameOverlayController.StateChanged += OnGameOverlayStateChanged;
+            _gameOverlayHotkey = new GlobalHotkeyService();
+            _gameOverlayHotkey.Pressed += OnGameOverlayHotkeyPressed;
+            if (!_gameOverlayHotkey.IsRegistered &&
+                !string.IsNullOrWhiteSpace(_gameOverlayHotkey.RegistrationDiagnostic))
             {
-                _gameOverlayFrameProvider = new GameOverlayFrameProviderAdapter(
-                    GameOverlayFrameRateProviderFactory.Create());
-                _gameOverlayWindow = new GameOverlayWindow();
-                _gameOverlayWindow.SetHorizontalPositionPercent(
-                    _settings.GameOverlayHorizontalPositionPercent);
-                _gameOverlayWindow.SetLayout(
-                    _settings.GameOverlayPreset,
-                    _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
-                SetDetailedHudTelemetry(_settings.GameOverlayPreset);
-                _gameOverlayWindow.SetAppearance(
-                    _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
-                _gameOverlayController = new GameOverlayController(
-                    _gameOverlayFrameProvider,
-                    _monitorService,
-                    new ForegroundTargetTracker(new Win32ForegroundWindowSource()),
-                    _gameOverlayWindow);
-                _gameOverlayController.StateChanged += OnGameOverlayStateChanged;
-                _gameOverlayHotkey = new GlobalHotkeyService();
-                _gameOverlayHotkey.Pressed += OnGameOverlayHotkeyPressed;
-                if (!_gameOverlayHotkey.IsRegistered &&
-                    !string.IsNullOrWhiteSpace(_gameOverlayHotkey.RegistrationDiagnostic))
-                {
-                    BandDiagnostics.Log(_gameOverlayHotkey.RegistrationDiagnostic);
-                }
+                BandDiagnostics.Log(_gameOverlayHotkey.RegistrationDiagnostic);
             }
 
             WireTrayEvents();
@@ -212,7 +209,7 @@ public partial class App : System.Windows.Application
             _trayIcon.SetStartupEnabled(_startupService.IsEnabled());
             _trayIcon.SetPanelVisible(false);
             _trayIcon.SetGameSafeMode(_settings.GameSafeMode);
-            _trayIcon.SetGameOverlayState(false, _sessionGameSafeMode);
+            _trayIcon.SetGameOverlayState(false, available: true);
             _trayIcon.SetGameOverlayPosition(_settings.GameOverlayHorizontalPositionPercent);
             _trayIcon.SetGameOverlayPreset(_settings.GameOverlayPreset);
             _trayIcon.SetGameOverlayMetrics(_settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
@@ -835,7 +832,7 @@ public partial class App : System.Windows.Application
     private void OnGameOverlayStateChanged(object? sender, EventArgs e)
     {
         bool visible = _gameOverlayController?.DesiredVisible == true;
-        _trayIcon?.SetGameOverlayState(visible, _sessionGameSafeMode);
+        _trayIcon?.SetGameOverlayState(visible, available: true);
     }
 
     private static void EnsureWindowsDirectoryEnvironment()

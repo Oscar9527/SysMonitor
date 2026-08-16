@@ -3,6 +3,33 @@
 Validation date: 2026-08-16
 Environment: Windows 11 x64; running game and foreground input left untouched
 
+## Taskbar band disappearance and overlay availability hotfix
+
+- Runtime diagnostics reproduced the failure deterministically: immediately
+  after the HUD called cross-process `SetParent` on a legacy DPI-unaware game,
+  the already-created taskbar Band changed from per-monitor-v2 awareness to
+  DPI-unaware. The Band integrity guard then safety-parked its retained HWND at
+  an off-screen 1x1 rectangle, so the process stayed alive while the taskbar
+  monitor appeared to vanish.
+- The game HUD no longer changes parent or child-window styles. It remains a
+  top-level `WS_EX_NOACTIVATE | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW` window,
+  follows the target client rectangle in screen coordinates, and synchronizes
+  its topmost tier with the target without activating either window.
+- `GameSafeMode` now selects hardware sensor providers only. The frame provider,
+  HUD window, controller, global hotkey, and tray commands are created in both
+  sensor modes. The obsolete controller compatibility gate was removed.
+- Z-order tests cover normal and topmost targets, an existing predecessor, an
+  already-correct overlay position, and no-target demotion. Controller tests
+  prove that a tray request starts the HUD without a sensor-mode gate.
+- Full result: 250/250 tests passed. Release packaging completed with 0 warnings
+  and 0 errors. A separate read-only structural review found no blocking issue.
+- Final framework-dependent single portable launcher: 8,604,672 bytes,
+  SHA-256 `AE0BBE2284BD7CDF32A16C0BBE7B6ACDF14103E9B0112BB8B9A89EBB380BAE3F`.
+  The artifact directory contains exactly one file, `SysMonitor.exe`.
+- The repaired binary was not launched because the foreground game session was
+  intentionally left untouched. The currently running damaged process must be
+  exited once before this build can recreate a healthy per-monitor-aware Band.
+
 ## Legacy DirectDraw / Direct3D 7 windowed-game FPS repair
 
 - The affected 32-bit target loaded `DDRAW.dll`, `D3DIM700.dll`, and

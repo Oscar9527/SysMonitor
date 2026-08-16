@@ -107,11 +107,11 @@
   <data name="TrayGameOverlayPositionLeft" xml:space="preserve"><value>顶部左侧</value></data>
   <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>顶部居中</value></data>
   <data name="TrayGameOverlayPositionRight" xml:space="preserve"><value>顶部右侧</value></data>
-  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层不可用（兼容模式）</value></data>
+  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层暂不可用</value></data>
   <data name="TrayGameSafeMode" xml:space="preserve"><value>游戏安全模式（推荐）</value></data>
   <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>关闭 GPU 兼容传感器；CPU 温度由 SysMonitor 的 CPU 专用读取器独立采集。</value></data>
   <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>需要重启</value></data>
-  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用传感器模式。兼容模式运行时，游戏叠加层保持不可用。</value></data>
+  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用硬件传感器模式；游戏叠加层不受此设置影响。</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 已被其他应用注册。</value></data>
   <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>无法注册 Ctrl+Shift+F10（Win32 错误 {0}）。</value></data>
 </root>

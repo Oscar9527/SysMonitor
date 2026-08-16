@@ -107,11 +107,11 @@
   <data name="TrayGameOverlayPositionLeft" xml:space="preserve"><value>Top left</value></data>
   <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>Top center</value></data>
   <data name="TrayGameOverlayPositionRight" xml:space="preserve"><value>Top right</value></data>
-  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>Game overlay unavailable (compatibility mode)</value></data>
+  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>Game overlay temporarily unavailable</value></data>
   <data name="TrayGameSafeMode" xml:space="preserve"><value>Game safe mode (recommended)</value></data>
   <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>GPU compatibility sensors stay disabled; CPU temperature uses SysMonitor's independent CPU-only reader.</value></data>
   <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>Restart required</value></data>
-  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>Restart SysMonitor to apply the sensor mode. The game overlay stays unavailable while compatibility mode is running.</value></data>
+  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>Restart SysMonitor to apply the hardware sensor mode. The game overlay is independent of this setting.</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 is already registered by another application.</value></data>
   <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>Ctrl+Shift+F10 could not be registered (Win32 error {0}).</value></data>
 </root>
