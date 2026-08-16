@@ -1,5 +1,36 @@
 # SysMonitor 1.5.0 validation
 
+Validation date: 2026-08-16
+Environment: Windows 11 x64; running game and foreground input left untouched
+
+## Legacy DirectDraw / Direct3D 7 windowed-game FPS repair
+
+- The affected 32-bit target loaded `DDRAW.dll`, `D3DIM700.dll`, and
+  `RTSSHooks.dll`. The bundled PresentMon collector was running with the exact
+  target PID but received no presentation rows, which the HUD correctly rendered
+  as unavailable rather than a fabricated value.
+- Production wiring now uses `AdaptiveFrameRateProvider`: read-only RTSS shared
+  memory first, then SysMonitor-owned PresentMon after one second without a fresh
+  RTSS sample. A factory test prevents the app from silently reverting to the
+  previously hard-wired PresentMon-only path.
+- New tests prove that a fresh RTSS sample never starts PresentMon and that
+  stopping before the fallback delay cannot launch a late collector. Existing
+  tests retain fallback, two-sample RTSS recovery, and idempotent lifecycle
+  coverage.
+- A PID-specific read-only probe found the game's RTSS entry. Because the game
+  was no longer foreground while diagnostics ran, that entry was stale; the
+  reader returned no FPS, as required. No end-to-end active-game value is claimed
+  from that backgrounded probe.
+- Full result: 245/245 tests passed. Release build completed with 0 warnings and
+  0 errors.
+- Final framework-dependent single portable launcher: 8,604,672 bytes,
+  SHA-256 `6088470112E589AE1D7267524C2E3FB8B00D230DA6DFC29FD7BA140907F0B76A`.
+  The artifact directory contains exactly one file, `SysMonitor.exe`.
+- SysMonitor did not start, configure, write to, or inject RTSS. RTSS itself may
+  use graphics-API hooks; its game and anti-cheat compatibility is outside
+  SysMonitor's control. Without RTSS, legacy DirectDraw/D3D7 games may remain
+  unavailable through PresentMon and continue to show `--` honestly.
+
 Validation date: 2026-08-11
 Environment: Windows 11 x64; interactive user session left untouched
 
