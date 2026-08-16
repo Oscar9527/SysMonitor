@@ -22,6 +22,15 @@ New-Item -ItemType Directory -Force -Path $publishDirectory | Out-Null
 Get-ChildItem -LiteralPath $artifactDirectory -Filter 'SysMonitor.Core.*.exe' -File |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
 
+# WPF-generated sources are stored under a runtime-specific obj directory.
+# Clear them before publishing so switching branches or restoring an older
+# snapshot cannot compile stale x:Name fields from a previous XAML layout.
+dotnet clean $projectPath `
+    -c $Configuration `
+    -r $RuntimeIdentifier `
+    --nologo
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 dotnet publish $projectPath `
     -c $Configuration `
     -r $RuntimeIdentifier `
