@@ -4,7 +4,7 @@
 
 - 按 `Ctrl+Shift+F10` 显示或隐藏透明悬浮窗；窗口不抢焦点、鼠标可穿透，并跟随目标程序所在显示器。
 - 显示 Present FPS，以及系统总体 CPU、内存、GPU、温度和可用的当前频率。缺失数据会显示 `--`，不会伪造数值。
-- 帧率使用固定随包的 PresentMon 2.5.1 Windows ETW 独立采集，不依赖 MSI Afterburner 或 RTSS。SysMonitor 自身不注入 DLL、不 Hook 图形 API、不读写游戏进程内存，也不为帧率安装驱动。
+- 帧率优先只读已经运行的 RTSS 共享内存；约 1 秒内没有可用样本时，回退到随包 PresentMon 2.5.1 的 Windows ETW 采集。SysMonitor 自身不注入 DLL、不 Hook 图形 API、不读写游戏进程内存，也不为帧率安装驱动；RTSS 自身可能使用图形 API Hook，其反作弊与游戏兼容性取决于 RTSS 和目标游戏。未运行 RTSS 时，DirectDraw/Direct3D 7 等旧游戏可能只能显示 `--`。
 - 游戏安全模式默认开启；GPU 兼容传感器保持关闭，CPU 温度由 SysMonitor 自带的 CPU 专用读取器独立采集。若主动启用完整兼容传感器，仍需重启，且该次运行不会启动游戏悬浮窗。
 - ETW 属于 Windows 系统级观测机制，但不同游戏和反作弊策略可能不同，因此本项目不宣称获得 ACE 或其他反作弊产品认证。无权限或没有 Present 事件时会显示明确状态。
 

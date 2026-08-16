@@ -180,9 +180,7 @@ public partial class App : System.Windows.Application
             if (_sessionGameSafeMode)
             {
                 _gameOverlayFrameProvider = new GameOverlayFrameProviderAdapter(
-                    // The overlay intentionally uses the bundled, independent
-                    // PresentMon ETW reader. It must not depend on MSI/RTSS.
-                    new PresentMonFrameRateProvider());
+                    GameOverlayFrameRateProviderFactory.Create());
                 _gameOverlayWindow = new GameOverlayWindow();
                 _gameOverlayWindow.SetHorizontalPositionPercent(
                     _settings.GameOverlayHorizontalPositionPercent);

@@ -6,6 +6,26 @@ namespace SysMonitor.Tests;
 public sealed class AdaptiveFrameRateProviderTests
 {
     [Fact]
+    public async Task ExistingRtssSampleDoesNotStartPresentMonFallback()
+    {
+        var rtss = new FakeRtssSource
+        {
+            Result = SharedMemoryValue.Present(59.9, "RTSS rolling FPS")
+        };
+        var fallback = new FakeFrameRateProvider();
+        await using var provider = new AdaptiveFrameRateProvider(rtss, fallback);
+
+        await provider.StartAsync(456);
+        await WaitUntilAsync(
+            () => provider.Latest.Source == FrameRateSource.RtssSharedMemory,
+            TimeSpan.FromSeconds(2));
+        await Task.Delay(TimeSpan.FromMilliseconds(1250));
+
+        Assert.Equal(59.9, provider.Latest.PresentFps);
+        Assert.Equal(0, fallback.StartCount);
+    }
+
+    [Fact]
     public async Task FallsBackRecoversAndStartIsIdempotent()
     {
         var rtss = new FakeRtssSource();
@@ -38,6 +58,28 @@ public sealed class AdaptiveFrameRateProviderTests
 
         Assert.True(options.EnableCpuTemperatureReader);
         Assert.False(options.EnableLibreHardwareMonitor);
+    }
+
+    [Fact]
+    public async Task FactoryCreatesAdaptiveProvider()
+    {
+        await using IFrameRateProvider provider = GameOverlayFrameRateProviderFactory.Create();
+
+        Assert.IsType<AdaptiveFrameRateProvider>(provider);
+    }
+
+    [Fact]
+    public async Task StopBeforeFallbackDelayPreventsLatePresentMonStart()
+    {
+        var fallback = new FakeFrameRateProvider();
+        await using var provider = new AdaptiveFrameRateProvider(new FakeRtssSource(), fallback);
+
+        await provider.StartAsync(789);
+        await provider.StopAsync();
+        await Task.Delay(TimeSpan.FromMilliseconds(1250));
+
+        Assert.Equal(0, fallback.StartCount);
+        Assert.Equal(FrameRateStatus.Disabled, provider.Latest.Status);
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)

@@ -13,4 +13,4 @@ Project: https://github.com/GameTechDev/PresentMon
 Version: 2.5.1
 License: the complete `ThirdParty/PresentMon-2.5.1/LICENSE.txt` text is embedded in the portable executable and retained in the source tree.
 
-Frame-rate telemetry does not use MSI Afterburner, RTSS, or any other installed producer; it is collected independently through the bundled PresentMon ETW reader.
+Frame-rate telemetry first reads an already-running RTSS producer through its read-only shared-memory mapping. If that mapping has no usable target sample, SysMonitor falls back to the bundled PresentMon ETW reader. SysMonitor does not install, start, configure, inject, or write to RTSS; RTSS has its own license and may use graphics-API hooks.

@@ -3,7 +3,7 @@
 ## 游戏监控悬浮窗
 
 - `Ctrl+Shift+F10` 显示/隐藏，不抢占游戏焦点，鼠标输入穿透悬浮窗。
-- `Present FPS` 直接来自随包 PresentMon 2.5.1 的 Windows ETW Present 事件，不依赖 MSI Afterburner 或 RTSS。它不是游戏引擎内部 FPS，也不是 Displayed FPS。SysMonitor 不注入或 Hook，也不读取游戏进程内存。
+- `Present FPS` 优先来自已运行 RTSS 的只读共享内存；缺失或过期约 1 秒后回退到随包 PresentMon 2.5.1 的 Windows ETW Present 事件。它不是游戏引擎内部 FPS，也不是 Displayed FPS。SysMonitor 自身不注入或 Hook，也不读取游戏进程内存；RTSS 可能使用自己的图形 API Hook。未运行 RTSS 时，旧版 DirectDraw/Direct3D 7 游戏可能没有 PresentMon 可识别的帧事件。
 - CPU、内存和 GPU 百分比均标注为系统总体；温度和当前频率只在数据源真实提供时显示。
 - 默认游戏安全模式不构造 GPU 兼容传感器；CPU 温度始终由 SysMonitor 自带的 CPU 专用读取器独立采集，必要时按需启动独立管理员助手，不依赖 MSI Afterburner。完整兼容传感器仍是需要重启的可选模式，且该运行不启用游戏悬浮窗。
 - 本功能不注入 DLL、不 Hook DirectX/Vulkan/OpenGL、不读写游戏进程内存，也不尝试绕过反作弊。ETW 能否被具体游戏或反作弊策略接受，以其实际规则为准。

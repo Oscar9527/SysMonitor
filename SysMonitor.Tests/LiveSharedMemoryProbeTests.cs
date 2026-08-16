@@ -14,6 +14,16 @@ public sealed class LiveSharedMemoryProbeTests
     public void ReadInstalledProducersWithoutChangingThem()
     {
         var rtss = new RtssSharedMemoryReader();
+        string? requestedPid = Environment.GetEnvironmentVariable("SYSMONITOR_RTSS_TARGET_PID");
+        if (int.TryParse(requestedPid, out int targetPid) && targetPid > 0)
+        {
+            SharedMemoryValue target = rtss.Read(targetPid);
+            _output.WriteLine(target.Value is double targetFps
+                ? $"RTSS target pid={targetPid} fps={targetFps:F1} source={target.Reason}"
+                : $"RTSS target pid={targetPid} unavailable reason={target.Reason}");
+            return;
+        }
+
         (int pid, double fps, string name)? active = null;
         Process[] processes = Process.GetProcesses();
         foreach (Process process in processes
