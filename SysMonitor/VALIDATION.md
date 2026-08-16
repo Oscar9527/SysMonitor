@@ -3,6 +3,31 @@
 Validation date: 2026-08-16
 Environment: Windows 11 x64; running game and foreground input left untouched
 
+## Opt-in per-game RTSS compatibility
+
+- The default FPS path remains read-only RTSS shared memory followed by the
+  bundled PresentMon ETW fallback. If neither source yields a finite active
+  sample, the entire FPS row is collapsed.
+- A user must first select a concrete game target and then confirm the legacy
+  compatibility warning. Startup and foreground tracking never create profiles.
+- The manager writes only `EnableHooking=1` and `HookDirectDraw=1` in the
+  selected executable's application profile. It preserves unrelated bytes,
+  stores an original-byte/hash manifest, and verifies apply and restore hashes.
+- `Global` and `Config` are hard rejected. Canonical-path and same-basename
+  checks prevent a second directory's identically named executable from taking
+  over an existing managed RTSS profile.
+- Pending operations reconcile only when the current state exactly matches the
+  original or intended hash; all other states remain conflicts with no profile
+  write. Managed targets remain restorable after the executable is deleted.
+- RTSS is not started or restarted, no RTSS DLL is loaded by SysMonitor, and no
+  SysMonitor code is injected into the game. Applying or restoring requires the
+  affected game to be fully restarted.
+- Full result: 269/269 tests passed. Release packaging completed with 0 warnings
+  and 0 errors without launching the application or changing the live RTSS state.
+- Final framework-dependent single portable launcher: 8,743,936 bytes (8.34 MiB),
+  SHA-256 `1BE0211FE721D2D885A5C5D99763D5C85EB5B8274A5CDA9918F7FED72F65E20D`.
+  The artifact directory contains exactly one file, `SysMonitor.exe`.
+
 ## Taskbar band disappearance and overlay availability hotfix
 
 - Runtime diagnostics reproduced the failure deterministically: immediately
@@ -21,7 +46,7 @@ Environment: Windows 11 x64; running game and foreground input left untouched
 - Z-order tests cover normal and topmost targets, an existing predecessor, an
   already-correct overlay position, and no-target demotion. Controller tests
   prove that a tray request starts the HUD without a sensor-mode gate.
-- When neither source has a valid value, the HUD now renders only `FPS --` and
+- When neither source has a valid value, the HUD now hides the FPS row entirely and
   does not add a distracting “no frames captured” status message.
 - Full result: 251/251 tests passed. Release packaging completed with 0 warnings
   and 0 errors. A separate read-only structural review found no blocking issue.
@@ -55,10 +80,11 @@ Environment: Windows 11 x64; running game and foreground input left untouched
 - Final framework-dependent single portable launcher: 8,604,672 bytes,
   SHA-256 `6088470112E589AE1D7267524C2E3FB8B00D230DA6DFC29FD7BA140907F0B76A`.
   The artifact directory contains exactly one file, `SysMonitor.exe`.
-- SysMonitor did not start, configure, write to, or inject RTSS. RTSS itself may
+- The default collection path did not start, configure, write to, or inject RTSS.
+  The separate opt-in control can write only the confirmed per-game profile. RTSS itself may
   use graphics-API hooks; its game and anti-cheat compatibility is outside
   SysMonitor's control. Without RTSS, legacy DirectDraw/D3D7 games may remain
-  unavailable through PresentMon and continue to show `--` honestly.
+  unavailable through PresentMon; without a valid sample the FPS row stays hidden.
 
 Validation date: 2026-08-11
 Environment: Windows 11 x64; interactive user session left untouched

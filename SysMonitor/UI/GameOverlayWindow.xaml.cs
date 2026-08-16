@@ -133,11 +133,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void UpdateMetrics(MonitorSnapshot monitor, GameOverlayFrameSnapshot frame, double? currentFrequencyMegahertz = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
-        string fps = frame.Status == GameOverlayFrameStatus.Active &&
-            frame.FramesPerSecond is double fpsValue && double.IsFinite(fpsValue)
+        bool showFrameRate = ShouldShowFrameRate(frame, _metrics.FrameRate);
+        string fps = showFrameRate && frame.FramesPerSecond is double fpsValue
             ? fpsValue.ToString("0", LocalizationService.Current.ActiveCulture)
             : "--";
-        string state = GetCompactFrameState(frame);
         string cpu = FormatPercent(monitor.CpuUsagePercent);
         string cpuTemperature = FormatTemperature(monitor.CpuTemperatureCelsius);
         string gpu = FormatPercent(monitor.Gpu?.UsagePercent);
@@ -145,7 +144,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
         SetRow(GpuLabel, GpuValue, _metrics.Gpu, BuildGpuValue(monitor, gpu, gpuTemperature));
         SetRow(CpuLabel, CpuValue, _metrics.Cpu, BuildCpuValue(monitor, cpu, cpuTemperature));
-        SetRow(FpsLabel, FpsValue, _metrics.FrameRate, string.IsNullOrWhiteSpace(state) ? fps : $"{fps}  {state}");
+        SetRow(FpsLabel, FpsValue, showFrameRate, fps);
         SetRow(MemoryLabel, MemoryValue, _metrics.Memory, BuildMemoryValue(monitor, FormatPercent(monitor.MemoryUsagePercent)));
         SetRow(NetworkLabel, NetworkValue, _metrics.Network,
             $"\u2193 {FormatRate(monitor.DownloadBytesPerSecond)}  \u2191 {FormatRate(monitor.UploadBytesPerSecond)}");
@@ -165,6 +164,13 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     }
 
     internal static long ApplyNoActivateStyles(long existingStyle) => GameOverlayNativeStyles.Apply(existingStyle);
+
+    internal static bool ShouldShowFrameRate(GameOverlayFrameSnapshot frame, bool configured) =>
+        configured &&
+        frame.Status == GameOverlayFrameStatus.Active &&
+        frame.FramesPerSecond is double framesPerSecond &&
+        double.IsFinite(framesPerSecond) &&
+        framesPerSecond >= 0;
 
     internal static OverlayPixelRect CalculatePlacement(OverlayPixelRect workingArea, double widthDip, double heightDip, uint dpi, double marginDip = 14, double horizontalPositionPercent = 100)
     {

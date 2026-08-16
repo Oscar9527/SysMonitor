@@ -55,7 +55,8 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
             IsWindow(window),
             IsWindowVisible(window),
             hasExited,
-            windowTitle.ToString());
+            windowTitle.ToString(),
+            ProcessExecutablePathResolver.TryResolve(processId));
     }
 
     public bool IsCurrentIdentity(ForegroundTarget target)

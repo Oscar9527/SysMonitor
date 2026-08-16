@@ -93,6 +93,8 @@ public sealed class GameOverlayController : IAsyncDisposable
 
     public bool IsVisible => _view.OverlayVisible;
 
+    public ForegroundTarget? CurrentTarget => _targetTracker.LastQualified;
+
     public Task ToggleFromHotkeyAsync()
     {
         ForegroundTarget? triggerBefore = _targetTracker.SnapshotTriggerCandidate();

@@ -18,6 +18,8 @@ public partial class App : System.Windows.Application
     private readonly ThemeCatalogService _themeCatalog = new();
     private readonly ThemeResourceApplier _themeResourceApplier = new();
     private readonly MetricHistoryBuffer _metricHistory = new();
+    private readonly RtssLegacyCompatibilityService _rtssLegacyCompatibilityService =
+        RtssLegacyCompatibilityService.CreateDefault();
     private Mutex? _singleInstanceMutex;
     private MonitorService? _monitorService;
     private GlobalHotkeyService? _gameOverlayHotkey;
@@ -36,6 +38,7 @@ public partial class App : System.Windows.Application
     private ResolvedTheme? _appliedTheme;
     private bool _isExiting;
     private bool _sessionGameSafeMode;
+    private GameOverlayTargetOption? _explicitGameOverlayTarget;
     private long _bandGeneration;
     private nint _bandHandle;
 
@@ -865,6 +868,7 @@ public partial class App : System.Windows.Application
 
         try
         {
+            _explicitGameOverlayTarget = option;
             await _gameOverlayController.ShowForTargetAsync(target);
         }
         catch (Exception exception)
@@ -925,9 +929,7 @@ public partial class App : System.Windows.Application
     {
         if (_isExiting || _gameOverlayWindow is null) return;
         GameOverlaySettingsWindow window = EnsureGameOverlaySettingsWindow();
-        window.LoadConfiguration(
-            _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility(),
-            _settings.GameOverlaySampling);
+        LoadGameOverlayConfiguration(window);
         window.Show();
         window.Activate();
     }
@@ -936,13 +938,116 @@ public partial class App : System.Windows.Application
     {
         if (_gameOverlaySettingsWindow is not null) return _gameOverlaySettingsWindow;
         var window = new GameOverlaySettingsWindow();
-        window.Applied += OnGameOverlayConfigurationApplied;
+        window.ApplyRequested = OnGameOverlayConfigurationApplyRequested;
         _gameOverlaySettingsWindow = window;
         return window;
     }
 
-    private void OnGameOverlayConfigurationApplied(GameOverlayMetricVisibility metrics, string sampling)
+    private void LoadGameOverlayConfiguration(GameOverlaySettingsWindow window)
     {
+        var targets = new List<LegacyFpsTargetView>();
+        var knownPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        IReadOnlyList<RtssManagedTargetSummary> managedTargets =
+            _rtssLegacyCompatibilityService.EnumerateManagedTargets();
+        string? preferredPath = null;
+
+        if (_explicitGameOverlayTarget is { ExecutablePath: { Length: > 0 } explicitPath })
+        {
+            RtssManagedTargetSummary? managedStatus = managedTargets.FirstOrDefault(candidate =>
+                string.Equals(candidate.ExecutablePath, explicitPath, StringComparison.OrdinalIgnoreCase));
+            RtssCompatibilityResult? queriedStatus = managedStatus is null
+                ? _rtssLegacyCompatibilityService.Query(explicitPath)
+                : null;
+            targets.Add(new LegacyFpsTargetView(
+                BuildLegacyTargetDisplayName(_explicitGameOverlayTarget.ProcessName, explicitPath),
+                explicitPath,
+                managedStatus?.Enabled ?? queriedStatus!.Enabled,
+                managedStatus?.Managed ?? queriedStatus!.Managed,
+                managedStatus?.CanEnable ?? queriedStatus!.CanEnable,
+                managedStatus?.CanDisable ?? queriedStatus!.CanDisable,
+                managedStatus?.Code ?? queriedStatus!.Code));
+            knownPaths.Add(explicitPath);
+            preferredPath = explicitPath;
+        }
+
+        foreach (RtssManagedTargetSummary managed in managedTargets)
+        {
+            string? path = managed.ExecutablePath;
+            if (!string.IsNullOrWhiteSpace(path) && !knownPaths.Add(path))
+            {
+                continue;
+            }
+
+            targets.Add(new LegacyFpsTargetView(
+                BuildLegacyTargetDisplayName(managed.ExecutableName, path),
+                path,
+                managed.Enabled,
+                managed.Managed,
+                managed.CanEnable,
+                managed.CanDisable,
+                managed.Code));
+        }
+
+        window.LoadConfiguration(
+            _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility(),
+            _settings.GameOverlaySampling,
+            targets,
+            preferredPath);
+    }
+
+    private static string BuildLegacyTargetDisplayName(string? executableName, string? executablePath)
+    {
+        string name = !string.IsNullOrWhiteSpace(executableName)
+            ? executableName
+            : (!string.IsNullOrWhiteSpace(executablePath) ? Path.GetFileName(executablePath) : "Unknown target");
+        return string.IsNullOrWhiteSpace(executablePath) ? name : $"{name} — {executablePath}";
+    }
+
+    private bool OnGameOverlayConfigurationApplyRequested(GameOverlayConfigurationRequest request)
+    {
+        if (request.LegacyChanged)
+        {
+            if (string.IsNullOrWhiteSpace(request.LegacyExecutablePath))
+            {
+                return false;
+            }
+
+            RtssCompatibilityResult result = _rtssLegacyCompatibilityService.SetEnabled(
+                request.LegacyExecutablePath,
+                request.LegacyEnabled);
+            if (!result.Success)
+            {
+                BandDiagnostics.Log(
+                    $"RTSS compatibility change failed code={result.Code} diagnostic={result.Diagnostic}");
+                System.Windows.MessageBox.Show(
+                    _gameOverlaySettingsWindow,
+                    _localizationService.Format("HudLegacyApplyFailedMessage", result.Diagnostic),
+                    _localizationService.GetString("HudLegacyApplyFailedTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                if (_gameOverlaySettingsWindow is not null)
+                {
+                    LoadGameOverlayConfiguration(_gameOverlaySettingsWindow);
+                }
+                return false;
+            }
+
+            if (result.RestartRequired)
+            {
+                string key = request.LegacyEnabled
+                    ? "HudLegacyRestartEnabledMessage"
+                    : "HudLegacyRestartDisabledMessage";
+                System.Windows.MessageBox.Show(
+                    _gameOverlaySettingsWindow,
+                    _localizationService.Format(key, result.ExecutableName ?? Path.GetFileName(request.LegacyExecutablePath)),
+                    _localizationService.GetString("HudLegacyRestartTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
+
+        GameOverlayMetricVisibility metrics = request.Metrics;
+        string sampling = request.Sampling;
         _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
         _settings.GameOverlaySampling = sampling;
         _settingsService.Save(_settings);
@@ -954,6 +1059,7 @@ public partial class App : System.Windows.Application
             _ => TimeSpan.FromSeconds(1)
         });
         _trayIcon?.SetGameOverlayMetrics(metrics);
+        return true;
     }
 
     private GameOverlayAppearanceWindow EnsureGameOverlayAppearanceWindow()
@@ -1095,6 +1201,23 @@ public partial class App : System.Windows.Application
             finally
             {
                 _gameOverlayAppearanceWindow = null;
+            }
+        }
+
+        if (_gameOverlaySettingsWindow is not null)
+        {
+            try
+            {
+                _gameOverlaySettingsWindow.ApplyRequested = null;
+                _gameOverlaySettingsWindow.CloseForExit();
+            }
+            catch (Exception exception)
+            {
+                LogException("Game overlay settings window close failed", exception);
+            }
+            finally
+            {
+                _gameOverlaySettingsWindow = null;
             }
         }
 

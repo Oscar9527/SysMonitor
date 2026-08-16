@@ -114,4 +114,38 @@
   <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用硬件传感器模式；游戏叠加层不受此设置影响。</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 已被其他应用注册。</value></data>
   <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>无法注册 Ctrl+Shift+F10（Win32 错误 {0}）。</value></data>
+  <data name="HudSettingsTitle" xml:space="preserve"><value>HUD 设置</value></data>
+  <data name="HudMetricsTitle" xml:space="preserve"><value>显示项目与排列顺序</value></data>
+  <data name="HudMoveUp" xml:space="preserve"><value>上移</value></data>
+  <data name="HudMoveDown" xml:space="preserve"><value>下移</value></data>
+  <data name="HudOrderHelp" xml:space="preserve"><value>选中项目后调整顺序；取消勾选即可隐藏。</value></data>
+  <data name="HudSamplingLabel" xml:space="preserve"><value>采样频率</value></data>
+  <data name="HudSamplingLow" xml:space="preserve"><value>低（2 秒，最省资源）</value></data>
+  <data name="HudSamplingStandard" xml:space="preserve"><value>标准（1 秒，推荐）</value></data>
+  <data name="HudSamplingHigh" xml:space="preserve"><value>高（0.5 秒，响应更快）</value></data>
+  <data name="HudMetricGpu" xml:space="preserve"><value>GPU（使用率、温度、频率）</value></data>
+  <data name="HudMetricCpu" xml:space="preserve"><value>CPU（使用率、温度、频率）</value></data>
+  <data name="HudMetricFps" xml:space="preserve"><value>FPS（当前帧率）</value></data>
+  <data name="HudMetricMemory" xml:space="preserve"><value>内存（占用、配置频率）</value></data>
+  <data name="HudMetricNetwork" xml:space="preserve"><value>网络（下载、上传）</value></data>
+  <data name="HudLegacyTitle" xml:space="preserve"><value>旧游戏帧率兼容（RTSS）</value></data>
+  <data name="HudLegacyTargetLabel" xml:space="preserve"><value>当前程序或已管理程序</value></data>
+  <data name="HudLegacyCheckbox" xml:space="preserve"><value>仅为此程序启用旧版 DirectDraw 捕获</value></data>
+  <data name="HudLegacyWarning" xml:space="preserve"><value>该选项会让 RTSS 挂钩同名可执行文件。请勿用于反作弊游戏；更改后需要完全退出并重新启动游戏。</value></data>
+  <data name="HudLegacyNoTarget" xml:space="preserve"><value>请先从托盘菜单明确选择一个监控程序。</value></data>
+  <data name="HudLegacyRtssUnavailable" xml:space="preserve"><value>未找到可配置的 RTSS，或配置目录不可写。</value></data>
+  <data name="HudLegacyEnabledManaged" xml:space="preserve"><value>已由 SysMonitor 为此程序启用，可随时恢复原配置。</value></data>
+  <data name="HudLegacyEnabledExternal" xml:space="preserve"><value>RTSS 已在外部配置中启用；SysMonitor 不会覆盖或关闭它。</value></data>
+  <data name="HudLegacyDisabled" xml:space="preserve"><value>安全模式：SysMonitor 不会要求 RTSS 挂钩此程序。</value></data>
+  <data name="HudLegacyConflict" xml:space="preserve"><value>配置在外部发生变化。为保护原设置，SysMonitor 已停止写入。</value></data>
+  <data name="HudLegacySameNameConflict" xml:space="preserve"><value>另一个路径下的同名程序已使用这个 RTSS 配置，无法安全启用。</value></data>
+  <data name="HudLegacyConfirmTitle" xml:space="preserve"><value>启用旧游戏兼容模式？</value></data>
+  <data name="HudLegacyConfirmMessage" xml:space="preserve"><value>RTSS 将挂钩“{0}”及其他同名可执行文件。请勿对反作弊游戏启用。继续后需要重启游戏，是否确认？</value></data>
+  <data name="HudLegacyApplyFailedTitle" xml:space="preserve"><value>兼容模式未更改</value></data>
+  <data name="HudLegacyApplyFailedMessage" xml:space="preserve"><value>无法安全更新所选程序的 RTSS 配置。原配置未被覆盖。</value></data>
+  <data name="HudLegacyRestartTitle" xml:space="preserve"><value>请重启游戏</value></data>
+  <data name="HudLegacyRestartEnabledMessage" xml:space="preserve"><value>已为“{0}”启用旧游戏兼容模式。请完全退出并重新启动游戏；无需重启 RTSS。</value></data>
+  <data name="HudLegacyRestartDisabledMessage" xml:space="preserve"><value>已恢复“{0}”原来的 RTSS 配置。请完全退出并重新启动游戏；无需重启 RTSS。</value></data>
+  <data name="HudApply" xml:space="preserve"><value>应用</value></data>
+  <data name="HudCancel" xml:space="preserve"><value>取消</value></data>
 </root>

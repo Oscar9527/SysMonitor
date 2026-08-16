@@ -48,7 +48,7 @@ public sealed class ForegroundTargetTrackerTests
     [Fact]
     public async Task Stabilize_RequiresThreeMatchingSamplesAcrossFiveHundredMilliseconds()
     {
-        ForegroundWindowCandidate candidate = Candidate();
+        ForegroundWindowCandidate candidate = Candidate(executablePath: @"C:\Games\LegacyGame.exe");
         var source = new FakeSource(candidate, candidate, candidate, candidate);
         var delays = new List<TimeSpan>();
         var tracker = new ForegroundTargetTracker(
@@ -61,6 +61,7 @@ public sealed class ForegroundTargetTrackerTests
         ForegroundTarget? result = await tracker.StabilizeTriggerCandidateAsync(trigger, default);
 
         Assert.NotNull(result);
+        Assert.Equal(@"C:\Games\LegacyGame.exe", result!.ExecutablePath);
         Assert.Equal(2, delays.Count);
         Assert.All(delays, delay => Assert.Equal(TimeSpan.FromMilliseconds(250), delay));
         Assert.Equal(ForegroundTargetState.Ready, tracker.State);
@@ -128,9 +129,10 @@ public sealed class ForegroundTargetTrackerTests
         string processName = "game",
         string windowClass = "GameWindow",
         bool isWindow = true,
-        bool hasExited = false) =>
+        bool hasExited = false,
+        string? executablePath = null) =>
         new(windowHandle ?? new nint(1), processId, Started, processName, windowClass,
-            isWindow, IsVisible: true, HasExited: hasExited);
+            isWindow, IsVisible: true, HasExited: hasExited, ExecutablePath: executablePath);
 
     private sealed class FakeSource(params ForegroundWindowCandidate?[] candidates)
         : IForegroundWindowSource

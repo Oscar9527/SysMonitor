@@ -13,7 +13,8 @@ public sealed record ForegroundTarget(
     nint WindowHandle,
     int ProcessId,
     DateTimeOffset ProcessStartedAt,
-    DateTimeOffset QualifiedAt)
+    DateTimeOffset QualifiedAt,
+    string? ExecutablePath = null)
 {
     public bool SameIdentity(ForegroundTarget? other) =>
         other is not null &&
@@ -27,7 +28,8 @@ public sealed record GameOverlayTargetOption(
     int ProcessId,
     DateTimeOffset ProcessStartedAt,
     string ProcessName,
-    string WindowTitle);
+    string WindowTitle,
+    string? ExecutablePath = null);
 
 public sealed record ForegroundWindowCandidate(
     nint WindowHandle,
@@ -38,7 +40,8 @@ public sealed record ForegroundWindowCandidate(
     bool IsWindow,
     bool IsVisible,
     bool HasExited,
-    string WindowTitle = "");
+    string WindowTitle = "",
+    string? ExecutablePath = null);
 
 public interface IForegroundWindowSource
 {

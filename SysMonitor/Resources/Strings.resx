@@ -114,4 +114,38 @@
   <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>Restart SysMonitor to apply the hardware sensor mode. The game overlay is independent of this setting.</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 is already registered by another application.</value></data>
   <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>Ctrl+Shift+F10 could not be registered (Win32 error {0}).</value></data>
+  <data name="HudSettingsTitle" xml:space="preserve"><value>HUD Settings</value></data>
+  <data name="HudMetricsTitle" xml:space="preserve"><value>Visible metrics and order</value></data>
+  <data name="HudMoveUp" xml:space="preserve"><value>Move up</value></data>
+  <data name="HudMoveDown" xml:space="preserve"><value>Move down</value></data>
+  <data name="HudOrderHelp" xml:space="preserve"><value>Select a metric to reorder it; clear its check box to hide it.</value></data>
+  <data name="HudSamplingLabel" xml:space="preserve"><value>Sampling rate</value></data>
+  <data name="HudSamplingLow" xml:space="preserve"><value>Low (2 seconds, lowest overhead)</value></data>
+  <data name="HudSamplingStandard" xml:space="preserve"><value>Standard (1 second, recommended)</value></data>
+  <data name="HudSamplingHigh" xml:space="preserve"><value>High (0.5 seconds, faster response)</value></data>
+  <data name="HudMetricGpu" xml:space="preserve"><value>GPU (usage, temperature, frequency)</value></data>
+  <data name="HudMetricCpu" xml:space="preserve"><value>CPU (usage, temperature, frequency)</value></data>
+  <data name="HudMetricFps" xml:space="preserve"><value>FPS (current frame rate)</value></data>
+  <data name="HudMetricMemory" xml:space="preserve"><value>Memory (usage, configured frequency)</value></data>
+  <data name="HudMetricNetwork" xml:space="preserve"><value>Network (download, upload)</value></data>
+  <data name="HudLegacyTitle" xml:space="preserve"><value>Legacy game FPS compatibility (RTSS)</value></data>
+  <data name="HudLegacyTargetLabel" xml:space="preserve"><value>Current or managed program</value></data>
+  <data name="HudLegacyCheckbox" xml:space="preserve"><value>Enable legacy DirectDraw capture for this program only</value></data>
+  <data name="HudLegacyWarning" xml:space="preserve"><value>This lets RTSS hook executables with the same filename. Do not enable it for anti-cheat games. Fully exit and relaunch the game after changing it.</value></data>
+  <data name="HudLegacyNoTarget" xml:space="preserve"><value>Select a monitored program explicitly from the tray menu first.</value></data>
+  <data name="HudLegacyRtssUnavailable" xml:space="preserve"><value>A configurable RTSS installation was not found, or its profile directory is not writable.</value></data>
+  <data name="HudLegacyEnabledManaged" xml:space="preserve"><value>Enabled by SysMonitor for this program; the original profile can be restored.</value></data>
+  <data name="HudLegacyEnabledExternal" xml:space="preserve"><value>RTSS is already enabled by an external profile. SysMonitor will not overwrite or disable it.</value></data>
+  <data name="HudLegacyDisabled" xml:space="preserve"><value>Safe mode: SysMonitor does not ask RTSS to hook this program.</value></data>
+  <data name="HudLegacyConflict" xml:space="preserve"><value>The profile changed externally. SysMonitor stopped writing to protect the existing settings.</value></data>
+  <data name="HudLegacySameNameConflict" xml:space="preserve"><value>A same-named executable from another path already owns this RTSS profile.</value></data>
+  <data name="HudLegacyConfirmTitle" xml:space="preserve"><value>Enable legacy game compatibility?</value></data>
+  <data name="HudLegacyConfirmMessage" xml:space="preserve"><value>RTSS will hook “{0}” and any executable with the same filename. Do not enable this for anti-cheat games. The game must be restarted. Continue?</value></data>
+  <data name="HudLegacyApplyFailedTitle" xml:space="preserve"><value>Compatibility was not changed</value></data>
+  <data name="HudLegacyApplyFailedMessage" xml:space="preserve"><value>The selected RTSS profile could not be updated safely. Its existing configuration was not overwritten.</value></data>
+  <data name="HudLegacyRestartTitle" xml:space="preserve"><value>Restart the game</value></data>
+  <data name="HudLegacyRestartEnabledMessage" xml:space="preserve"><value>Legacy compatibility is enabled for “{0}”. Fully exit and relaunch the game; RTSS does not need to restart.</value></data>
+  <data name="HudLegacyRestartDisabledMessage" xml:space="preserve"><value>The original RTSS profile for “{0}” was restored. Fully exit and relaunch the game; RTSS does not need to restart.</value></data>
+  <data name="HudApply" xml:space="preserve"><value>Apply</value></data>
+  <data name="HudCancel" xml:space="preserve"><value>Cancel</value></data>
 </root>

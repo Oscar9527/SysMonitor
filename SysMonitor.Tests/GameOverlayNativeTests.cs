@@ -188,6 +188,29 @@ public sealed class GameOverlayNativeTests
     }
 
     [Fact]
+    public void HudHidesFrameRateRowWhenNoFramesAreAvailable()
+    {
+        var frame = new GameOverlayFrameSnapshot(
+            null,
+            GameOverlayFrameStatus.NoFrames,
+            DateTimeOffset.UtcNow);
+
+        Assert.False(GameOverlayWindow.ShouldShowFrameRate(frame, configured: true));
+    }
+
+    [Fact]
+    public void HudShowsFrameRateRowOnlyForFiniteActiveValue()
+    {
+        var frame = new GameOverlayFrameSnapshot(
+            143.8,
+            GameOverlayFrameStatus.Active,
+            DateTimeOffset.UtcNow);
+
+        Assert.True(GameOverlayWindow.ShouldShowFrameRate(frame, configured: true));
+        Assert.False(GameOverlayWindow.ShouldShowFrameRate(frame, configured: false));
+    }
+
+    [Fact]
     public void RivatunerLayoutUsesRowsAndOnlySelectedMetrics()
     {
         string text = GameOverlayWindow.BuildOverlayText(

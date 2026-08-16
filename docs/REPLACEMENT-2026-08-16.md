@@ -4,7 +4,7 @@
 
 本分支把以下快照作为权威项目源码，而不是从中选择功能合并：
 
-`C:\Users\Administrator\Desktop\SysMonitor-完整源码与开发进度-1.5.0-20260816-1122`
+`<snapshot-directory>\SysMonitor-完整源码与开发进度-1.5.0-20260816-1122`
 
 - 替换前 Git 基线：`e0af0ac`（`v1.5.0-beta.2`）
 - 完整替换分支：`codex/replace-20260816-snapshot`

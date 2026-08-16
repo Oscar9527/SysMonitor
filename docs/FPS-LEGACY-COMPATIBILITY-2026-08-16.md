@@ -35,7 +35,7 @@ DirectDraw/Direct3D 7 路径的 Present 事件。替换快照中虽然保留了
 
 新版本需要在游戏处于前台并持续渲染时验证。若 RTSS 的目标配置禁用了检测、应用检测级别过低，或 RTSS 本身不更新该游戏条目，HUD 仍会诚实显示 `--`，不会用桌面刷新率、GPU 占用或画面变化推算 FPS。
 
-SysMonitor 对 RTSS 的访问只有只读共享内存，不会启动、配置或写入 RTSS，也不会向游戏注入代码。RTSS 自身已在目标进程中加载 Hook；其反作弊与具体游戏兼容性由 RTSS 和游戏决定。
+SysMonitor 的默认访问只有只读共享内存，不会启动、配置或写入 RTSS，也不会向游戏注入代码。用户可在设置中对明确选择的单个旧版游戏开启兼容配置；这只会备份并修改该应用的 RTSS profile，不修改 Global/Config，也不会由 SysMonitor 注入。RTSS 自身的 Hook、反作弊与具体游戏兼容性仍由 RTSS 和游戏决定。
 
 ## 验证结果
 

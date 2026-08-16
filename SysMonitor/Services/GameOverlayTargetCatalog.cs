@@ -40,7 +40,8 @@ public static class GameOverlayTargetCatalog
             target.WindowHandle,
             target.ProcessId,
             target.ProcessStartedAt,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            target.ExecutablePath);
     }
 
     internal static string BuildDisplayName(GameOverlayTargetOption target)
@@ -94,7 +95,8 @@ public static class GameOverlayTargetCatalog
                 process.Id,
                 new DateTimeOffset(process.StartTime.ToUniversalTime()),
                 process.ProcessName,
-                title.ToString());
+                title.ToString(),
+                ProcessExecutablePathResolver.TryResolve(process.Id));
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or
             System.ComponentModel.Win32Exception)

@@ -129,7 +129,8 @@ public sealed class ForegroundTargetTracker
             candidate!.WindowHandle,
             candidate.ProcessId,
             candidate.ProcessStartedAt,
-            _clock());
+            _clock(),
+            candidate.ExecutablePath);
         return record ? Record(target) : target;
     }
 
