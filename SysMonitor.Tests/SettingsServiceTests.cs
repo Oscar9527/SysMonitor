@@ -215,6 +215,35 @@ public sealed class SettingsServiceTests
         Assert.Equal("system", settings.UiCulture);
     }
 
+    [Fact]
+    public void SaveAndLoad_RoundTripsHudPresetAndMetricSelection()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        var expected = new GameOverlayMetricVisibility(true, false, true, false, true);
+
+        service.Save(new AppSettings
+        {
+            GameOverlayPreset = "detailed",
+            GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(expected)
+        });
+
+        AppSettings loaded = service.Load();
+        Assert.Equal("detailed", loaded.GameOverlayPreset);
+        Assert.Equal(expected, loaded.GameOverlayMetrics!.ToEffective());
+    }
+
+    [Fact]
+    public void Load_InvalidHudPresetUsesRivatunerDefault()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(service.SettingsPath, "{\"GameOverlayPreset\":\"unknown\"}");
+
+        Assert.Equal("rivatuner", service.Load().GameOverlayPreset);
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

@@ -1,0 +1,58 @@
+<Window x:Class="SysMonitor.UI.GameOverlayAppearanceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="HUD 外观" Width="670" Height="690" MinWidth="620"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanMinimize">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <Grid Margin="20">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="112"/><ColumnDefinition Width="*"/><ColumnDefinition Width="132"/></Grid.ColumnDefinitions>
+
+      <TextBlock VerticalAlignment="Center" Text="预设皮肤" FontWeight="SemiBold"/>
+      <ComboBox x:Name="SkinBox" Grid.Column="1" Height="34" Margin="0,0,8,10" DisplayMemberPath="Name" SelectionChanged="SkinChanged"/>
+      <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="一键套用" Foreground="Gray"/>
+
+      <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="字体"/>
+      <ComboBox x:Name="FontBox" Grid.Row="1" Grid.Column="1" Height="32" Margin="0,0,8,8" VerticalContentAlignment="Center" SelectionChanged="Changed"/>
+      <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Text="从列表选择" FontSize="11" Foreground="Gray"/>
+
+      <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="字号"/>
+      <Slider x:Name="FontSizeSlider" Grid.Row="2" Grid.Column="1" Margin="0,0,8,8" Minimum="10" Maximum="28" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="Changed"/>
+      <TextBlock x:Name="FontSizeText" Grid.Row="2" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+      <Border Grid.Row="3" Grid.ColumnSpan="3" Margin="0,8,0,10" Padding="12" Background="#18000000" CornerRadius="8">
+        <StackPanel>
+          <TextBlock Text="监控项目颜色" FontWeight="SemiBold" Margin="0,0,0,4"/>
+          <TextBlock Text="点击“色轮”可精确选择每一项的文字颜色；标签和数值会使用同一种颜色，游戏中更易分辨。" Foreground="Gray" FontSize="11" TextWrapping="Wrap"/>
+          <UniformGrid Columns="5" Margin="0,10,0,0">
+            <StackPanel Margin="3"><TextBlock Text="GPU" HorizontalAlignment="Center"/><Button x:Name="GpuColorButton" Tag="Gpu" Height="34" Margin="0,4,0,0" Click="ColorWheel_Click"/><TextBlock x:Name="GpuColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+            <StackPanel Margin="3"><TextBlock Text="CPU" HorizontalAlignment="Center"/><Button x:Name="CpuColorButton" Tag="Cpu" Height="34" Margin="0,4,0,0" Click="ColorWheel_Click"/><TextBlock x:Name="CpuColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+            <StackPanel Margin="3"><TextBlock Text="FPS" HorizontalAlignment="Center"/><Button x:Name="FpsColorButton" Tag="Fps" Height="34" Margin="0,4,0,0" Click="ColorWheel_Click"/><TextBlock x:Name="FpsColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+            <StackPanel Margin="3"><TextBlock Text="内存" HorizontalAlignment="Center"/><Button x:Name="MemoryColorButton" Tag="Memory" Height="34" Margin="0,4,0,0" Click="ColorWheel_Click"/><TextBlock x:Name="MemoryColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+            <StackPanel Margin="3"><TextBlock Text="网络" HorizontalAlignment="Center"/><Button x:Name="NetworkColorButton" Tag="Network" Height="34" Margin="0,4,0,0" Click="ColorWheel_Click"/><TextBlock x:Name="NetworkColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+          </UniformGrid>
+        </StackPanel>
+      </Border>
+
+      <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="描边"/>
+      <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="OutlineSlider" Minimum="0" Maximum="4" TickFrequency="0.5" ValueChanged="Changed"/><TextBlock x:Name="OutlineText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
+      <Button Grid.Row="4" Grid.Column="2" Content="描边色轮" Tag="Outline" Click="ColorWheel_Click"/>
+
+      <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="阴影"/>
+      <Grid Grid.Row="5" Grid.Column="1" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="ShadowOpacitySlider" Minimum="0" Maximum="1" TickFrequency="0.1" ValueChanged="Changed"/><TextBlock x:Name="ShadowOpacityText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
+      <Button Grid.Row="5" Grid.Column="2" Content="阴影色轮" Tag="Shadow" Click="ColorWheel_Click"/>
+
+      <TextBlock Grid.Row="6" VerticalAlignment="Center" Text="阴影偏移"/>
+      <Grid Grid.Row="6" Grid.Column="1" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="ShadowDepthSlider" Minimum="0" Maximum="8" TickFrequency="1" ValueChanged="Changed"/><TextBlock x:Name="ShadowDepthText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
+
+      <Border Grid.Row="7" Grid.ColumnSpan="3" Margin="0,10,0,14" Padding="14" Background="#22000000" CornerRadius="8">
+        <StackPanel><TextBlock Text="实时预览" FontWeight="SemiBold" Margin="0,0,0,8"/><WrapPanel x:Name="PreviewPanel"><TextBlock x:Name="PreviewGpu" Text="GPU 42%  61°C" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewCpu" Text="CPU 18%  54°C" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewFps" Text="FPS 144" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewMemory" Text="RAM 48%  3200 MHz" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewNetwork" Text="NET ↓ 1.2M ↑ 90K" Margin="0,0,12,2" FontWeight="SemiBold"/></WrapPanel></StackPanel>
+      </Border>
+      <StackPanel Grid.Row="8" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right"><Button Width="90" Margin="0,0,8,0" Content="应用" Click="Apply_Click"/><Button Width="90" Content="取消" Click="Cancel_Click"/></StackPanel>
+    </Grid>
+  </ScrollViewer>
+</Window>

@@ -39,6 +39,7 @@ internal static class CpuTemperatureHelperHost
 
     internal static async Task RunAsync(string pipeName)
     {
+        BandDiagnostics.Log("CPU temperature helper starting");
         using var pipe = new NamedPipeClientStream(
             ".",
             pipeName,
@@ -46,6 +47,7 @@ internal static class CpuTemperatureHelperHost
             PipeOptions.Asynchronous | PipeOptions.WriteThrough);
         using var connectionTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         await pipe.ConnectAsync(connectionTimeout.Token).ConfigureAwait(false);
+        BandDiagnostics.Log("CPU temperature helper connected to parent pipe");
 
         var computer = new Computer
         {
@@ -54,7 +56,9 @@ internal static class CpuTemperatureHelperHost
         };
         try
         {
+            BandDiagnostics.Log("CPU temperature helper opening independent sensor reader");
             computer.Open();
+            BandDiagnostics.Log("CPU temperature helper sensor reader opened");
 
             using var writer = new StreamWriter(
                 pipe,
@@ -66,6 +70,7 @@ internal static class CpuTemperatureHelperHost
             };
 
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            bool loggedValue = false;
             while (true)
             {
                 string payload;
@@ -75,6 +80,12 @@ internal static class CpuTemperatureHelperHost
                     payload = temperature is double value
                         ? value.ToString("R", CultureInfo.InvariantCulture)
                         : "NA";
+                    if (!loggedValue && temperature is double loggedTemperature)
+                    {
+                        loggedValue = true;
+                        BandDiagnostics.Log(
+                            $"CPU temperature helper produced value={loggedTemperature:0.0}C");
+                    }
                 }
                 catch
                 {

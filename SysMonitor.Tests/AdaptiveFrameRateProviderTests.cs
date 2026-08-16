@@ -32,12 +32,11 @@ public sealed class AdaptiveFrameRateProviderTests
     }
 
     [Fact]
-    public void GameSafeOptionsAllowOnlyReadOnlySharedTemperatureSource()
+    public void GameSafeOptionsKeepGpuCompatibilityOffButEnableIndependentCpuTemperature()
     {
         MonitorOptions options = MonitorOptions.GameSafe;
 
-        Assert.True(options.EnableSharedMemoryCpuTemperature);
-        Assert.False(options.EnableCpuTemperatureReader);
+        Assert.True(options.EnableCpuTemperatureReader);
         Assert.False(options.EnableLibreHardwareMonitor);
     }
 

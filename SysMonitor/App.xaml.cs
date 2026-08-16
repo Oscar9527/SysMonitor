@@ -24,6 +24,8 @@ public partial class App : System.Windows.Application
     private GameOverlayFrameProviderAdapter? _gameOverlayFrameProvider;
     private GameOverlayController? _gameOverlayController;
     private GameOverlayWindow? _gameOverlayWindow;
+    private GameOverlayAppearanceWindow? _gameOverlayAppearanceWindow;
+    private GameOverlaySettingsWindow? _gameOverlaySettingsWindow;
     private TrayIconService? _trayIcon;
     private BandWindow? _bandWindow;
     private DetailWindow? _detailWindow;
@@ -39,6 +41,7 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        EnsureWindowsDirectoryEnvironment();
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
@@ -50,10 +53,38 @@ public partial class App : System.Windows.Application
             {
                 await CpuTemperatureHelperHost.RunAsync(helperPipeName);
             }
-            catch
+            catch (Exception exception)
             {
                 // The parent may exit, UAC policy may block the driver, or the pipe
                 // may disappear. None of those conditions should show helper UI.
+                BandDiagnostics.Log(
+                    $"CPU temperature helper host failed type={exception.GetType().Name}");
+            }
+            finally
+            {
+                Shutdown();
+            }
+
+            return;
+        }
+
+        if (PresentMonHelperHost.TryGetRequest(
+                e.Args,
+                out string presentMonPipeName,
+                out int presentMonProcessId,
+                out string presentMonSessionName))
+        {
+            try
+            {
+                await PresentMonHelperHost.RunAsync(
+                    presentMonPipeName,
+                    presentMonProcessId,
+                    presentMonSessionName);
+            }
+            catch (Exception exception)
+            {
+                BandDiagnostics.Log(
+                    $"PresentMon helper host failed type={exception.GetType().Name}");
             }
             finally
             {
@@ -128,23 +159,39 @@ public partial class App : System.Windows.Application
 
         try
         {
-            _ = System.Windows.Media.Fonts.SystemFontFamilies.Count;
-            BandDiagnostics.Log("WPF system font cache prepared before band HWND creation");
             BandDiagnostics.Log("creating tray icon service");
             _trayIcon = new TrayIconService();
             _ = _trayIcon.ApplyThemeIcon(_currentTheme?.TrayIconPath);
             BandDiagnostics.Log("tray icon service created");
             BandDiagnostics.Log("creating monitor service");
             _sessionGameSafeMode = _settings.GameSafeMode;
-            _monitorService = new MonitorService(
-                MonitorOptions.FromGameSafeMode(_sessionGameSafeMode));
+            MonitorOptions monitorOptions = MonitorOptions.FromGameSafeMode(_sessionGameSafeMode) with
+            {
+                SamplingInterval = _settings.GameOverlaySampling?.ToLowerInvariant() switch
+                {
+                    "low" => TimeSpan.FromSeconds(2),
+                    "high" => TimeSpan.FromMilliseconds(500),
+                    _ => TimeSpan.FromSeconds(1)
+                }
+            };
+            _monitorService = new MonitorService(monitorOptions);
             BandDiagnostics.Log("monitor service created");
 
             if (_sessionGameSafeMode)
             {
                 _gameOverlayFrameProvider = new GameOverlayFrameProviderAdapter(
-                    new AdaptiveFrameRateProvider());
+                    // The overlay intentionally uses the bundled, independent
+                    // PresentMon ETW reader. It must not depend on MSI/RTSS.
+                    new PresentMonFrameRateProvider());
                 _gameOverlayWindow = new GameOverlayWindow();
+                _gameOverlayWindow.SetHorizontalPositionPercent(
+                    _settings.GameOverlayHorizontalPositionPercent);
+                _gameOverlayWindow.SetLayout(
+                    _settings.GameOverlayPreset,
+                    _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
+                SetDetailedHudTelemetry(_settings.GameOverlayPreset);
+                _gameOverlayWindow.SetAppearance(
+                    _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
                 _gameOverlayController = new GameOverlayController(
                     _gameOverlayFrameProvider,
                     _monitorService,
@@ -168,6 +215,9 @@ public partial class App : System.Windows.Application
             _trayIcon.SetPanelVisible(false);
             _trayIcon.SetGameSafeMode(_settings.GameSafeMode);
             _trayIcon.SetGameOverlayState(false, _sessionGameSafeMode);
+            _trayIcon.SetGameOverlayPosition(_settings.GameOverlayHorizontalPositionPercent);
+            _trayIcon.SetGameOverlayPreset(_settings.GameOverlayPreset);
+            _trayIcon.SetGameOverlayMetrics(_settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
 
             _monitorService.SnapshotUpdated += OnSnapshotUpdated;
             await _monitorService.StartAsync();
@@ -194,6 +244,12 @@ public partial class App : System.Windows.Application
 
         _trayIcon.ToggleDetailsRequested += OnToggleDetailsRequested;
         _trayIcon.ToggleGameOverlayRequested += OnToggleGameOverlayRequested;
+        _trayIcon.SelectGameOverlayTargetRequested += OnSelectGameOverlayTargetRequested;
+        _trayIcon.GameOverlayPositionChanged += OnGameOverlayPositionChanged;
+        _trayIcon.GameOverlayPresetChanged += OnGameOverlayPresetChanged;
+        _trayIcon.GameOverlayMetricsChanged += OnGameOverlayMetricsChanged;
+        _trayIcon.GameOverlayAppearanceRequested += OnGameOverlayAppearanceRequested;
+        _trayIcon.GameOverlayConfigurationRequested += OnGameOverlayConfigurationRequested;
         _trayIcon.AppearanceSettingsRequested += OnAppearanceSettingsRequested;
         _trayIcon.GameSafeModeChangeRequested += OnGameSafeModeChangeRequested;
         _trayIcon.PinToggled += OnTrayPinToggled;
@@ -784,6 +840,151 @@ public partial class App : System.Windows.Application
         _trayIcon?.SetGameOverlayState(visible, _sessionGameSafeMode);
     }
 
+    private static void EnsureWindowsDirectoryEnvironment()
+    {
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WINDIR")) &&
+            !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("windir")))
+        {
+            return;
+        }
+
+        string windowsDirectory = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\Windows\\";
+        windowsDirectory = windowsDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        Environment.SetEnvironmentVariable("WINDIR", windowsDirectory);
+        Environment.SetEnvironmentVariable("windir", windowsDirectory);
+    }
+
+    private async void OnSelectGameOverlayTargetRequested(object? sender, EventArgs e)
+    {
+        if (_isExiting || _gameOverlayController is null)
+        {
+            return;
+        }
+
+        GameOverlayTargetOption? option = GameOverlayTargetSelectionDialog.Show();
+        ForegroundTarget? target = GameOverlayTargetCatalog.ToForegroundTarget(option);
+        if (target is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _gameOverlayController.ShowForTargetAsync(target);
+        }
+        catch (Exception exception)
+        {
+            LogException("Manual game overlay target failed", exception);
+        }
+        finally
+        {
+            OnGameOverlayStateChanged(_gameOverlayController, EventArgs.Empty);
+        }
+    }
+
+    private void OnGameOverlayPositionChanged(double positionPercent)
+    {
+        double normalized = double.IsFinite(positionPercent)
+            ? Math.Clamp(positionPercent, 0, 100)
+            : 50d;
+        _settings.GameOverlayHorizontalPositionPercent = normalized;
+        _settingsService.Save(_settings);
+        _gameOverlayWindow?.SetHorizontalPositionPercent(normalized);
+    }
+
+    private void OnGameOverlayPresetChanged(string preset)
+    {
+        _settings.GameOverlayPreset = preset;
+        _settingsService.Save(_settings);
+        _gameOverlayWindow?.SetLayout(
+            _settings.GameOverlayPreset,
+            _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
+        SetDetailedHudTelemetry(_settings.GameOverlayPreset);
+    }
+
+    private void SetDetailedHudTelemetry(string? preset) =>
+        _monitorService?.SetDetailedTelemetryEnabled(
+            string.Equals(preset, "detailed", StringComparison.OrdinalIgnoreCase));
+
+    private void OnGameOverlayMetricsChanged(GameOverlayMetricVisibility metrics)
+    {
+        _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
+        _settingsService.Save(_settings);
+        _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
+    }
+
+    private void OnGameOverlayAppearanceRequested(object? sender, EventArgs e)
+    {
+        if (_isExiting || _gameOverlayWindow is null)
+        {
+            return;
+        }
+
+        GameOverlayAppearanceWindow window = EnsureGameOverlayAppearanceWindow();
+        window.LoadAppearance(_settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
+        window.Show();
+        window.Activate();
+    }
+
+    private void OnGameOverlayConfigurationRequested(object? sender, EventArgs e)
+    {
+        if (_isExiting || _gameOverlayWindow is null) return;
+        GameOverlaySettingsWindow window = EnsureGameOverlaySettingsWindow();
+        window.LoadConfiguration(
+            _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility(),
+            _settings.GameOverlaySampling);
+        window.Show();
+        window.Activate();
+    }
+
+    private GameOverlaySettingsWindow EnsureGameOverlaySettingsWindow()
+    {
+        if (_gameOverlaySettingsWindow is not null) return _gameOverlaySettingsWindow;
+        var window = new GameOverlaySettingsWindow();
+        window.Applied += OnGameOverlayConfigurationApplied;
+        _gameOverlaySettingsWindow = window;
+        return window;
+    }
+
+    private void OnGameOverlayConfigurationApplied(GameOverlayMetricVisibility metrics, string sampling)
+    {
+        _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
+        _settings.GameOverlaySampling = sampling;
+        _settingsService.Save(_settings);
+        _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
+        _monitorService?.SetSamplingInterval(sampling switch
+        {
+            "low" => TimeSpan.FromSeconds(2),
+            "high" => TimeSpan.FromMilliseconds(500),
+            _ => TimeSpan.FromSeconds(1)
+        });
+        _trayIcon?.SetGameOverlayMetrics(metrics);
+    }
+
+    private GameOverlayAppearanceWindow EnsureGameOverlayAppearanceWindow()
+    {
+        if (_gameOverlayAppearanceWindow is not null)
+        {
+            return _gameOverlayAppearanceWindow;
+        }
+
+        var window = new GameOverlayAppearanceWindow();
+        window.PreviewChanged += OnGameOverlayAppearancePreviewChanged;
+        window.Applied += OnGameOverlayAppearanceApplied;
+        _gameOverlayAppearanceWindow = window;
+        return window;
+    }
+
+    private void OnGameOverlayAppearancePreviewChanged(GameOverlayAppearance appearance) =>
+        _gameOverlayWindow?.SetAppearance(appearance);
+
+    private void OnGameOverlayAppearanceApplied(GameOverlayAppearance appearance)
+    {
+        _settings.GameOverlayAppearance = GameOverlayAppearanceSettings.FromEffective(appearance);
+        _settingsService.Save(_settings);
+        _gameOverlayWindow?.SetAppearance(appearance);
+    }
+
     private void OnGameSafeModeChangeRequested(bool enabled)
     {
         _settings.GameSafeMode = enabled;
@@ -884,6 +1085,24 @@ public partial class App : System.Windows.Application
             }
         }
 
+        if (_gameOverlayAppearanceWindow is not null)
+        {
+            try
+            {
+                _gameOverlayAppearanceWindow.PreviewChanged -= OnGameOverlayAppearancePreviewChanged;
+                _gameOverlayAppearanceWindow.Applied -= OnGameOverlayAppearanceApplied;
+                _gameOverlayAppearanceWindow.Close();
+            }
+            catch (Exception exception)
+            {
+                LogException("Game overlay appearance window close failed", exception);
+            }
+            finally
+            {
+                _gameOverlayAppearanceWindow = null;
+            }
+        }
+
         if (_monitorService is not null)
         {
             _monitorService.SnapshotUpdated -= OnSnapshotUpdated;
@@ -969,6 +1188,12 @@ public partial class App : System.Windows.Application
             {
                 _trayIcon.ToggleDetailsRequested -= OnToggleDetailsRequested;
                 _trayIcon.ToggleGameOverlayRequested -= OnToggleGameOverlayRequested;
+                _trayIcon.SelectGameOverlayTargetRequested -= OnSelectGameOverlayTargetRequested;
+                _trayIcon.GameOverlayPositionChanged -= OnGameOverlayPositionChanged;
+                _trayIcon.GameOverlayPresetChanged -= OnGameOverlayPresetChanged;
+                _trayIcon.GameOverlayMetricsChanged -= OnGameOverlayMetricsChanged;
+                _trayIcon.GameOverlayAppearanceRequested -= OnGameOverlayAppearanceRequested;
+                _trayIcon.GameOverlayConfigurationRequested -= OnGameOverlayConfigurationRequested;
                 _trayIcon.AppearanceSettingsRequested -= OnAppearanceSettingsRequested;
                 _trayIcon.GameSafeModeChangeRequested -= OnGameSafeModeChangeRequested;
                 _trayIcon.PinToggled -= OnTrayPinToggled;

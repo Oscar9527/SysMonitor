@@ -31,13 +31,9 @@ public sealed class LiveSharedMemoryProbeTests
             }
         }
 
-        SharedMemoryValue temperature = new MahmSharedMemoryReader().Read(DateTimeOffset.UtcNow);
         _output.WriteLine(active is { } frame
             ? $"RTSS pid={frame.pid} process={frame.name} fps={frame.fps:F1}"
             : "RTSS active target not found");
-        _output.WriteLine(temperature.Value is double celsius
-            ? $"MAHM aggregate CPU temperature={celsius:F1} C"
-            : $"MAHM unavailable: {temperature.Reason}");
     }
 
     private static string SafeName(Process process)

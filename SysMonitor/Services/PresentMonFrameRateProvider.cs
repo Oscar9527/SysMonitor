@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipes;
 using SysMonitor.Models;
 
 namespace SysMonitor.Services;
@@ -22,11 +23,11 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
     private FrameRateSnapshot _latest = FrameRateSnapshot.Disabled;
     private DateTimeOffset _lastTelemetryPublishedAt = DateTimeOffset.MinValue;
     private Process? _collector;
-    private ChildProcessJob? _collectorJob;
     private CancellationTokenSource? _readCancellation;
     private Task? _worker;
     private string? _executablePath;
     private string? _sessionName;
+    private NamedPipeServerStream? _collectorPipe;
     private int _generation;
     private bool _disposed;
 
@@ -36,6 +37,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
 
     public async Task StartAsync(int processId, CancellationToken cancellationToken = default)
     {
+        BandDiagnostics.Log($"presentmon start targetPid={processId}");
         await _lifecycle.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -89,18 +91,27 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
 
             string sessionName = $"SysMonitor-{Environment.ProcessId}-{Guid.NewGuid():N}";
             PresentMonSessionState.Register(sessionName);
-            var job = new ChildProcessJob();
+            string pipeName = $"SysMonitor.PresentMon.{Guid.NewGuid():N}";
+            var pipe = new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.In,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous | PipeOptions.WriteThrough | PipeOptions.CurrentUserOnly);
             Process? collector = null;
             try
             {
-                collector = Process.Start(PresentMonProcessSupport.CreateCollectorStartInfo(
-                    executablePath,
+                string corePath = Environment.ProcessPath ??
+                    throw new InvalidOperationException("SysMonitor core path is unavailable.");
+                collector = Process.Start(PresentMonProcessSupport.CreateElevatedHelperStartInfo(
+                    corePath,
+                    pipeName,
                     processId,
-                    sessionName)) ?? throw new InvalidOperationException("PresentMon did not start.");
-                job.Assign(collector);
+                    sessionName)) ?? throw new InvalidOperationException("PresentMon helper did not start.");
             }
             catch (Exception exception)
             {
+                pipe.Dispose();
                 if (collector is not null)
                 {
                     await TerminateOwnedSessionAsync(executablePath, sessionName).ConfigureAwait(false);
@@ -111,19 +122,18 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
                 }
 
                 collector?.Dispose();
-                job.Dispose();
                 PresentMonSessionState.Clear(sessionName);
                 Publish(new FrameRateSnapshot(
                     null,
                     FrameRateStatus.ProviderExited,
                     processId,
                     DateTimeOffset.UtcNow,
-                    $"PresentMon failed to start ({exception.GetType().Name})."));
+                    $"PresentMon helper failed to start ({exception.GetType().Name})."));
                 return;
             }
 
+            _collectorPipe = pipe;
             _collector = collector;
-            _collectorJob = job;
             _readCancellation = new CancellationTokenSource();
             _executablePath = executablePath;
             _sessionName = sessionName;
@@ -138,7 +148,9 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
                 executablePath,
                 sessionName,
                 collector,
+                pipe,
                 _readCancellation.Token);
+            BandDiagnostics.Log($"presentmon helper launched pid={collector.Id} targetPid={processId} session={sessionName}");
         }
         finally
         {
@@ -182,7 +194,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
     {
         Process? collector = _collector;
         Task? worker = _worker;
-        ChildProcessJob? job = _collectorJob;
+        NamedPipeServerStream? pipe = _collectorPipe;
         CancellationTokenSource? readCancellation = _readCancellation;
         string? executablePath = _executablePath;
         string? sessionName = _sessionName;
@@ -207,6 +219,9 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
             Latest.TargetProcessId,
             DateTimeOffset.UtcNow));
 
+        readCancellation?.Cancel();
+        pipe?.Dispose();
+
         if (executablePath is not null && sessionName is not null)
         {
             await TerminateOwnedSessionAsync(executablePath, sessionName).ConfigureAwait(false);
@@ -215,9 +230,6 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         bool exited = await WaitForExitAsync(collector, CollectorExitTimeout).ConfigureAwait(false);
         if (!exited)
         {
-            job?.Dispose();
-            job = null;
-            readCancellation?.Cancel();
             await WaitForExitAsync(collector, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         }
 
@@ -239,12 +251,11 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
             PresentMonSessionState.Clear(sessionName);
         }
 
-        job?.Dispose();
-        readCancellation?.Cancel();
         readCancellation?.Dispose();
         collector?.Dispose();
+        pipe?.Dispose();
         _collector = null;
-        _collectorJob = null;
+        _collectorPipe = null;
         _readCancellation = null;
         _worker = null;
         _executablePath = null;
@@ -261,12 +272,15 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         string executablePath,
         string sessionName,
         Process collector,
+        NamedPipeServerStream pipe,
         CancellationToken cancellationToken)
     {
-        Task<string> stderrTask = PresentMonProcessSupport.CaptureBoundedAsync(
-            collector.StandardError,
-            CancellationToken.None);
-        var reader = new PresentMonBoundedLineReader(collector.StandardOutput);
+        var reader = new PresentMonBoundedLineReader(new StreamReader(
+            pipe,
+            System.Text.Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: false,
+            bufferSize: 4096,
+            leaveOpen: true));
         var aggregator = new FrameRateAggregator();
         DateTimeOffset startedAt = DateTimeOffset.UtcNow;
         bool headerReceived = false;
@@ -274,6 +288,10 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         string? detail = null;
         try
         {
+            using var connectionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            connectionTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+            await pipe.WaitForConnectionAsync(connectionTimeout.Token).ConfigureAwait(false);
+            BandDiagnostics.Log($"presentmon pipe connected targetPid={processId}");
             Task<string?> lineTask = reader.ReadLineAsync(cancellationToken);
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -313,6 +331,13 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
 
                 if (!headerReceived)
                 {
+                    if (TryClassifyHelperError(line, out FrameRateStatus helperStatus, out string? helperDetail))
+                    {
+                        terminalStatus = helperStatus;
+                        detail = helperDetail;
+                        break;
+                    }
+
                     if (!PresentMonCsvParser.IsExpectedHeader(line))
                     {
                         terminalStatus = FrameRateStatus.IncompatibleOutput;
@@ -321,6 +346,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
                     }
 
                     headerReceived = true;
+                    BandDiagnostics.Log($"presentmon csv header accepted targetPid={processId}");
                     lineTask = reader.ReadLineAsync(cancellationToken);
                     continue;
                 }
@@ -340,6 +366,13 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
                     currentFps is null ? FrameRateStatus.WaitingForFrames : FrameRateStatus.Active,
                     processId,
                     receivedAt), throttle: currentFps is not null);
+                if (currentFps is double loggedFps)
+                {
+                    BandDiagnostics.LogRateLimited(
+                        $"presentmon-active-{processId}",
+                        $"presentmon active targetPid={processId} fps={loggedFps:0.0}",
+                        TimeSpan.FromSeconds(10));
+                }
                 lineTask = reader.ReadLineAsync(cancellationToken);
             }
         }
@@ -377,23 +410,13 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         {
         }
 
-        string stderr;
-        try
-        {
-            stderr = await stderrTask.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-        }
-        catch
-        {
-            stderr = string.Empty;
-        }
-
         if (terminalStatus is null)
         {
             (terminalStatus, detail) = ClassifyExit(
                 headerReceived,
                 aggregator.HasReceivedFrames,
                 SafeExitCode(collector),
-                stderr);
+                string.Empty);
         }
 
         PublishIfCurrent(generation, new FrameRateSnapshot(
@@ -402,6 +425,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
             processId,
             DateTimeOffset.UtcNow,
             detail));
+        BandDiagnostics.Log($"presentmon stopped targetPid={processId} status={terminalStatus} detail={detail}");
     }
 
     private void PublishIfCurrent(int generation, FrameRateSnapshot snapshot, bool throttle = false)
@@ -432,6 +456,10 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
             }
 
             Volatile.Write(ref _latest, snapshot);
+            BandDiagnostics.LogRateLimited(
+                $"presentmon-status-{snapshot.TargetProcessId}-{snapshot.Status}",
+                $"presentmon publish targetPid={snapshot.TargetProcessId} status={snapshot.Status} fps={snapshot.PresentFps:0.0} detail={snapshot.Detail}",
+                TimeSpan.FromSeconds(10));
             if (throttle)
             {
                 _lastTelemetryPublishedAt = snapshot.SampledAt;
@@ -531,6 +559,13 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
 
         if (!headerReceived)
         {
+            if (exitCode == 6)
+            {
+                return (
+                    FrameRateStatus.ProviderExited,
+                    "PresentMon could not start its ETW collector (code 6).");
+            }
+
             return (FrameRateStatus.IncompatibleOutput, "PresentMon exited before its CSV header was received.");
         }
 
@@ -544,6 +579,47 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
             exitCode is { } code
                 ? $"PresentMon exited with code {code}."
                 : "PresentMon exited unexpectedly.");
+    }
+
+    private static bool TryClassifyHelperError(
+        string line,
+        out FrameRateStatus status,
+        out string detail)
+    {
+        const string prefix = "#SYSMONITOR-ERROR ";
+        if (!line.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            status = default;
+            detail = string.Empty;
+            return false;
+        }
+
+        string diagnostic = line[prefix.Length..];
+        if (diagnostic.Contains("1450", StringComparison.Ordinal))
+        {
+            status = FrameRateStatus.ProviderExited;
+            detail = "Windows ETW resources are unavailable (1450). A stale elevated PresentMon or another recorder may still be running.";
+            return true;
+        }
+
+        if (diagnostic.Contains("TRACE SESSION", StringComparison.OrdinalIgnoreCase))
+        {
+            status = FrameRateStatus.SessionConflict;
+            detail = "The PresentMon ETW session name is already in use.";
+            return true;
+        }
+
+        if (diagnostic.Contains("ACCESS DENIED", StringComparison.OrdinalIgnoreCase) ||
+            diagnostic.Contains("0X80070005", StringComparison.OrdinalIgnoreCase))
+        {
+            status = FrameRateStatus.PermissionDenied;
+            detail = "PresentMon was denied access to the trace session.";
+            return true;
+        }
+
+        status = FrameRateStatus.ProviderExited;
+        detail = $"PresentMon collector failed: {diagnostic}";
+        return true;
     }
 
     private static bool IsLiveProcess(int processId)

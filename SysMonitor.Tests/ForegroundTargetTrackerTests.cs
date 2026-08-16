@@ -30,6 +30,22 @@ public sealed class ForegroundTargetTrackerTests
     }
 
     [Fact]
+    public void ManualTargetCanBeSetWithoutGameNameHeuristic()
+    {
+        var tracker = new ForegroundTargetTracker(
+            new FakeSource(),
+            99,
+            () => DateTimeOffset.UtcNow);
+        var target = new ForegroundTarget(new nint(7), 123, Started, DateTimeOffset.MinValue);
+
+        tracker.SetManualTarget(target);
+
+        Assert.Equal(ForegroundTargetState.Ready, tracker.State);
+        Assert.NotNull(tracker.LastQualified);
+        Assert.Equal(123, tracker.LastQualified!.ProcessId);
+    }
+
+    [Fact]
     public async Task Stabilize_RequiresThreeMatchingSamplesAcrossFiveHundredMilliseconds()
     {
         ForegroundWindowCandidate candidate = Candidate();

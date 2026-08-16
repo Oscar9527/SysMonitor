@@ -241,6 +241,9 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
     private static readonly TimeSpan OutputTimeout = TimeSpan.FromSeconds(4);
     private static readonly int[] RetrySeconds = { 1, 2, 4, 8, 15, 30 };
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    // Ensures the driver telemetry process cannot survive an unexpected
+    // SysMonitor termination and accumulate in the background.
+    private readonly ChildProcessJob? _childProcessJob = TryCreateChildProcessJob();
     private CancellationTokenSource? _cancellation;
     private Task? _worker;
     private Process? _process;
@@ -332,6 +335,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
         }
 
         await StopAsync().ConfigureAwait(false);
+        _childProcessJob?.Dispose();
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -344,6 +348,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             try
             {
                 process = StartProcess();
+                TryAssignToJob(process);
                 _process = process;
                 published = await ReadSessionAsync(process, cancellationToken).ConfigureAwait(false);
             }
@@ -470,6 +475,26 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
         startInfo.ArgumentList.Add("--loop=1");
         return Process.Start(startInfo) ??
                throw new InvalidOperationException("Unable to start nvidia-smi.");
+    }
+
+    private static ChildProcessJob? TryCreateChildProcessJob()
+    {
+        try { return new ChildProcessJob(); }
+        catch { return null; }
+    }
+
+    private void TryAssignToJob(Process process)
+    {
+        try { _childProcessJob?.Assign(process); }
+        catch (Exception exception)
+        {
+            // The collector remains usable when a host policy prevents job
+            // assignment; normal graceful shutdown still terminates it.
+            BandDiagnostics.LogRateLimited(
+                "gpu-nvidia-smi-job",
+                $"gpu source=nvidia-smi job assignment failed type={exception.GetType().Name}",
+                TimeSpan.FromMinutes(5));
+        }
     }
 
     private static async Task DrainStderrAsync(StreamReader reader)

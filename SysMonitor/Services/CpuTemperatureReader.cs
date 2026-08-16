@@ -30,6 +30,9 @@ internal sealed class CpuTemperatureReader : IDisposable
     private double _helperTemperature;
     private string? _loggedSensor;
     private int _consecutiveNoSensorReads;
+    // The motherboard/Super-I/O tree can retain significantly more native
+    // driver state. Open it only after a CPU-only scan has actually failed.
+    private bool _motherboardFallbackAttempted;
     private bool _helperLaunchAttempted;
     private bool _helperLaunchInProgress;
     private bool _disposed;
@@ -148,11 +151,9 @@ internal sealed class CpuTemperatureReader : IDisposable
             openingComputer = new Computer
             {
                 IsCpuEnabled = true,
-                // A few laptop firmware versions publish the CPU package sensor
-                // through the motherboard/Super-I/O node instead of HardwareType.Cpu.
-                // Enabling this node keeps those machines compatible without
-                // enabling GPU, storage, or network polling.
-                IsMotherboardEnabled = true,
+                // Some laptop firmware exposes package temperature only via the
+                // motherboard tree; keep the common CPU-only path lean.
+                IsMotherboardEnabled = _motherboardFallbackAttempted,
             };
             openingComputer.Open();
             _computer = openingComputer;
@@ -289,10 +290,20 @@ internal sealed class CpuTemperatureReader : IDisposable
             return;
         }
 
-        // Some firmware needs a fresh hardware tree, while other machines require
-        // the WinRing0 access available only to an elevated process. Do both once
-        // the ordinary reader has proved consistently empty.
+        // Some firmware exposes the CPU package through a motherboard sensor.
+        // Try that heavier tree only after the lean CPU-only reader proves empty.
         CloseLocked();
+        if (!_motherboardFallbackAttempted)
+        {
+            _motherboardFallbackAttempted = true;
+            _nextRetryTimestamp = 0;
+            _consecutiveNoSensorReads = 0;
+            TryOpenLocked();
+            return;
+        }
+
+        // If both regular readers are empty, retain the elevated fallback for
+        // machines whose sensor driver requires it.
         ScheduleRetryLocked();
         TryStartHelperLocked();
         _consecutiveNoSensorReads = 0;
@@ -378,6 +389,8 @@ internal sealed class CpuTemperatureReader : IDisposable
                 return;
             }
 
+            BandDiagnostics.Log($"CPU temperature elevated helper started pid={process.Id}");
+
             lock (_gate)
             {
                 if (_disposed ||
@@ -395,6 +408,7 @@ internal sealed class CpuTemperatureReader : IDisposable
                 ownerCancellation.Token);
             connectionTimeout.CancelAfter(TimeSpan.FromSeconds(15));
             await pipe.WaitForConnectionAsync(connectionTimeout.Token).ConfigureAwait(false);
+            BandDiagnostics.Log("CPU temperature elevated helper connected");
 
             using var reader = new StreamReader(
                 pipe,
@@ -420,6 +434,10 @@ internal sealed class CpuTemperatureReader : IDisposable
                 {
                     Volatile.Write(ref _helperTemperature, value);
                     Volatile.Write(ref _helperTemperatureTimestamp, Stopwatch.GetTimestamp());
+                    BandDiagnostics.LogRateLimited(
+                        "cpu-temperature-helper-value",
+                        $"CPU temperature source=ElevatedHelper value={value:0.0}C",
+                        TimeSpan.FromMinutes(5));
                 }
             }
         }

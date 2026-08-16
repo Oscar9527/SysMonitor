@@ -92,9 +92,24 @@
   <data name="OverlayStateUnavailable" xml:space="preserve"><value>帧率暂不可用</value></data>
   <data name="TrayShowGameOverlay" xml:space="preserve"><value>显示游戏叠加层  Ctrl+Shift+F10</value></data>
   <data name="TrayHideGameOverlay" xml:space="preserve"><value>隐藏游戏叠加层  Ctrl+Shift+F10</value></data>
+  <data name="TrayGameOverlayPosition" xml:space="preserve"><value>帧率助手位置</value></data>
+  <data name="TrayGameOverlayPreset" xml:space="preserve"><value>HUD 排版</value></data>
+  <data name="TrayGameOverlayPresetCompact" xml:space="preserve"><value>紧凑</value></data>
+  <data name="TrayGameOverlayPresetRivatuner" xml:space="preserve"><value>RivaTuner 风格</value></data>
+  <data name="TrayGameOverlayPresetDetailed" xml:space="preserve"><value>详细</value></data>
+  <data name="TrayGameOverlayMetrics" xml:space="preserve"><value>显示项目</value></data>
+  <data name="TrayGameOverlayMetricFps" xml:space="preserve"><value>帧率</value></data>
+  <data name="TrayGameOverlayMetricCpu" xml:space="preserve"><value>CPU</value></data>
+  <data name="TrayGameOverlayMetricGpu" xml:space="preserve"><value>GPU</value></data>
+  <data name="TrayGameOverlayMetricMemory" xml:space="preserve"><value>内存</value></data>
+  <data name="TrayGameOverlayMetricNetwork" xml:space="preserve"><value>网络</value></data>
+  <data name="TrayGameOverlayTarget" xml:space="preserve"><value>选择监控程序…</value></data>
+  <data name="TrayGameOverlayPositionLeft" xml:space="preserve"><value>顶部左侧</value></data>
+  <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>顶部居中</value></data>
+  <data name="TrayGameOverlayPositionRight" xml:space="preserve"><value>顶部右侧</value></data>
   <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层不可用（兼容模式）</value></data>
   <data name="TrayGameSafeMode" xml:space="preserve"><value>游戏安全模式（推荐）</value></data>
-  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>允许只读 Afterburner 数据；兼容传感器需主动选择并重启。</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>关闭 GPU 兼容传感器；CPU 温度由 SysMonitor 的 CPU 专用读取器独立采集。</value></data>
   <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>需要重启</value></data>
   <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用传感器模式。兼容模式运行时，游戏叠加层保持不可用。</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 已被其他应用注册。</value></data>

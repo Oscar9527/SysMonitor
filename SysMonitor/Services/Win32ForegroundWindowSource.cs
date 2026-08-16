@@ -44,6 +44,8 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
 
         var className = new StringBuilder(256);
         _ = GetClassName(window, className, className.Capacity);
+        var windowTitle = new StringBuilder(Math.Max(1, GetWindowTextLength(window) + 1));
+        _ = GetWindowText(window, windowTitle, windowTitle.Capacity);
         return new ForegroundWindowCandidate(
             window,
             processId,
@@ -52,7 +54,8 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
             className.ToString(),
             IsWindow(window),
             IsWindowVisible(window),
-            hasExited);
+            hasExited,
+            windowTitle.ToString());
     }
 
     public bool IsCurrentIdentity(ForegroundTarget target)
@@ -90,6 +93,12 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(nint windowHandle, StringBuilder className, int maximum);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowText(nint windowHandle, StringBuilder text, int maximum);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetWindowTextLength(nint windowHandle);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

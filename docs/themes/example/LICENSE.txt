@@ -1,1 +1,0 @@
-This example theme is released under the MIT License.

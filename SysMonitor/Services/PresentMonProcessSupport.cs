@@ -11,7 +11,8 @@ internal static class PresentMonProcessSupport
     internal static ProcessStartInfo CreateCollectorStartInfo(
         string executablePath,
         int processId,
-        string sessionName)
+        string sessionName,
+        bool requestElevation = false)
     {
         var startInfo = CreateBaseStartInfo(executablePath);
         Add(startInfo,
@@ -23,6 +24,30 @@ internal static class PresentMonProcessSupport
             "--no_track_input",
             "--no_track_display",
             "--terminate_on_proc_exit");
+        if (requestElevation)
+        {
+            startInfo.ArgumentList.Add("--restart_as_admin");
+        }
+        return startInfo;
+    }
+
+    internal static ProcessStartInfo CreateElevatedHelperStartInfo(
+        string executablePath,
+        string pipeName,
+        int processId,
+        string sessionName)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden,
+        };
+        startInfo.ArgumentList.Add("--presentmon-helper");
+        startInfo.ArgumentList.Add(pipeName);
+        startInfo.ArgumentList.Add(processId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        startInfo.ArgumentList.Add(sessionName);
         return startInfo;
     }
 

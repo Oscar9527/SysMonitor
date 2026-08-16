@@ -3,9 +3,9 @@
 ## 游戏监控悬浮窗
 
 - `Ctrl+Shift+F10` 显示/隐藏，不抢占游戏焦点，鼠标输入穿透悬浮窗。
-- `Present FPS` 优先来自 RTSS 的只读共享内存；缺失/过期约 1 秒后回退 PresentMon 2.5.1 的 Windows ETW Present 事件。它不是游戏引擎内部 FPS，也不是 Displayed FPS。SysMonitor 不注入或 Hook；RTSS 自身可能 Hook，反作弊与版本兼容性取决于 RTSS 和游戏。
+- `Present FPS` 直接来自随包 PresentMon 2.5.1 的 Windows ETW Present 事件，不依赖 MSI Afterburner 或 RTSS。它不是游戏引擎内部 FPS，也不是 Displayed FPS。SysMonitor 不注入或 Hook，也不读取游戏进程内存。
 - CPU、内存和 GPU 百分比均标注为系统总体；温度和当前频率只在数据源真实提供时显示。
-- 默认游戏安全模式不构造 LibreHardwareMonitor、CPU 提权助手或相关硬件访问驱动；可只读使用已运行的 MSI Afterburner 共享内存提供总体 CPU 温度，producer 缺失时显示 `--`。兼容传感器是需要重启的可选模式，且该运行不启用游戏悬浮窗。
+- 默认游戏安全模式不构造 GPU 兼容传感器；CPU 温度始终由 SysMonitor 自带的 CPU 专用读取器独立采集，必要时按需启动独立管理员助手，不依赖 MSI Afterburner。完整兼容传感器仍是需要重启的可选模式，且该运行不启用游戏悬浮窗。
 - 本功能不注入 DLL、不 Hook DirectX/Vulkan/OpenGL、不读写游戏进程内存，也不尝试绕过反作弊。ETW 能否被具体游戏或反作弊策略接受，以其实际规则为准。
 
 SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA/AMD/Intel GPU 使用率与可用温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板，并查看最近 60 秒的 CPU 与 GPU 使用率折线图。GPU 数据缺失时会以断线表示，不会误报为 0%。

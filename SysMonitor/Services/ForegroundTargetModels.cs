@@ -22,6 +22,13 @@ public sealed record ForegroundTarget(
         ProcessStartedAt == other.ProcessStartedAt;
 }
 
+public sealed record GameOverlayTargetOption(
+    nint WindowHandle,
+    int ProcessId,
+    DateTimeOffset ProcessStartedAt,
+    string ProcessName,
+    string WindowTitle);
+
 public sealed record ForegroundWindowCandidate(
     nint WindowHandle,
     int ProcessId,
@@ -30,7 +37,8 @@ public sealed record ForegroundWindowCandidate(
     string WindowClass,
     bool IsWindow,
     bool IsVisible,
-    bool HasExited);
+    bool HasExited,
+    string WindowTitle = "");
 
 public interface IForegroundWindowSource
 {

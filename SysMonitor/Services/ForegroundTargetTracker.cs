@@ -34,6 +34,13 @@ public sealed class ForegroundTargetTracker
 
     public ForegroundTarget? SnapshotTriggerCandidate() => CaptureQualified(record: false);
 
+    public void SetManualTarget(ForegroundTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        _lastQualified = target with { QualifiedAt = _clock() };
+        SetState(ForegroundTargetState.Ready);
+    }
+
     public ForegroundTarget? TryGetRecentTarget()
     {
         ForegroundTarget? target = _lastQualified;

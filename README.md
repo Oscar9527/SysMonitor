@@ -4,8 +4,8 @@
 
 - 按 `Ctrl+Shift+F10` 显示或隐藏透明悬浮窗；窗口不抢焦点、鼠标可穿透，并跟随目标程序所在显示器。
 - 显示 Present FPS，以及系统总体 CPU、内存、GPU、温度和可用的当前频率。缺失数据会显示 `--`，不会伪造数值。
-- 帧率优先只读使用已运行的 RTSS 共享内存；不可用或过期约 1 秒后，回退到固定随包的 PresentMon 2.5.1 Windows ETW 采集。SysMonitor 自身不注入 DLL、不 Hook 图形 API、不读写游戏进程内存，也不为帧率安装驱动。RTSS 自身可能使用图形 API Hook，反作弊与版本兼容性取决于 RTSS 和游戏。
-- 游戏安全模式默认开启，并从程序启动时阻止兼容硬件传感器及其硬件访问驱动加载。若主动启用兼容传感器，需要重启，且该次运行不会启动游戏悬浮窗。
+- 帧率使用固定随包的 PresentMon 2.5.1 Windows ETW 独立采集，不依赖 MSI Afterburner 或 RTSS。SysMonitor 自身不注入 DLL、不 Hook 图形 API、不读写游戏进程内存，也不为帧率安装驱动。
+- 游戏安全模式默认开启；GPU 兼容传感器保持关闭，CPU 温度由 SysMonitor 自带的 CPU 专用读取器独立采集。若主动启用完整兼容传感器，仍需重启，且该次运行不会启动游戏悬浮窗。
 - ETW 属于 Windows 系统级观测机制，但不同游戏和反作弊策略可能不同，因此本项目不宣称获得 ACE 或其他反作弊产品认证。无权限或没有 Present 事件时会显示明确状态。
 
 [![Release](https://img.shields.io/github/v/release/Oscar9527/SysMonitor?display_name=tag&sort=semver)](https://github.com/Oscar9527/SysMonitor/releases)
@@ -98,7 +98,7 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 数据 | 来源 | 刷新周期 | 备注 |
 | --- | --- | --- | --- |
 | CPU 使用率 | PDH `Processor Utility` | 1 秒 | 使用 Windows 性能计数器 |
-| CPU 温度 | MSI Afterburner 只读共享内存；兼容模式回退 LibreHardwareMonitor | 每秒 | 安全模式需已有 MSI Afterburner producer；缺失时显示 `--` |
+| CPU 温度 | CPU 专用 LibreHardwareMonitor 读取器 | 每秒 | 无需安装 MSI Afterburner；必要时使用独立管理员助手 |
 | 内存 | PSAPI `GetPerformanceInfo` | 1 秒 | 物理内存使用率 |
 | GPU（NVIDIA） | `nvidia-smi`，LibreHardwareMonitor 回退 | 1 秒 | 优先使用 NVIDIA 驱动数据 |
 | GPU（AMD/Intel） | LibreHardwareMonitor | 1 秒 | 读取驱动公开的利用率和可用传感器 |
@@ -216,7 +216,7 @@ release/         # 可直接分发的单文件版本
 
 ### CPU 温度显示为空
 
-游戏安全模式只读使用已运行的 MSI Afterburner 共享内存；若 producer 未运行或未发布唯一的总体 CPU 温度，显示 `--`。兼容模式还可回退 LibreHardwareMonitor。可以保留使用率、内存、GPU 和网络监控；程序不会显示不准确的估算值。
+CPU 温度由 SysMonitor 自带的 CPU 专用 LibreHardwareMonitor 读取器独立采集，不依赖 MSI Afterburner。普通权限无法读取 MSR 温度时，程序会按需启动同一 EXE 的独立管理员助手；若硬件或固件仍未公开温度，显示 `--`，不会伪造数值。
 
 ### GPU 项目隐藏或部分数据为空
 

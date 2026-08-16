@@ -9,6 +9,7 @@ public enum GameOverlayFrameStatus
     Unavailable,
     WaitingForTarget,
     Starting,
+    NoFrames,
     Active,
     Faulted
 }
@@ -128,6 +129,13 @@ public sealed class GameOverlayController : IAsyncDisposable
     }
 
     public Task ToggleFromTrayAsync() => ToggleAsync(GameOverlayActivationSource.Tray, null);
+
+    public Task ShowForTargetAsync(ForegroundTarget target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        _targetTracker.SetManualTarget(target);
+        return RequestVisibilityAsync(true, GameOverlayActivationSource.Tray, null);
+    }
 
     public Task HideAsync() =>
         RequestVisibilityAsync(false, GameOverlayActivationSource.Tray, null);

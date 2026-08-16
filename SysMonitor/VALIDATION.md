@@ -7,25 +7,25 @@ Environment: Windows 11 x64; interactive user session left untouched
 
 ### Read-only shared-memory repair
 
-- RTSS `RTSSSharedMemoryV2` and MSI Afterburner `MAHMSharedMemory` are opened with read rights and read-only views only; the readers reopen on every sample and contain no create/write path.
-- Deterministic byte fixtures cover signatures, v2 layouts, checked capacities, stale samples, RTSS rolling/frame-time/frame-counter formulas, MAHM sentinel values, aggregate-vs-device selection, and ambiguous aggregate temperatures.
+- RTSS `RTSSSharedMemoryV2` is opened with read rights and a read-only view only; the reader reopens on every sample and contains no create/write path.
+- Deterministic byte fixtures cover RTSS signatures, v2 layouts, checked capacities, stale samples, and rolling/frame-time/frame-counter formulas.
 - The adaptive frame provider polls only while started, delays the SysMonitor-owned PresentMon fallback by about one second, and switches back after two valid RTSS recovery samples.
-- Game-safe monitor options enable only the MAHM shared-memory temperature source and keep LibreHardwareMonitor and the elevated CPU helper disabled. If the external producer is absent, the UI retains `--`.
+- Game-safe monitor options keep the GPU LibreHardwareMonitor provider disabled while enabling the independent CPU-only temperature reader.
 
-- Release build completed with 0 warnings and 0 errors; the full suite passed 228/228 tests.
-- A read-only production-reader probe matched the active Delta Force process (PID 28276) and returned 88.9 FPS from RTSS plus 93.9 °C from the unique aggregate MAHM CPU sensor. Both values remained nullable and were not asserted as fixed environmental values.
+- Release build completed with 0 warnings and 0 errors; the full suite passed 219/219 tests after removing the MSI Afterburner/MAHM integration tests.
+- A read-only production-reader probe matched the active Delta Force process (PID 28276) and returned 88.9 FPS from RTSS. The independent CPU reader remains nullable and does not substitute a fixed environmental value.
 - The final portable launcher is one `SysMonitor.exe`, version 1.5.0, 8,391,680 bytes (8.00 MiB), SHA-256 `FBAFF32F0DB5CA7D6C4181C933E6D191B67921C3EE7701B7DB14B251EFCC25CB`.
 - The launcher contains the versioned `SysMonitor.Core.1.5.0.exe` resource. The core embeds the pinned official PresentMon 2.5.1 x64 binary, its MIT license, and the project third-party notice.
 - The embedded PresentMon binary is verified by test and at extraction time against SHA-256 `9BEC3083069F58F911E6A512F4806DB51A27BD096103087BC1D05EF54C80A191`.
 - Exact collector arguments, owned-session termination arguments, bounded output, comma-bearing application names, invalid/overlong rows, per-swapchain aggregation, hysteresis and stale clearing have deterministic coverage.
-- Game-safe settings migrate to enabled before `MonitorService` construction. In that mode the service does not construct the CPU LibreHardwareMonitor reader/helper or the LibreHardwareMonitor GPU provider; NVIDIA telemetry continues through `nvidia-smi`.
+- Game-safe settings migrate to enabled before `MonitorService` construction. In that mode the service constructs only the CPU temperature reader plus NVIDIA's `nvidia-smi` path; the full LibreHardwareMonitor GPU provider remains disabled.
 - Static audit found no DLL injection, graphics API hook, game-process memory read/write, low-level input hook or frame-rate kernel driver path in SysMonitor.
 - Overlay tests cover no-activate/tool/transparent styles, `HTTRANSPARENT`, hotkey registration/disposal, rapid cancellation, target exclusion/PID identity, negative monitor coordinates and DPI placement without sending physical input.
 - CPU frequency is nullable and comes from Windows `CallNtPowerInformation`; GPU clocks are nullable and come from `nvidia-smi` or compatibility sensors. No nominal clock or zero-value substitute is shown when unavailable.
-- A hidden portable-launcher smoke run exited successfully and replaced/restarted only the versioned SysMonitor runtime core as designed; it did not activate a foreground window. The restarted core logged `gameSafe=True`, `sharedMemoryCpuTemperature=True`, `cpuTemperature=False`, and selected `MsiAfterburnerSharedMemory` for CPU temperature.
+- A hidden portable-launcher smoke run exited successfully and replaced/restarted only the versioned SysMonitor runtime core as designed; it did not activate a foreground window. The restarted core keeps GPU compatibility disabled while enabling the independent CPU-only reader (`cpuTemperature=True`).
 - Physical game/ACE compatibility, exclusive-fullscreen z-order and multi-GPU sensor coverage are not claimed by this deterministic pass. ETW is non-injection system observation, not an anti-cheat certification.
 
-Validation date: 2026-08-11
+Validation date: 2026-08-12
 Environment: Windows 11 x64, 16 logical processors, NVIDIA RTX 3060 Laptop GPU, auto-hidden taskbar
 
 ## v1.4.1 Band click reliability release

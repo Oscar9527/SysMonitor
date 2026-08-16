@@ -1,5 +1,8 @@
 using System.IO;
 using System.Text.Json;
+using System.Windows.Media;
+using MediaColor = System.Windows.Media.Color;
+using MediaColorConverter = System.Windows.Media.ColorConverter;
 using SysMonitor.Models;
 
 namespace SysMonitor.Services;
@@ -122,8 +125,59 @@ public sealed class SettingsService
                     0,
                     100)
                 : null;
+        settings.GameOverlayHorizontalPositionPercent = double.IsFinite(settings.GameOverlayHorizontalPositionPercent)
+            ? Math.Clamp(
+                Math.Round(settings.GameOverlayHorizontalPositionPercent, 2, MidpointRounding.AwayFromZero),
+                0,
+                100)
+            : 50d;
+        settings.GameOverlayPreset = settings.GameOverlayPreset?.Trim().ToLowerInvariant() switch
+        {
+            "compact" or "detailed" or "rivatuner" => settings.GameOverlayPreset.Trim().ToLowerInvariant(),
+            _ => "rivatuner"
+        };
+        settings.GameOverlaySampling = settings.GameOverlaySampling?.Trim().ToLowerInvariant() switch
+        {
+            "low" or "standard" or "high" => settings.GameOverlaySampling.Trim().ToLowerInvariant(),
+            _ => "standard"
+        };
+        GameOverlayMetricVisibility overlayMetrics =
+            (settings.GameOverlayMetrics ?? new GameOverlayMetricVisibilitySettings()).ToEffective();
+        settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(overlayMetrics);
+        GameOverlayAppearance appearance = NormalizeOverlayAppearance(
+            (settings.GameOverlayAppearance ?? new GameOverlayAppearanceSettings()).ToEffective());
+        settings.GameOverlayAppearance = GameOverlayAppearanceSettings.FromEffective(appearance);
         BandMetricVisibility effective =
             (settings.BandMetricVisibility ?? new BandMetricVisibilitySettings()).ToEffective();
         settings.BandMetricVisibility = BandMetricVisibilitySettings.FromEffective(effective);
+    }
+
+    internal static GameOverlayAppearance NormalizeOverlayAppearance(GameOverlayAppearance value) => new(
+        string.IsNullOrWhiteSpace(value.FontFamily) ? "Consolas" : value.FontFamily.Trim(),
+        double.IsFinite(value.FontSize) ? Math.Clamp(Math.Round(value.FontSize), 10, 28) : 13d,
+        NormalizeColor(value.LabelColor, "#FF66D9FF"),
+        NormalizeColor(value.ValueColor, "#FFFFFFFF"),
+        NormalizeColor(value.OutlineColor, "#FF000000"),
+        double.IsFinite(value.OutlineThickness) ? Math.Clamp(value.OutlineThickness, 0, 4) : 1d,
+        NormalizeColor(value.ShadowColor, "#CC000000"),
+        double.IsFinite(value.ShadowOpacity) ? Math.Clamp(value.ShadowOpacity, 0, 1) : 0.85d,
+        double.IsFinite(value.ShadowDepth) ? Math.Clamp(value.ShadowDepth, 0, 8) : 1d,
+        NormalizeColor(value.GpuColor, "#FF66D9FF"),
+        NormalizeColor(value.CpuColor, "#FF8BE9FD"),
+        NormalizeColor(value.FpsColor, "#FF50FA7B"),
+        NormalizeColor(value.MemoryColor, "#FFF1FA8C"),
+        NormalizeColor(value.NetworkColor, "#FFFFB86C"));
+
+    private static string NormalizeColor(string? value, string fallback)
+    {
+        try
+        {
+            MediaColor color = (MediaColor)MediaColorConverter.ConvertFromString(value ?? fallback)!;
+            return color.ToString();
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 }

@@ -40,6 +40,12 @@ public sealed record MonitorSnapshot(
 
     public double? CpuFrequencyMhz { get; init; }
 
+    /// <summary>
+    /// Configured physical-memory clock speed. This is a DIMM configuration value,
+    /// rather than a high-frequency real-time sensor reading.
+    /// </summary>
+    public double? MemoryFrequencyMhz { get; init; }
+
     public ImmutableArray<DriveSnapshot> FixedDrives
     {
         get => _fixedDrives.IsDefault ? ImmutableArray<DriveSnapshot>.Empty : _fixedDrives;

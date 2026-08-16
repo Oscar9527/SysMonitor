@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using SysMonitor.Models;
 using SysMonitor.Services;
@@ -42,6 +43,59 @@ public sealed class PresentMonProcessSupportTests
         Assert.Equal(
             new[] { "--session_name", "SysMonitor-owned", "--terminate_existing_session" },
             startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void CollectorDoesNotRequestSelfElevationByDefault()
+    {
+        var startInfo = PresentMonProcessSupport.CreateCollectorStartInfo(
+            "C:\\runtime\\PresentMon.exe",
+            1234,
+            "SysMonitor-owned");
+
+        Assert.DoesNotContain("--restart_as_admin", startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void ElevatedHelperIsHiddenAndReceivesOnlyValidatedIdentifiers()
+    {
+        var startInfo = PresentMonProcessSupport.CreateElevatedHelperStartInfo(
+            "C:\\runtime\\SysMonitor.exe",
+            "SysMonitor.PresentMon.0123456789abcdef0123456789abcdef",
+            1234,
+            "SysMonitor-123-0123456789abcdef0123456789abcdef");
+
+        Assert.True(startInfo.UseShellExecute);
+        Assert.Equal("runas", startInfo.Verb);
+        Assert.Equal(ProcessWindowStyle.Hidden, startInfo.WindowStyle);
+        Assert.Equal(
+            new[]
+            {
+                "--presentmon-helper",
+                "SysMonitor.PresentMon.0123456789abcdef0123456789abcdef",
+                "1234",
+                "SysMonitor-123-0123456789abcdef0123456789abcdef"
+            },
+            startInfo.ArgumentList);
+    }
+
+    [Fact]
+    public void PresentMonHelperRequestRejectsUntrustedArguments()
+    {
+        string pipe = "SysMonitor.PresentMon.0123456789abcdef0123456789abcdef";
+        string session = "SysMonitor-123-0123456789abcdef0123456789abcdef";
+        Assert.True(PresentMonHelperHost.TryGetRequest(
+            new[] { "--presentmon-helper", pipe, "1234", session },
+            out string parsedPipe,
+            out int processId,
+            out string parsedSession));
+        Assert.Equal(pipe, parsedPipe);
+        Assert.Equal(1234, processId);
+        Assert.Equal(session, parsedSession);
+
+        Assert.False(PresentMonHelperHost.TryGetRequest(
+            new[] { "--presentmon-helper", "bad", "1234", session },
+            out _, out _, out _));
     }
 
     [Fact]

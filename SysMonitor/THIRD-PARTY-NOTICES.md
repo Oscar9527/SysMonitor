@@ -13,6 +13,4 @@ Project: https://github.com/GameTechDev/PresentMon
 Version: 2.5.1
 License: the complete `ThirdParty/PresentMon-2.5.1/LICENSE.txt` text is embedded in the portable executable and retained in the source tree.
 
-## Optional installed producers
-
-SysMonitor can read the named shared-memory interfaces published by an already-running RivaTuner Statistics Server (RTSS) and MSI Afterburner Hardware Monitor. These products, SDK headers, and binaries are not bundled or installed by SysMonitor. Access is read-only. SysMonitor itself does not inject or hook a game; RTSS may use graphics API hooks, and anti-cheat/version compatibility varies by RTSS and game configuration.
+Frame-rate telemetry does not use MSI Afterburner, RTSS, or any other installed producer; it is collected independently through the bundled PresentMon ETW reader.

@@ -2,17 +2,17 @@ namespace SysMonitor.Services;
 
 /// <summary>
 /// Selects hardware providers before the monitoring service is constructed.
-/// Game-safe sessions never construct compatibility providers that may load a
-/// hardware-access driver or start an elevated helper.
+/// Game-safe sessions keep GPU compatibility providers disabled while retaining
+/// the independent CPU-only temperature reader.
 /// </summary>
 public sealed record MonitorOptions(
     bool EnableLibreHardwareMonitor,
-    bool EnableCpuTemperatureReader,
-    bool EnableSharedMemoryCpuTemperature)
+    bool EnableCpuTemperatureReader)
 {
-    public static MonitorOptions GameSafe { get; } = new(false, false, true);
+    public TimeSpan SamplingInterval { get; init; } = TimeSpan.FromSeconds(1);
+    public static MonitorOptions GameSafe { get; } = new(false, true);
 
-    public static MonitorOptions CompatibilitySensors { get; } = new(true, true, true);
+    public static MonitorOptions CompatibilitySensors { get; } = new(true, true);
 
     public static MonitorOptions FromGameSafeMode(bool gameSafeMode) =>
         gameSafeMode ? GameSafe : CompatibilitySensors;
