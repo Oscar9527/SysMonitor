@@ -53,14 +53,15 @@ internal static class PresentMonHelperHost
             pipeName,
             PipeDirection.Out,
             PipeOptions.Asynchronous | PipeOptions.WriteThrough);
-        using var connectionTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        // A helper that cannot connect promptly is stale; terminate only the
+        // process/job/session owned by this request and let the caller retry.
+        using var connectionTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await pipe.ConnectAsync(connectionTimeout.Token).ConfigureAwait(false);
         BandDiagnostics.Log($"presentmon helper pipe connected targetPid={processId}");
 
         string executablePath = await PresentMonBinaryManager
             .GetExecutablePathAsync(connectionTimeout.Token)
             .ConfigureAwait(false);
-        StopOwnedStaleCollectors(executablePath);
         // This helper is elevated while the desktop app deliberately is not.
         // Owning the collector job here guarantees that an elevated PresentMon
         // process is released if the pipe closes or the helper exits unexpectedly.
@@ -126,52 +127,6 @@ internal static class PresentMonHelperHost
             }
 
             collector?.Dispose();
-        }
-    }
-
-    private static void StopOwnedStaleCollectors(string executablePath)
-    {
-        string expectedPath;
-        try
-        {
-            expectedPath = Path.GetFullPath(executablePath);
-        }
-        catch
-        {
-            return;
-        }
-
-        int stopped = 0;
-        string processName = Path.GetFileNameWithoutExtension(expectedPath);
-        foreach (Process candidate in Process.GetProcessesByName(processName))
-        {
-            try
-            {
-                string? candidatePath = candidate.MainModule?.FileName;
-                if (candidate.Id != Environment.ProcessId &&
-                    candidatePath is not null &&
-                    string.Equals(Path.GetFullPath(candidatePath), expectedPath, StringComparison.OrdinalIgnoreCase) &&
-                    !candidate.HasExited)
-                {
-                    candidate.Kill(entireProcessTree: true);
-                    candidate.WaitForExit(1500);
-                    stopped++;
-                }
-            }
-            catch
-            {
-                // A process can exit between enumeration and inspection. The
-                // current collector job remains the authoritative cleanup path.
-            }
-            finally
-            {
-                candidate.Dispose();
-            }
-        }
-
-        if (stopped > 0)
-        {
-            BandDiagnostics.Log($"presentmon stale owned collectors stopped count={stopped}");
         }
     }
 

@@ -232,7 +232,7 @@ public partial class DetailWindow : Window
         CpuHistoryChart.ToolTip = historyTooltip;
         GpuHistoryChart.ToolTip = historyTooltip;
         System.Windows.Automation.AutomationProperties.SetName(
-            DriveScrollViewer,
+            StorageCard,
             localization.GetString("DetailStorage"));
         MinimizeButton.ToolTip = localization.GetString("MinimizeTooltip");
         CloseButton.ToolTip = localization.GetString("CloseTooltip");
@@ -281,7 +281,7 @@ public partial class DetailWindow : Window
         }
 
         NoDrivesText.Visibility = drives.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-        DriveScrollViewer.Visibility = drives.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        DriveRowsPanel.Visibility = drives.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         foreach (DriveSnapshot drive in drives)
         {
             if (!_driveRows.TryGetValue(drive.Name, out DriveRowElements? row))
@@ -303,14 +303,17 @@ public partial class DetailWindow : Window
             Brush driveBrush = SelectBrush(usage, _cpuBrush);
             row.Name.Text = title;
             row.Name.ToolTip = title;
-            row.Details.Text = LocalizationService.Current.Format(
+            string details = LocalizationService.Current.Format(
                 "DriveUsageDetails",
                 FormatGigabytes(drive.UsedBytes),
                 FormatGigabytes(drive.TotalBytes));
+            row.Details.Text = details;
             row.Value.Text = FormatPercent(usage);
             row.Value.Foreground = driveBrush;
             row.Progress.Value = usage;
             row.Progress.Foreground = driveBrush;
+            row.Container.ToolTip = $"{title}\n{details}";
+            System.Windows.Automation.AutomationProperties.SetName(row.Container, $"{title}, {details}");
             System.Windows.Automation.AutomationProperties.SetName(row.Progress, title);
         }
     }
@@ -319,14 +322,21 @@ public partial class DetailWindow : Window
     {
         var container = new Border
         {
-            Height = 58,
-            Padding = new Thickness(0, 4, 0, 7),
+            Width = 220,
+            Height = 128,
+            Margin = new Thickness(6),
+            Padding = new Thickness(12),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Focusable = true,
         };
+        container.SetResourceReference(BackgroundProperty, "AppSurfaceBrush");
+        container.SetResourceReference(BorderBrushProperty, "AppSeparatorBrush");
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(4) });
 
         var name = new TextBlock
@@ -347,6 +357,7 @@ public partial class DetailWindow : Window
         {
             Margin = new Thickness(0, 2, 12, 4),
             FontSize = 10.5,
+            TextWrapping = System.Windows.TextWrapping.Wrap,
         };
         details.SetResourceReference(ForegroundProperty, "AppSecondaryTextBrush");
         Grid.SetRow(details, 1);

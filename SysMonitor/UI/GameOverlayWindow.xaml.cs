@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using SysMonitor.Models;
 using SysMonitor.Services;
@@ -44,6 +43,13 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private IReadOnlyList<GameOverlayMonitorPositionSettings> _monitorPositions = [];
     private OverlayPixelRect? _lastPlacement;
     private string? _lastPlacementMonitorId;
+    private OverlayMonitorIdentity _cachedMonitorIdentity;
+    private nint _cachedIdentityWindow;
+    private bool _hasCachedMonitorIdentity;
+    private OverlayPixelRect _lastAppliedPlacement;
+    private nint _lastAppliedInsertAfter;
+    private uint _lastAppliedFlags;
+    private bool _placementApplied;
     private bool? _lastFrameRateVisible;
     private GameOverlayMetricVisibility _metrics = new();
     private GameOverlayAppearance _appearance = new();
@@ -51,11 +57,18 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public GameOverlayWindow()
     {
         InitializeComponent();
+        // The legacy XAML margin was intended as a visual inset, but it also
+        // leaked into the native window bounds.  Exact coordinates are
+        // physical pixels, so keep the root content flush with the HWND.
+        if (Content is FrameworkElement root)
+        {
+            root.Margin = new Thickness(0);
+        }
         _positionTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(750)
         };
-        _positionTimer.Tick += (_, _) => PositionWithoutActivation();
+        _positionTimer.Tick += (_, _) => PositionWithoutActivation(refreshMonitor: true);
         SourceInitialized += OnSourceInitialized;
         Closed += OnClosed;
     }
@@ -66,6 +79,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void SetTarget(ForegroundTarget? target)
     {
         _targetWindow = target?.WindowHandle ?? nint.Zero;
+        InvalidateMonitorCache();
         PositionWithoutActivation();
     }
 
@@ -163,9 +177,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
               string.Equals(position.StableMonitorId, identity.StableMonitorId, StringComparison.OrdinalIgnoreCase);
 
     internal bool TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity identity) =>
-        _monitorIdentityResolver.TryResolveForWindow(
-            _targetWindow != nint.Zero ? _targetWindow : _source?.Handle ?? nint.Zero,
-            out identity);
+        TryResolveMonitorIdentity(forceRefresh: false, out identity);
 
     public bool TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext context)
     {
@@ -380,13 +392,15 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         SolidColorBrush fpsBrush = CreateBrush(_appearance.FpsColor, Colors.LightGreen);
         SolidColorBrush memoryBrush = CreateBrush(_appearance.MemoryColor, Colors.Khaki);
         SolidColorBrush networkBrush = CreateBrush(_appearance.NetworkColor, Colors.Orange);
-        MediaColor outline = ParseColor(_appearance.OutlineColor, Colors.Black);
-        MediaColor shadow = ParseColor(_appearance.ShadowColor, Colors.Black);
         foreach (TextBlock text in new[] { GpuLabel, GpuValue, CpuLabel, CpuValue, FpsLabel, FpsValue, MemoryLabel, MemoryValue, NetworkLabel, NetworkValue })
         {
             text.FontFamily = family;
             text.FontSize = _appearance.FontSize;
-            text.Effect = CreateTextEffect(outline, shadow);
+            // Text effects allocate a render target/blur shader on every
+            // appearance refresh and are particularly expensive while a HUD
+            // is being previewed.  Solid text remains readable over games and
+            // avoids a per-refresh GPU effect allocation.
+            text.Effect = null;
         }
         GpuLabel.Foreground = GpuValue.Foreground = gpuBrush;
         CpuLabel.Foreground = CpuValue.Foreground = cpuBrush;
@@ -427,6 +441,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void ShowWithoutActivation()
     {
         if (!IsVisible) Show();
+        _placementApplied = false;
         PositionWithoutActivation();
         _positionTimer.Start();
     }
@@ -434,6 +449,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void HideOverlay()
     {
         _positionTimer.Stop();
+        _placementApplied = false;
         Hide();
     }
 
@@ -514,8 +530,13 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private static void SetRow(TextBlock label, TextBlock value, bool visible, string content)
     {
-        label.Visibility = value.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-        value.Text = content;
+        Visibility nextVisibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (label.Visibility != nextVisibility) label.Visibility = nextVisibility;
+        if (value.Visibility != nextVisibility) value.Visibility = nextVisibility;
+        if (!string.Equals(value.Text, content, StringComparison.Ordinal))
+        {
+            value.Text = content;
+        }
     }
 
     private string BuildCpuValue(MonitorSnapshot monitor, string usage, string temperature)
@@ -543,23 +564,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static string FormatFrequency(double? value) => value is double mhz && double.IsFinite(mhz) && mhz > 0 ? $"{mhz:0} MHz" : "--";
     private static string FormatRate(double value) => value switch { <= 0 => "0", < 1024 * 1024 => $"{value / 1024d:0.#}K", _ => $"{value / 1024d / 1024d:0.#}M" };
 
-    private Effect? CreateTextEffect(MediaColor outline, MediaColor shadow)
-    {
-        if (_appearance.OutlineThickness <= 0 && _appearance.ShadowOpacity <= 0)
-            return null;
-        // A zero-depth shadow creates a tight outline; the blur/depth setting retains
-        // contrast on bright game scenes without adding a solid HUD background.
-        MediaColor effectColor = _appearance.OutlineThickness > 0 ? outline : shadow;
-        return new DropShadowEffect
-        {
-            Color = effectColor,
-            BlurRadius = Math.Max(0, _appearance.OutlineThickness * 2),
-            ShadowDepth = _appearance.ShadowDepth,
-            Direction = 315,
-            Opacity = _appearance.OutlineThickness > 0 ? 1d : _appearance.ShadowOpacity
-        };
-    }
-
     private static SolidColorBrush CreateBrush(string value, MediaColor fallback) => new(ParseColor(value, fallback));
     private static MediaColor ParseColor(string value, MediaColor fallback)
     {
@@ -579,6 +583,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private void OnClosed(object? sender, EventArgs e)
     {
         _positionTimer.Stop();
+        _placementApplied = false;
         if (_source is not null) { _source.RemoveHook(WindowProc); _source = null; }
     }
 
@@ -600,7 +605,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         Dispatcher.BeginInvoke(PositionWithoutActivation, DispatcherPriority.Render);
     }
 
-    private void PositionWithoutActivation()
+    private void PositionWithoutActivation(bool refreshMonitor = false)
     {
         if (_source is null) return;
         nint target = _targetWindow;
@@ -612,9 +617,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         }
 
         OverlayMonitorIdentity? monitorIdentity =
-            _monitorIdentityResolver.TryResolveForWindow(
-                target != nint.Zero ? target : _source.Handle,
-                out OverlayMonitorIdentity resolvedIdentity)
+            TryResolveMonitorIdentity(refreshMonitor, out OverlayMonitorIdentity resolvedIdentity)
                 ? resolvedIdentity
                 : null;
         GameOverlayMonitorPositionSettings? exactPosition = null;
@@ -651,7 +654,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
                 GetWidthDip(),
                 GetHeightDip(),
                 dpi,
-                marginDip: 4,
+                marginDip: GetPresetMarginDip(dpi),
                 horizontalPositionPercent: _horizontalPositionPercent);
         _lastPlacement = placement;
         _lastPlacementMonitorId = monitorIdentity?.StableMonitorId;
@@ -670,6 +673,14 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             flags |= SwpNoZOrder;
         }
 
+        if (_placementApplied &&
+            _lastAppliedPlacement == placement &&
+            _lastAppliedInsertAfter == zOrder.InsertAfter &&
+            _lastAppliedFlags == flags)
+        {
+            return;
+        }
+
         _ = SetWindowPos(
             overlay,
             zOrder.InsertAfter,
@@ -678,6 +689,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             placement.Width,
             placement.Height,
             flags);
+        _lastAppliedPlacement = placement;
+        _lastAppliedInsertAfter = zOrder.InsertAfter;
+        _lastAppliedFlags = flags;
+        _placementApplied = true;
     }
 
     private OverlayPixelRect CalculateLegacyPlacementForContext(OverlayMonitorIdentity identity)
@@ -693,9 +708,41 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             GetWidthDip(),
             GetHeightDip(),
             GetCurrentDpi(),
-            marginDip: 4,
+            marginDip: GetPresetMarginDip(GetCurrentDpi()),
             horizontalPositionPercent: _horizontalPositionPercent);
     }
+
+    private static double GetPresetMarginDip(uint dpi)
+    {
+        double scale = Math.Max(1, dpi) / 96d;
+        return 2d / scale;
+    }
+
+    private bool TryResolveMonitorIdentity(
+        bool forceRefresh,
+        out OverlayMonitorIdentity identity)
+    {
+        identity = default;
+        nint handle = _targetWindow != nint.Zero ? _targetWindow : _source?.Handle ?? nint.Zero;
+        if (!forceRefresh && _hasCachedMonitorIdentity && _cachedIdentityWindow == handle)
+        {
+            identity = _cachedMonitorIdentity;
+            return true;
+        }
+
+        if (!_monitorIdentityResolver.TryResolveForWindow(handle, out identity))
+        {
+            _hasCachedMonitorIdentity = false;
+            return false;
+        }
+
+        _cachedIdentityWindow = handle;
+        _cachedMonitorIdentity = identity;
+        _hasCachedMonitorIdentity = true;
+        return true;
+    }
+
+    private void InvalidateMonitorCache() => _hasCachedMonitorIdentity = false;
 
     private uint GetCurrentDpi()
     {
@@ -713,14 +760,14 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             ? ActualWidth
             : double.IsFinite(Width) && Width > 0
                 ? Width
-                : Math.Max(1, OverlayGrid.DesiredSize.Width + 12);
+                : Math.Max(1, OverlayGrid.DesiredSize.Width);
 
     private double GetHeightDip() =>
         double.IsFinite(ActualHeight) && ActualHeight > 0
             ? ActualHeight
             : double.IsFinite(Height) && Height > 0
                 ? Height
-                : Math.Max(1, OverlayGrid.DesiredSize.Height + 8);
+                : Math.Max(1, OverlayGrid.DesiredSize.Height);
 
     private static OverlayPixelRect ToOverlayRect(ScreenPixelBounds bounds) =>
         new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);

@@ -7,7 +7,7 @@ namespace SysMonitor.Tests;
 public sealed class ThemeCatalogTests
 {
     [Fact]
-    public async Task BuiltInsAreImmutableDefaultsAndMatchLegacyVisuals()
+    public async Task BuiltInsAreImmutableDefaultsAndMatchModernPalette()
     {
         using var temp = new ThemeTestDirectory();
         var catalog = new ThemeCatalogService(temp.Themes, new Version(1, 3, 0));
@@ -17,11 +17,11 @@ public sealed class ThemeCatalogTests
 
         Assert.True(theme.IsBuiltIn);
         Assert.Equal("builtin-default-v1", theme.IdentityToken);
-        Assert.Equal("#F5F5F7", theme.Definition.Colors.AppBackground);
-        Assert.Equal("#E5E5EA", theme.Definition.Colors.Separator);
-        Assert.Equal("#F0F0F3", theme.Definition.Colors.Control);
-        Assert.Equal(16, theme.Definition.Shape.GroupCornerRadius);
-        Assert.Equal(0.07, theme.Definition.Shape.ShadowOpacity);
+        Assert.Equal("#F5F6F8", theme.Definition.Colors.AppBackground);
+        Assert.Equal("#D9DCE2", theme.Definition.Colors.Separator);
+        Assert.Equal("#F0F1F4", theme.Definition.Colors.Control);
+        Assert.Equal(10, theme.Definition.Shape.GroupCornerRadius);
+        Assert.Equal(0, theme.Definition.Shape.ShadowOpacity);
         Assert.Equal("#00000000", theme.Definition.Band.BackgroundColor);
         Assert.Null(theme.Definition.Band.TextColor);
         Assert.Null(theme.Definition.Band.SeparatorColor);

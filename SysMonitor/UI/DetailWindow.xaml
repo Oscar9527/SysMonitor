@@ -55,12 +55,8 @@
         </Style>
 
         <Style x:Key="CardStyle" TargetType="Border" BasedOn="{StaticResource AppGroupStyle}">
-            <Setter Property="Padding" Value="16,14" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect BlurRadius="12" Direction="270" ShadowDepth="2" Opacity="{DynamicResource AppShadowOpacity}" Color="#000000" />
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Padding" Value="14" />
+            <Setter Property="CornerRadius" Value="10" />
         </Style>
 
         <Style x:Key="MetricProgressStyle" TargetType="ProgressBar">
@@ -229,20 +225,17 @@
                 </Border>
             </Grid>
 
-            <Border Height="132" Style="{StaticResource CardStyle}" Padding="16,12">
+            <Border x:Name="StorageCard" MinHeight="112" Style="{StaticResource CardStyle}" Padding="14,12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="24" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <TextBlock x:Name="StorageLabelText" FontSize="13" FontWeight="SemiBold" />
-                    <Grid Grid.Row="1">
+                    <Grid Grid.Row="1" MinHeight="64">
                         <TextBlock x:Name="NoDrivesText" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" />
-                        <ScrollViewer x:Name="DriveScrollViewer" MaxHeight="84" VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled" CanContentScroll="True">
-                            <StackPanel x:Name="DriveRowsPanel" />
-                        </ScrollViewer>
+                        <WrapPanel x:Name="DriveRowsPanel" Orientation="Horizontal" />
                     </Grid>
                 </Grid>
             </Border>

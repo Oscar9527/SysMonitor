@@ -140,14 +140,14 @@ public partial class App : System.Windows.Application
         if (!activeThemeResolved)
         {
             _settings.ActiveThemeId = startupTheme.Identity.Id;
-            _ = _settingsService.TrySave(_settings);
+            _ = TryPatchSettings(settings => settings.ActiveThemeId = startupTheme.Identity.Id);
         }
 
         if (!ApplyThemeRuntime(startupTheme))
         {
             ResolvedTheme fallbackTheme = _themeCatalog.ResolveOrDefault(AppSettings.DefaultThemeId);
             _settings.ActiveThemeId = fallbackTheme.Identity.Id;
-            _ = _settingsService.TrySave(_settings);
+            _ = TryPatchSettings(settings => settings.ActiveThemeId = fallbackTheme.Identity.Id);
             if (!ApplyThemeRuntime(fallbackTheme))
             {
                 LogException(
@@ -599,7 +599,16 @@ public partial class App : System.Windows.Application
             BandMetricVisibilitySettings.FromEffective(appearance.EffectiveMetricVisibility);
 
         _settings.ActiveThemeId = selectedTheme.Identity.Id;
-        if (!_settingsService.TrySave(_settings))
+        if (!TryPatchSettings(settings =>
+            {
+                settings.BandFontFamily = appearance.FontFamily;
+                settings.BandFontSize = appearance.FontSize;
+                settings.BandItemSpacingDip = appearance.ItemSpacingDip;
+                settings.BandHorizontalPositionPercent = appearance.HorizontalPositionPercent;
+                settings.BandMetricVisibility = BandMetricVisibilitySettings.FromEffective(
+                    appearance.EffectiveMetricVisibility);
+                settings.ActiveThemeId = selectedTheme.Identity.Id;
+            }))
         {
             RestoreAppearanceSettings(previousAppearance);
             _settings.ActiveThemeId = previousThemeId;
@@ -685,7 +694,7 @@ public partial class App : System.Windows.Application
     {
         string normalized = LocalizationService.NormalizeCulturePreference(culturePreference);
         _settings.UiCulture = normalized;
-        _settingsService.Save(_settings);
+        PatchSettings(settings => settings.UiCulture = normalized);
         _localizationService.ApplyCulture(normalized);
     }
 
@@ -698,7 +707,8 @@ public partial class App : System.Windows.Application
         }
 
         _settings.BandHorizontalPositionPercent = Math.Clamp(positionPercent, 0, 100);
-        _settingsService.Save(_settings);
+        PatchSettings(settings => settings.BandHorizontalPositionPercent =
+            Math.Clamp(positionPercent, 0, 100));
     }
 
     private DetailWindow EnsureDetailWindow()
@@ -740,7 +750,7 @@ public partial class App : System.Windows.Application
 
         _settings.PanelTopmost = _detailWindow.IsPinned;
         _trayIcon?.SetPinned(_detailWindow.IsPinned);
-        _settingsService.Save(_settings);
+        PatchSettings(settings => settings.PanelTopmost = _detailWindow.IsPinned);
     }
 
     private void OnDetailHideRequested(object? sender, EventArgs e)
@@ -763,7 +773,7 @@ public partial class App : System.Windows.Application
         _settings.PanelTopmost = pinned;
         _detailWindow?.SetPinned(pinned);
         _trayIcon?.SetPinned(pinned);
-        _settingsService.Save(_settings);
+        PatchSettings(settings => settings.PanelTopmost = pinned);
     }
 
     private void OnTrayStartupToggled(bool enabled)
@@ -897,14 +907,19 @@ public partial class App : System.Windows.Application
             RemoveOverlayMonitorPosition(identity);
             _gameOverlayWindow.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
         }
-        _settingsService.Save(_settings);
+        PatchSettings(settings =>
+        {
+            settings.GameOverlayHorizontalPositionPercent = normalized;
+            settings.GameOverlayMonitorPositions = SettingsService.NormalizeOverlayMonitorPositions(
+                _settings.GameOverlayMonitorPositions);
+        });
         _gameOverlayWindow?.SetHorizontalPositionPercent(normalized);
     }
 
     private void OnGameOverlayPresetChanged(string preset)
     {
         _settings.GameOverlayPreset = preset;
-        _settingsService.Save(_settings);
+        PatchSettings(settings => settings.GameOverlayPreset = preset);
         _gameOverlayWindow?.SetLayout(
             _settings.GameOverlayPreset,
             _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
@@ -918,7 +933,8 @@ public partial class App : System.Windows.Application
     private void OnGameOverlayMetricsChanged(GameOverlayMetricVisibility metrics)
     {
         _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
-        _settingsService.Save(_settings);
+        PatchSettings(settings => settings.GameOverlayMetrics =
+            GameOverlayMetricVisibilitySettings.FromEffective(metrics));
         _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
     }
 
@@ -1260,7 +1276,14 @@ public partial class App : System.Windows.Application
         }
         _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
         _settings.GameOverlaySampling = sampling;
-        if (!_settingsService.TrySave(_settings))
+        if (!TryPatchSettings(settings =>
+            {
+                settings.GameOverlayLayoutMode = _settings.GameOverlayLayoutMode;
+                settings.GameOverlayMonitorPositions = SettingsService.NormalizeOverlayMonitorPositions(
+                    _settings.GameOverlayMonitorPositions);
+                settings.GameOverlayMetrics = _settings.GameOverlayMetrics;
+                settings.GameOverlaySampling = _settings.GameOverlaySampling;
+            }))
         {
             _settings.GameOverlayLayoutMode = previousLayoutMode;
             _settings.GameOverlayMonitorPositions = previousMonitorPositions;
@@ -1327,14 +1350,30 @@ public partial class App : System.Windows.Application
     private void OnGameOverlayAppearanceApplied(GameOverlayAppearance appearance)
     {
         _settings.GameOverlayAppearance = GameOverlayAppearanceSettings.FromEffective(appearance);
-        _settingsService.Save(_settings);
+        PatchSettings(settings => settings.GameOverlayAppearance =
+            GameOverlayAppearanceSettings.FromEffective(appearance));
         _gameOverlayWindow?.SetAppearance(appearance);
     }
 
     private void OnGameSafeModeChangeRequested(bool enabled)
     {
+        if (!enabled)
+        {
+            MessageBoxResult confirmation = System.Windows.MessageBox.Show(
+                _localizationService.GetString("TrayGameSafeModeDisableMessage"),
+                _localizationService.GetString("TrayGameSafeModeDisableTitle"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            if (confirmation != MessageBoxResult.Yes)
+            {
+                _trayIcon?.SetGameSafeMode(true);
+                return;
+            }
+        }
+
         _settings.GameSafeMode = enabled;
-        if (!_settingsService.TrySave(_settings))
+        if (!TryPatchSettings(settings => settings.GameSafeMode = enabled))
         {
             _settings.GameSafeMode = !enabled;
         }
@@ -1354,7 +1393,38 @@ public partial class App : System.Windows.Application
         }
 
         _settings.PanelTopmost = _detailWindow?.IsPinned ?? _settings.PanelTopmost;
-        _settingsService.Save(_settings);
+        PatchSettings(settings =>
+        {
+            settings.PanelLeft = _settings.PanelLeft;
+            settings.PanelTop = _settings.PanelTop;
+            settings.PanelTopmost = _settings.PanelTopmost;
+        });
+    }
+
+    private bool TryPatchSettings(Action<AppSettings> patch)
+    {
+        if (!_settingsService.TryPatch(patch, out SettingsSnapshot snapshot))
+        {
+            return false;
+        }
+
+        _settings = snapshot.Settings;
+        return true;
+    }
+
+    private void PatchSettings(Action<AppSettings> patch)
+    {
+        if (!TryPatchSettings(patch))
+        {
+            // A transient disk/permission failure must never terminate the
+            // tray application. Restore the last confirmed snapshot and let
+            // the next user action retry the atomic write.
+            _settings = _settingsService.GetConfirmedSnapshot();
+            BandDiagnostics.LogRateLimited(
+                "settings-save-failed",
+                "settings patch could not be persisted; restored confirmed snapshot",
+                TimeSpan.FromSeconds(30));
+        }
     }
 
     private async Task ExitAsync()

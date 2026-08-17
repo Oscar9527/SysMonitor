@@ -4,30 +4,30 @@
              xmlns:system="clr-namespace:System;assembly=System.Runtime">
     <Application.Resources>
         <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
-        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F5F7" />
+        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F6F8" />
         <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="AppTextBrush" Color="#1D1D1F" />
-        <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#6E6E73" />
-        <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#8E8E93" />
-        <SolidColorBrush x:Key="AppSeparatorBrush" Color="#E5E5EA" />
-        <SolidColorBrush x:Key="AppControlBrush" Color="#F0F0F3" />
-        <SolidColorBrush x:Key="AppAccentBrush" Color="#007AFF" />
-        <SolidColorBrush x:Key="CpuMetricBrush" Color="#007AFF" />
-        <SolidColorBrush x:Key="MemoryMetricBrush" Color="#AF52DE" />
-        <SolidColorBrush x:Key="GpuMetricBrush" Color="#34C759" />
-        <SolidColorBrush x:Key="WarningMetricBrush" Color="#FF9500" />
-        <SolidColorBrush x:Key="CriticalMetricBrush" Color="#FF3B30" />
-        <SolidColorBrush x:Key="CpuMetricSoftBrush" Color="#EAF3FF" />
-        <SolidColorBrush x:Key="MemoryMetricSoftBrush" Color="#F5EAFB" />
-        <SolidColorBrush x:Key="GpuMetricSoftBrush" Color="#EAF8EE" />
-        <SolidColorBrush x:Key="DetailPinBackgroundBrush" Color="#EAF3FF" />
-        <SolidColorBrush x:Key="DetailPinForegroundBrush" Color="#007AFF" />
-        <SolidColorBrush x:Key="DetailUnpinnedForegroundBrush" Color="#6E6E73" />
-        <SolidColorBrush x:Key="MetricTrackBrush" Color="#E9E9ED" />
+        <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#62666E" />
+        <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#858A93" />
+        <SolidColorBrush x:Key="AppSeparatorBrush" Color="#D9DCE2" />
+        <SolidColorBrush x:Key="AppControlBrush" Color="#F0F1F4" />
+        <SolidColorBrush x:Key="AppAccentBrush" Color="#0A66E8" />
+        <SolidColorBrush x:Key="CpuMetricBrush" Color="#1976D2" />
+        <SolidColorBrush x:Key="MemoryMetricBrush" Color="#D97706" />
+        <SolidColorBrush x:Key="GpuMetricBrush" Color="#7E57C2" />
+        <SolidColorBrush x:Key="WarningMetricBrush" Color="#D97706" />
+        <SolidColorBrush x:Key="CriticalMetricBrush" Color="#C6262E" />
+        <SolidColorBrush x:Key="CpuMetricSoftBrush" Color="#E3F0FD" />
+        <SolidColorBrush x:Key="MemoryMetricSoftBrush" Color="#FFF0DC" />
+        <SolidColorBrush x:Key="GpuMetricSoftBrush" Color="#EFE8FA" />
+        <SolidColorBrush x:Key="DetailPinBackgroundBrush" Color="#DCEBFF" />
+        <SolidColorBrush x:Key="DetailPinForegroundBrush" Color="#0A66E8" />
+        <SolidColorBrush x:Key="DetailUnpinnedForegroundBrush" Color="#62666E" />
+        <SolidColorBrush x:Key="MetricTrackBrush" Color="#F0F1F4" />
         <SolidColorBrush x:Key="BandBackgroundBrush" Color="#00000000" />
         <SolidColorBrush x:Key="BandTextBrush" Color="#FFFFFFFF" />
         <SolidColorBrush x:Key="BandSeparatorBrush" Color="#55FFFFFF" />
-        <CornerRadius x:Key="AppGroupCornerRadius">16</CornerRadius>
+        <CornerRadius x:Key="AppGroupCornerRadius">10</CornerRadius>
         <CornerRadius x:Key="BandCornerRadius">0</CornerRadius>
         <system:Double x:Key="AppShadowOpacity">0.07</system:Double>
 

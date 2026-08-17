@@ -345,6 +345,144 @@ public sealed class SettingsServiceTests
         Assert.Empty(loaded.GameOverlayMonitorPositions!);
     }
 
+    [Fact]
+    public void TryPatch_ExpectedRevisionConflictLeavesConfirmedUnchanged()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        _ = service.Load();
+        long initialRevision = service.Revision;
+
+        Assert.True(service.TryPatch(
+            initialRevision,
+            settings => settings.BandVisible = false,
+            out SettingsSnapshot first));
+        Assert.Equal(initialRevision + 1, first.Revision);
+
+        Assert.False(service.TryPatch(
+            initialRevision,
+            settings => settings.BandVisible = true,
+            out SettingsSnapshot stale));
+        Assert.False(stale.Settings.BandVisible);
+        Assert.False(service.Confirmed.BandVisible);
+    }
+
+    [Fact]
+    public void SnapshotsAndRetainedPatchReferencesCannotMutateConfirmedState()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        AppSettings? retained = null;
+
+        Assert.True(service.TryPatch(settings =>
+        {
+            retained = settings;
+            settings.PanelTopmost = true;
+        }, out SettingsSnapshot snapshot));
+
+        retained!.PanelTopmost = false;
+        AppSettings returned = snapshot.Settings;
+        returned.PanelTopmost = false;
+
+        Assert.True(service.Confirmed.PanelTopmost);
+        Assert.True(service.Working.PanelTopmost);
+        Assert.True(service.Candidate.PanelTopmost);
+    }
+
+    [Fact]
+    public async Task ConcurrentPatchesAreSerializedWithoutLostFields()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        const int count = 24;
+
+        Task[] tasks = Enumerable.Range(0, count)
+            .Select(index => Task.Run(() =>
+            {
+                Assert.True(service.TryPatch(settings =>
+                {
+                    settings.PanelLeft = (settings.PanelLeft ?? 0) + 1;
+                    settings.PanelTop = (settings.PanelTop ?? 0) + 1;
+                }, out _));
+            }))
+            .ToArray();
+        await Task.WhenAll(tasks);
+
+        AppSettings confirmed = service.Confirmed;
+        Assert.Equal((double)count, confirmed.PanelLeft);
+        Assert.Equal((double)count, confirmed.PanelTop);
+    }
+
+    [Fact]
+    public async Task SeparateServiceInstancesSerializePatchesForSameSettingsPath()
+    {
+        using var directory = new TemporaryDirectory();
+        var first = new SettingsService(directory.Path);
+        var second = new SettingsService(directory.Path);
+        _ = first.Load();
+        _ = second.Load();
+
+        await Task.WhenAll(
+            Task.Run(() => Assert.True(first.TryPatch(
+                settings => settings.PanelTopmost = true,
+                out _))),
+            Task.Run(() => Assert.True(second.TryPatch(
+                settings => settings.UiCulture = "zh-CN",
+                out _))));
+
+        SettingsSnapshot snapshot = new SettingsService(directory.Path).GetSnapshot();
+        Assert.True(snapshot.Settings.PanelTopmost);
+        Assert.Equal("zh-CN", snapshot.Settings.UiCulture);
+        Assert.Equal(2, snapshot.Revision);
+    }
+
+    [Fact]
+    public void ReloadUpdatesConfirmedSettingsAndRevisionTogether()
+    {
+        using var directory = new TemporaryDirectory();
+        var first = new SettingsService(directory.Path);
+        var second = new SettingsService(directory.Path);
+        _ = first.Load();
+        Assert.True(second.TryPatch(settings => settings.PanelTopmost = true, out SettingsSnapshot committed));
+
+        AppSettings reloaded = first.Load();
+
+        Assert.True(reloaded.PanelTopmost);
+        Assert.Equal(committed.Revision, first.Revision);
+        Assert.Equal(committed.Revision, first.GetSnapshot().Revision);
+    }
+
+    [Fact]
+    public void FailedPatchDoesNotPolluteConfirmedState()
+    {
+        using var directory = new TemporaryDirectory();
+        Directory.CreateDirectory(directory.Path);
+        string occupiedPath = System.IO.Path.Combine(directory.Path, "occupied");
+        File.WriteAllText(occupiedPath, "not a directory");
+        var service = new SettingsService(occupiedPath);
+        Assert.False(service.Confirmed.PanelTopmost);
+
+        Assert.False(service.TryPatch(settings => settings.PanelTopmost = true, out _));
+
+        Assert.False(service.Confirmed.PanelTopmost);
+        Assert.False(service.Working.PanelTopmost);
+    }
+
+    [Fact]
+    public void CorruptMainFileRecoversFromBackup()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Assert.True(service.TrySave(new AppSettings { PanelTopmost = false }));
+        Assert.True(service.TrySave(new AppSettings { PanelTopmost = true }));
+        Assert.True(File.Exists(service.SettingsBackupPath));
+        File.WriteAllText(service.SettingsPath, "{ corrupt");
+
+        AppSettings recovered = new SettingsService(directory.Path).Load();
+
+        Assert.False(recovered.PanelTopmost);
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

@@ -54,20 +54,17 @@ public enum GameOverlayActivationSource
 
 public sealed class GameOverlayController : IAsyncDisposable
 {
-    private static readonly long MinimumUiIntervalTicks =
-        (long)(Stopwatch.Frequency * 0.25d);
-
     private readonly IGameOverlayFrameProvider _frameProvider;
     private readonly IMonitorService _monitorService;
     private readonly ForegroundTargetTracker _targetTracker;
     private readonly IGameOverlayView _view;
+    private readonly UiRefreshScheduler _uiRefreshScheduler;
     private readonly SemaphoreSlim _operations = new(1, 1);
     private readonly object _stateGate = new();
     private CancellationTokenSource? _targetCancellation;
     private bool _desiredVisible;
     private bool _disposed;
     private long _generation;
-    private long _lastUiUpdate;
 
     public GameOverlayController(
         IGameOverlayFrameProvider frameProvider,
@@ -82,6 +79,10 @@ public sealed class GameOverlayController : IAsyncDisposable
         _frameProvider.SnapshotUpdated += OnFrameUpdated;
         _monitorService.SnapshotUpdated += OnMonitorUpdated;
         _view.TargetInvalidated += OnTargetInvalidated;
+        _uiRefreshScheduler = new UiRefreshScheduler(
+            dispatch: RunOnUi,
+            isActive: () => DesiredVisible && _view.OverlayVisible,
+            callback: () => _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest));
     }
 
     public event EventHandler? StateChanged;
@@ -191,7 +192,6 @@ public sealed class GameOverlayController : IAsyncDisposable
                                 GameOverlayFrameStatus.WaitingForTarget,
                                 DateTimeOffset.UtcNow));
                         _view.ShowWithoutActivation();
-                        Interlocked.Exchange(ref _lastUiUpdate, Stopwatch.GetTimestamp());
                     }
                 });
                 target = await _targetTracker.WaitForTargetAsync(cancellationToken)
@@ -216,7 +216,6 @@ public sealed class GameOverlayController : IAsyncDisposable
                 _view.SetTarget(target);
                 _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
                 _view.ShowWithoutActivation();
-                Interlocked.Exchange(ref _lastUiUpdate, Stopwatch.GetTimestamp());
             });
             RaiseStateChanged();
         }
@@ -247,26 +246,10 @@ public sealed class GameOverlayController : IAsyncDisposable
 
     private void RequestUiUpdate()
     {
-        if (!DesiredVisible)
+        if (DesiredVisible)
         {
-            return;
+            _uiRefreshScheduler.Request();
         }
-
-        long now = Stopwatch.GetTimestamp();
-        long previous = Interlocked.Read(ref _lastUiUpdate);
-        if (now - previous < MinimumUiIntervalTicks ||
-            Interlocked.CompareExchange(ref _lastUiUpdate, now, previous) != previous)
-        {
-            return;
-        }
-
-        RunOnUi(() =>
-        {
-            if (DesiredVisible && _view.OverlayVisible)
-            {
-                _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
-            }
-        });
     }
 
     private void OnTargetInvalidated(object? sender, EventArgs e)
@@ -327,7 +310,6 @@ public sealed class GameOverlayController : IAsyncDisposable
                     _view.SetTarget(target);
                     _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
                     _view.ShowWithoutActivation();
-                    Interlocked.Exchange(ref _lastUiUpdate, Stopwatch.GetTimestamp());
                 }
             });
         }
@@ -371,6 +353,7 @@ public sealed class GameOverlayController : IAsyncDisposable
             _targetCancellation?.Cancel();
         }
 
+        _uiRefreshScheduler.Dispose();
         _frameProvider.SnapshotUpdated -= OnFrameUpdated;
         _monitorService.SnapshotUpdated -= OnMonitorUpdated;
         _view.TargetInvalidated -= OnTargetInvalidated;

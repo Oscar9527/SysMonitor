@@ -289,7 +289,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         try
         {
             using var connectionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            connectionTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+            connectionTimeout.CancelAfter(TimeSpan.FromSeconds(5));
             await pipe.WaitForConnectionAsync(connectionTimeout.Token).ConfigureAwait(false);
             BandDiagnostics.Log($"presentmon pipe connected targetPid={processId}");
             Task<string?> lineTask = reader.ReadLineAsync(cancellationToken);

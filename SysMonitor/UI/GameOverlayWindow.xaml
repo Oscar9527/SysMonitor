@@ -5,16 +5,17 @@
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         Background="Transparent" ShowActivated="False" ShowInTaskbar="False"
         Focusable="False" IsHitTestVisible="False">
-    <Border Margin="6,4" Padding="0" Background="Transparent">
+    <Border Margin="0" Padding="8,6" Background="#CC17181B" BorderBrush="#45474F"
+            BorderThickness="1" CornerRadius="8"
+            AutomationProperties.Name="SysMonitor performance overlay">
         <Grid x:Name="OverlayGrid" MinWidth="250">
             <Grid.Resources>
                 <Style TargetType="TextBlock">
-                    <Setter Property="FontFamily" Value="Consolas"/>
+                    <Setter Property="FontFamily" Value="Segoe UI, Segoe UI Variable Text"/>
                     <Setter Property="FontSize" Value="13"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                     <Setter Property="Margin" Value="0,0,8,1"/>
                     <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
-                    <Setter Property="Effect"><Setter.Value><DropShadowEffect BlurRadius="2" ShadowDepth="1" Opacity="0.95" Color="Black"/></Setter.Value></Setter>
                 </Style>
             </Grid.Resources>
             <Grid.RowDefinitions>
@@ -22,16 +23,16 @@
                 <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions><ColumnDefinition Width="72"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <TextBlock x:Name="GpuLabel" Grid.Row="0" Grid.Column="0" Text="GPU" Foreground="#66D9FF"/>
-            <TextBlock x:Name="GpuValue" Grid.Row="0" Grid.Column="1" Foreground="White"/>
-            <TextBlock x:Name="CpuLabel" Grid.Row="1" Grid.Column="0" Text="CPU" Foreground="#8BE9FD"/>
-            <TextBlock x:Name="CpuValue" Grid.Row="1" Grid.Column="1" Foreground="White"/>
-            <TextBlock x:Name="FpsLabel" Grid.Row="2" Grid.Column="0" Text="FPS" Foreground="#50FA7B"/>
-            <TextBlock x:Name="FpsValue" Grid.Row="2" Grid.Column="1" Foreground="White"/>
-            <TextBlock x:Name="MemoryLabel" Grid.Row="3" Grid.Column="0" Text="RAM" Foreground="#F1FA8C"/>
-            <TextBlock x:Name="MemoryValue" Grid.Row="3" Grid.Column="1" Foreground="White"/>
-            <TextBlock x:Name="NetworkLabel" Grid.Row="4" Grid.Column="0" Text="NET" Foreground="#FFB86C"/>
-            <TextBlock x:Name="NetworkValue" Grid.Row="4" Grid.Column="1" Foreground="White"/>
+            <TextBlock x:Name="GpuLabel" Grid.Row="0" Grid.Column="0" Text="GPU" Foreground="#7E57C2" AutomationProperties.Name="GPU"/>
+            <TextBlock x:Name="GpuValue" Grid.Row="0" Grid.Column="1" Foreground="#F5F5F7" AutomationProperties.Name="GPU value"/>
+            <TextBlock x:Name="CpuLabel" Grid.Row="1" Grid.Column="0" Text="CPU" Foreground="#1976D2" AutomationProperties.Name="CPU"/>
+            <TextBlock x:Name="CpuValue" Grid.Row="1" Grid.Column="1" Foreground="#F5F5F7" AutomationProperties.Name="CPU value"/>
+            <TextBlock x:Name="FpsLabel" Grid.Row="2" Grid.Column="0" Text="FPS" Foreground="#1B9A5A" AutomationProperties.Name="FPS"/>
+            <TextBlock x:Name="FpsValue" Grid.Row="2" Grid.Column="1" Foreground="#F5F5F7" AutomationProperties.Name="FPS value"/>
+            <TextBlock x:Name="MemoryLabel" Grid.Row="3" Grid.Column="0" Text="RAM" Foreground="#D97706" AutomationProperties.Name="Memory"/>
+            <TextBlock x:Name="MemoryValue" Grid.Row="3" Grid.Column="1" Foreground="#F5F5F7" AutomationProperties.Name="Memory value"/>
+            <TextBlock x:Name="NetworkLabel" Grid.Row="4" Grid.Column="0" Text="NET" Foreground="#0097A7" AutomationProperties.Name="Network"/>
+            <TextBlock x:Name="NetworkValue" Grid.Row="4" Grid.Column="1" Foreground="#F5F5F7" AutomationProperties.Name="Network value"/>
             
         </Grid>
     </Border>

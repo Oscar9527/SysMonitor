@@ -25,20 +25,20 @@ public sealed class ThemeResourceApplierTests
                 Assert.True(applier.Apply(catalog.ResolveOrDefault(ThemeCatalogService.DefaultThemeId)));
                 Assert.False(applier.Apply(catalog.ResolveOrDefault(ThemeCatalogService.DefaultThemeId)));
                 Assert.Equal(
-                    Color.FromRgb(0xF5, 0xF5, 0xF7),
+                    Color.FromRgb(0xF5, 0xF6, 0xF8),
                     Assert.IsType<SolidColorBrush>(application.Resources["AppBackgroundBrush"]).Color);
 
                 Assert.True(applier.Apply(catalog.ResolveOrDefault(ThemeCatalogService.MidnightThemeId)));
                 Assert.Equal(
-                    Color.FromRgb(0x11, 0x12, 0x14),
+                    Color.FromRgb(0x17, 0x18, 0x1B),
                     Assert.IsType<SolidColorBrush>(application.Resources["AppBackgroundBrush"]).Color);
 
                 Assert.True(applier.Apply(catalog.ResolveOrDefault(ThemeCatalogService.DefaultThemeId)));
                 Assert.Equal(
-                    Color.FromRgb(0xE9, 0xE9, 0xED),
+                    Color.FromRgb(0xF0, 0xF1, 0xF4),
                     Assert.IsType<SolidColorBrush>(application.Resources["MetricTrackBrush"]).Color);
                 Assert.Equal(
-                    new CornerRadius(16),
+                    new CornerRadius(10),
                     Assert.IsType<CornerRadius>(application.Resources["AppGroupCornerRadius"]));
                 application.Shutdown();
             }

@@ -38,16 +38,16 @@
         </StackPanel>
       </Border>
 
-      <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="描边"/>
-      <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="OutlineSlider" Minimum="0" Maximum="4" TickFrequency="0.5" ValueChanged="Changed"/><TextBlock x:Name="OutlineText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
-      <Button Grid.Row="4" Grid.Column="2" Content="描边色轮" Tag="Outline" Click="ColorWheel_Click"/>
+      <TextBlock Grid.Row="4" Visibility="Collapsed" VerticalAlignment="Center" Text="描边"/>
+      <Grid Grid.Row="4" Grid.Column="1" Visibility="Collapsed" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="OutlineSlider" Minimum="0" Maximum="4" TickFrequency="0.5" ValueChanged="Changed"/><TextBlock x:Name="OutlineText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
+      <Button Grid.Row="4" Grid.Column="2" Visibility="Collapsed" Content="描边色轮" Tag="Outline" Click="ColorWheel_Click"/>
 
-      <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="阴影"/>
-      <Grid Grid.Row="5" Grid.Column="1" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="ShadowOpacitySlider" Minimum="0" Maximum="1" TickFrequency="0.1" ValueChanged="Changed"/><TextBlock x:Name="ShadowOpacityText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
-      <Button Grid.Row="5" Grid.Column="2" Content="阴影色轮" Tag="Shadow" Click="ColorWheel_Click"/>
+      <TextBlock Grid.Row="5" Visibility="Collapsed" VerticalAlignment="Center" Text="阴影"/>
+      <Grid Grid.Row="5" Grid.Column="1" Visibility="Collapsed" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="ShadowOpacitySlider" Minimum="0" Maximum="1" TickFrequency="0.1" ValueChanged="Changed"/><TextBlock x:Name="ShadowOpacityText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
+      <Button Grid.Row="5" Grid.Column="2" Visibility="Collapsed" Content="阴影色轮" Tag="Shadow" Click="ColorWheel_Click"/>
 
-      <TextBlock Grid.Row="6" VerticalAlignment="Center" Text="阴影偏移"/>
-      <Grid Grid.Row="6" Grid.Column="1" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="ShadowDepthSlider" Minimum="0" Maximum="8" TickFrequency="1" ValueChanged="Changed"/><TextBlock x:Name="ShadowDepthText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
+      <TextBlock Grid.Row="6" Visibility="Collapsed" VerticalAlignment="Center" Text="阴影偏移"/>
+      <Grid Grid.Row="6" Grid.Column="1" Visibility="Collapsed" Margin="0,0,8,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="72"/></Grid.ColumnDefinitions><Slider x:Name="ShadowDepthSlider" Minimum="0" Maximum="8" TickFrequency="1" ValueChanged="Changed"/><TextBlock x:Name="ShadowDepthText" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
 
       <Border Grid.Row="7" Grid.ColumnSpan="3" Margin="0,10,0,14" Padding="14" Background="#22000000" CornerRadius="8">
         <StackPanel><TextBlock Text="实时预览" FontWeight="SemiBold" Margin="0,0,0,8"/><WrapPanel x:Name="PreviewPanel"><TextBlock x:Name="PreviewGpu" Text="GPU 42%  61°C" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewCpu" Text="CPU 18%  54°C" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewFps" Text="FPS 144" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewMemory" Text="RAM 48%  3200 MHz" Margin="0,0,12,2" FontWeight="SemiBold"/><TextBlock x:Name="PreviewNetwork" Text="NET ↓ 1.2M ↑ 90K" Margin="0,0,12,2" FontWeight="SemiBold"/></WrapPanel></StackPanel>

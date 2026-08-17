@@ -46,8 +46,14 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
             }
 
             await StopCoreAsync(publishDisabled: false).ConfigureAwait(false);
-            int generation = unchecked(++_generation);
-            _targetProcessId = processId;
+            int generation;
+            lock (_publishLock)
+            {
+                generation = unchecked(_generation + 1);
+                Volatile.Write(ref _generation, generation);
+                _targetProcessId = processId;
+                _fallbackEnabled = false;
+            }
             if (processId <= 0)
             {
                 Publish(new FrameRateSnapshot(
@@ -112,12 +118,12 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
 
     private async Task StopCoreAsync(bool publishDisabled)
     {
-        unchecked
+        lock (_publishLock)
         {
-            _generation++;
-        }
+            Volatile.Write(ref _generation, unchecked(_generation + 1));
 
-        _fallbackEnabled = false;
+            _fallbackEnabled = false;
+        }
         _cancellation?.Cancel();
         Task? worker = _worker;
         if (worker is not null)
@@ -135,7 +141,10 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
         _worker = null;
         _cancellation?.Dispose();
         _cancellation = null;
-        _targetProcessId = 0;
+        lock (_publishLock)
+        {
+            _targetProcessId = 0;
+        }
         if (publishDisabled)
         {
             Publish(FrameRateSnapshot.Disabled with { SampledAt = DateTimeOffset.UtcNow });
@@ -155,15 +164,23 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
             {
                 DateTimeOffset now = DateTimeOffset.UtcNow;
                 SharedMemoryValue result = _rtss.Read(processId);
-                if (result.Value is double fps)
+                if (IsValidFps(result.Value))
                 {
+                    double fps = result.Value!.Value;
                     recoverySamples++;
                     bool recoveryConfirmed = !fallbackStarted || recoverySamples >= 2;
                     if (recoveryConfirmed)
                     {
+                        if (fallbackStarted)
+                        {
+                            // Stop forwarding fallback samples before making
+                            // RTSS active so two sources can never interleave.
+                            SetFallbackEnabled(generation, enabled: false);
+                        }
+
                         rtssActive = true;
                         unavailableSince = null;
-                        PublishIfCurrent(generation, new FrameRateSnapshot(
+                        PublishRtssIfCurrent(generation, new FrameRateSnapshot(
                             fps,
                             FrameRateStatus.Active,
                             processId,
@@ -172,7 +189,6 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
                             FrameRateSource.RtssSharedMemory));
                         if (fallbackStarted)
                         {
-                            _fallbackEnabled = false;
                             await _fallback.StopAsync().ConfigureAwait(false);
                             fallbackStarted = false;
                         }
@@ -191,7 +207,7 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
                     rtssActive = false;
                     if (now - unavailableSince.Value >= FallbackDelay && !fallbackStarted)
                     {
-                        _fallbackEnabled = true;
+                        SetFallbackEnabled(generation, enabled: true);
                         fallbackStarted = true;
                         await _fallback.StartAsync(processId, cancellationToken).ConfigureAwait(false);
                     }
@@ -224,7 +240,7 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
         }
         finally
         {
-            _fallbackEnabled = false;
+            SetFallbackEnabled(generation, enabled: false);
             if (fallbackStarted)
             {
                 await _fallback.StopAsync().ConfigureAwait(false);
@@ -234,26 +250,76 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
 
     private void OnFallbackSnapshotUpdated(object? sender, FrameRateSnapshot snapshot)
     {
-        int generation = Volatile.Read(ref _generation);
-        if (!_fallbackEnabled || snapshot.TargetProcessId != _targetProcessId)
+        EventHandler<FrameRateSnapshot>? handlers;
+        FrameRateSnapshot fallbackSnapshot;
+        lock (_publishLock)
         {
-            return;
+            if (!_fallbackEnabled || snapshot.TargetProcessId != _targetProcessId ||
+                (snapshot.Status == FrameRateStatus.Active && !IsValidFps(snapshot.PresentFps)))
+            {
+                return;
+            }
+
+            fallbackSnapshot = snapshot with
+            {
+                Source = FrameRateSource.PresentMon,
+                Detail = string.IsNullOrWhiteSpace(snapshot.Detail)
+                    ? "PresentMon fallback"
+                    : $"PresentMon fallback: {snapshot.Detail}"
+            };
+            if (!TryUpdateLatestLocked(fallbackSnapshot, out handlers))
+            {
+                return;
+            }
         }
 
-        PublishIfCurrent(generation, snapshot with
-        {
-            Source = FrameRateSource.PresentMon,
-            Detail = string.IsNullOrWhiteSpace(snapshot.Detail)
-                ? "PresentMon fallback"
-                : $"PresentMon fallback: {snapshot.Detail}"
-        });
+        InvokeHandlers(handlers, fallbackSnapshot);
     }
 
     private void PublishIfCurrent(int generation, FrameRateSnapshot snapshot)
     {
-        if (Volatile.Read(ref _generation) == generation)
+        EventHandler<FrameRateSnapshot>? handlers;
+        lock (_publishLock)
         {
-            Publish(snapshot);
+            if (_generation != generation || !TryUpdateLatestLocked(snapshot, out handlers))
+            {
+                return;
+            }
+        }
+
+        InvokeHandlers(handlers, snapshot);
+    }
+
+    private void PublishRtssIfCurrent(int generation, FrameRateSnapshot snapshot)
+    {
+        EventHandler<FrameRateSnapshot>? handlers;
+        lock (_publishLock)
+        {
+            if (_generation != generation)
+            {
+                return;
+            }
+
+            // Source selection and publication share one critical section, so
+            // a fallback callback can never publish after this RTSS sample.
+            _fallbackEnabled = false;
+            if (!TryUpdateLatestLocked(snapshot, out handlers))
+            {
+                return;
+            }
+        }
+
+        InvokeHandlers(handlers, snapshot);
+    }
+
+    private void SetFallbackEnabled(int generation, bool enabled)
+    {
+        lock (_publishLock)
+        {
+            if (_generation == generation)
+            {
+                _fallbackEnabled = enabled;
+            }
         }
     }
 
@@ -262,20 +328,39 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
         EventHandler<FrameRateSnapshot>? handlers;
         lock (_publishLock)
         {
-            FrameRateSnapshot previous = Volatile.Read(ref _latest);
-            if (snapshot.Status == previous.Status &&
-                snapshot.TargetProcessId == previous.TargetProcessId &&
-                snapshot.Source == previous.Source &&
-                Nullable.Equals(snapshot.PresentFps, previous.PresentFps) &&
-                string.Equals(snapshot.Detail, previous.Detail, StringComparison.Ordinal))
+            if (!TryUpdateLatestLocked(snapshot, out handlers))
             {
                 return;
             }
-
-            Volatile.Write(ref _latest, snapshot);
-            handlers = SnapshotUpdated;
         }
 
+        InvokeHandlers(handlers, snapshot);
+    }
+
+    private bool TryUpdateLatestLocked(
+        FrameRateSnapshot snapshot,
+        out EventHandler<FrameRateSnapshot>? handlers)
+    {
+        FrameRateSnapshot previous = Volatile.Read(ref _latest);
+        if (snapshot.Status == previous.Status &&
+            snapshot.TargetProcessId == previous.TargetProcessId &&
+            snapshot.Source == previous.Source &&
+            Nullable.Equals(snapshot.PresentFps, previous.PresentFps) &&
+            string.Equals(snapshot.Detail, previous.Detail, StringComparison.Ordinal))
+        {
+            handlers = null;
+            return false;
+        }
+
+        Volatile.Write(ref _latest, snapshot);
+        handlers = SnapshotUpdated;
+        return true;
+    }
+
+    private void InvokeHandlers(
+        EventHandler<FrameRateSnapshot>? handlers,
+        FrameRateSnapshot snapshot)
+    {
         try
         {
             handlers?.Invoke(this, snapshot);
@@ -288,4 +373,7 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
                 TimeSpan.FromSeconds(30));
         }
     }
+
+    private static bool IsValidFps(double? value) =>
+        value is double fps && double.IsFinite(fps) && fps >= 0;
 }

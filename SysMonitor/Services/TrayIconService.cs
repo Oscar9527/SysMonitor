@@ -4,6 +4,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
 using SysMonitor.Models;
+using SysMonitor.UI;
 using Forms = System.Windows.Forms;
 
 namespace SysMonitor.Services;
@@ -115,7 +116,17 @@ public sealed class TrayIconService : IDisposable
         _exitItem = new Forms.ToolStripMenuItem();
         _exitItem.Click += OnExitItemClick;
 
-        _contextMenu = new Forms.ContextMenuStrip();
+        _contextMenu = new Forms.ContextMenuStrip
+        {
+            AutoSize = true,
+            MinimumSize = new Size(220, 0),
+            Font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
+            Padding = new Forms.Padding(4, 6, 4, 6),
+            ShowImageMargin = false,
+            Renderer = Forms.SystemInformation.HighContrast
+                ? new Forms.ToolStripSystemRenderer()
+                : new MacToolStripRenderer()
+        };
         _contextMenu.Items.AddRange(
         [
             _panelItem,
@@ -130,6 +141,8 @@ public sealed class TrayIconService : IDisposable
             new Forms.ToolStripSeparator(),
             _exitItem
         ]);
+        ConfigureMenuItems(_contextMenu.Items);
+        _contextMenu.Opening += OnContextMenuOpening;
 
         _notifyIcon = new Forms.NotifyIcon
         {
@@ -303,6 +316,7 @@ public sealed class TrayIconService : IDisposable
         _pinItem.CheckedChanged -= OnPinCheckedChanged;
         _startupItem.CheckedChanged -= OnStartupCheckedChanged;
         _exitItem.Click -= OnExitItemClick;
+        _contextMenu.Opening -= OnContextMenuOpening;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();
         _themedIcon?.Dispose();
@@ -373,8 +387,23 @@ public sealed class TrayIconService : IDisposable
 
     private void OnCultureChanged(object? sender, EventArgs e) => ApplyLocalizedText();
 
+    private void OnContextMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        _contextMenu.Renderer = Forms.SystemInformation.HighContrast
+            ? new Forms.ToolStripSystemRenderer()
+            : new MacToolStripRenderer();
+    }
+
     private void OnNotifyIconMouseUp(object? sender, Forms.MouseEventArgs e)
     {
+        if (e.Button == Forms.MouseButtons.Right)
+        {
+            // Respect a high-contrast switch made while the process is running.
+            _contextMenu.Renderer = Forms.SystemInformation.HighContrast
+                ? new Forms.ToolStripSystemRenderer()
+                : new MacToolStripRenderer();
+        }
+
         if (e.Button == Forms.MouseButtons.Left)
         {
             ToggleDetailsRequested?.Invoke(this, EventArgs.Empty);
@@ -476,6 +505,30 @@ public sealed class TrayIconService : IDisposable
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private static void ConfigureMenuItems(Forms.ToolStripItemCollection items)
+    {
+        foreach (Forms.ToolStripItem item in items)
+        {
+            if (item is Forms.ToolStripSeparator separator)
+            {
+                separator.AutoSize = false;
+                separator.Height = 8;
+                separator.Margin = new Forms.Padding(8, 3, 8, 3);
+                continue;
+            }
+
+            if (item is not Forms.ToolStripMenuItem menuItem)
+            {
+                continue;
+            }
+
+            menuItem.AutoSize = false;
+            menuItem.Height = 32;
+            menuItem.Padding = new Forms.Padding(10, 0, 10, 0);
+            ConfigureMenuItems(menuItem.DropDownItems);
+        }
+    }
 
     private Forms.ToolStripMenuItem CreateOverlayPositionItem(double position)
     {

@@ -161,23 +161,23 @@ public sealed class ThemeCatalogService
                 "Default",
                 "builtin-default-v1",
                 new ThemePalette(
-                    "#F5F5F7", "#FFFFFFFF", "#1D1D1F", "#6E6E73",
-                    "#8E8E93", "#E5E5EA", "#F0F0F3", "#007AFF"),
+                    "#F5F6F8", "#FFFFFFFF", "#1D1D1F", "#62666E",
+                    "#858A93", "#D9DCE2", "#F0F1F4", "#0A66E8"),
                 "#00000000",
                 null,
                 null,
-                16),
+                10),
             CreateBuiltIn(
                 MidnightThemeId,
                 "Midnight",
                 "builtin-midnight-v1",
                 new ThemePalette(
-                    "#111214", "#1C1D20", "#F5F5F7", "#B0B0B5",
-                    "#85858B", "#3A3B40", "#292A2E", "#0A84FF"),
-                "#CC111214",
+                    "#17181B", "#202125", "#F5F5F7", "#B8BBC2",
+                    "#8E939C", "#45474F", "#32343A", "#70B5FF"),
+                "#F017181B",
                 "#F5F5F7",
                 "#66FFFFFF",
-                14)
+                10)
         }.ToImmutableDictionary(theme => theme.Identity.Id, StringComparer.OrdinalIgnoreCase);
 
     private static ResolvedTheme CreateBuiltIn(
@@ -192,8 +192,8 @@ public sealed class ThemeCatalogService
     {
         var definition = new ThemeDefinition(
             colors,
-            new ThemeMetricPalette("#007AFF", "#AF52DE", "#34C759", "#FF9500", "#FF3B30"),
-            new ThemeShape(groupCornerRadius, 0.07),
+            new ThemeMetricPalette("#1976D2", "#D97706", "#7E57C2", "#D97706", "#C6262E"),
+            new ThemeShape(groupCornerRadius, 0),
             new ThemeBandStyle(bandBackground, 0, bandText, bandSeparator, null),
             null);
         return new ResolvedTheme(

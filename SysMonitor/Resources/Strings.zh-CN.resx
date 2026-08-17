@@ -111,10 +111,12 @@
   <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>顶部居中</value></data>
   <data name="TrayGameOverlayPositionRight" xml:space="preserve"><value>顶部右侧</value></data>
   <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层暂不可用</value></data>
-  <data name="TrayGameSafeMode" xml:space="preserve"><value>游戏安全模式（推荐）</value></data>
-  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>关闭 GPU 兼容传感器；CPU 温度由 SysMonitor 的 CPU 专用读取器独立采集。</value></data>
+  <data name="TrayGameSafeMode" xml:space="preserve"><value>安全保护（推荐）</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>默认使用非注入监控，并继续使用 CPU 专用温度读取器。</value></data>
+  <data name="TrayGameSafeModeDisableTitle" xml:space="preserve"><value>关闭安全保护？</value></data>
+  <data name="TrayGameSafeModeDisableMessage" xml:space="preserve"><value>关闭后，RTSS 兼容模式可使用 hook。某些游戏或反作弊系统可能将其视为不兼容。SysMonitor 不保证任何游戏或 ACE 的认证、兼容性或安全性。</value></data>
   <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>需要重启</value></data>
-  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用硬件传感器模式；游戏叠加层不受此设置影响。</value></data>
+  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用安全保护；推荐继续使用默认的非注入监控。</value></data>
   <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 已被其他应用注册。</value></data>
   <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>无法注册 Ctrl+Shift+F10（Win32 错误 {0}）。</value></data>
   <data name="HudSettingsTitle" xml:space="preserve"><value>HUD 设置</value></data>

@@ -19,10 +19,11 @@ public partial class GameOverlayAppearanceWindow : Window
     private GameOverlayAppearance _editing = new();
     private readonly IReadOnlyList<OverlaySkin> _skins =
     [
-        new("经典霓虹", new GameOverlayAppearance(GpuColor: "#FF66D9FF", CpuColor: "#FF8BE9FD", FpsColor: "#FF50FA7B", MemoryColor: "#FFF1FA8C", NetworkColor: "#FFFFB86C")),
-        new("冰川蓝", new GameOverlayAppearance(GpuColor: "#FF4CC9F0", CpuColor: "#FF90E0EF", FpsColor: "#FFB9FBC0", MemoryColor: "#FFA9DEF9", NetworkColor: "#FFCDB4DB")),
-        new("落日暖色", new GameOverlayAppearance(GpuColor: "#FFFF9F1C", CpuColor: "#FFFFD166", FpsColor: "#FF95D5B2", MemoryColor: "#FFFFADAD", NetworkColor: "#FFBDB2FF")),
-        new("简洁白", new GameOverlayAppearance(GpuColor: "#FFFFFFFF", CpuColor: "#FFFFFFFF", FpsColor: "#FFFFFFFF", MemoryColor: "#FFFFFFFF", NetworkColor: "#FFFFFFFF", OutlineThickness: 1.5d, ShadowOpacity: 0.9d))
+        new("macOS 深色", new GameOverlayAppearance()),
+        new("经典多彩", new GameOverlayAppearance(LabelColor: "#FF435265", ValueColor: "#FFF4F5F7", GpuColor: "#FF7E57C2", CpuColor: "#FF1976D2", FpsColor: "#FF1B9A5A", MemoryColor: "#FFD97706", NetworkColor: "#FF0097A7")),
+        new("冰川蓝", new GameOverlayAppearance(LabelColor: "#FFDDEAF4", GpuColor: "#FF4CC9F0", CpuColor: "#FF70B5FF", FpsColor: "#FF7BDCB5", MemoryColor: "#FFA9DEF9", NetworkColor: "#FF6FD3E1")),
+        new("暖阳琥珀", new GameOverlayAppearance(LabelColor: "#FFFFE6C7", GpuColor: "#FFFFA94D", CpuColor: "#FFFFD166", FpsColor: "#FF95D5B2", MemoryColor: "#FFFF8E72", NetworkColor: "#FFE4B1FF")),
+        new("低干扰", new GameOverlayAppearance(LabelColor: "#FFC8CBD0", GpuColor: "#FFF4F5F7", CpuColor: "#FFF4F5F7", FpsColor: "#FFF4F5F7", MemoryColor: "#FFF4F5F7", NetworkColor: "#FFF4F5F7"))
     ];
 
     public event Action<GameOverlayAppearance>? PreviewChanged;

@@ -71,7 +71,7 @@ public partial class GameOverlaySettingsWindow : Window
 {
     private readonly ObservableCollection<MetricItem> _items = [];
     private readonly ObservableCollection<LegacyFpsTargetView> _legacyTargets = [];
-    private readonly DispatcherTimer _previewDebounceTimer;
+    private readonly HudPreviewScheduler _previewScheduler;
     private bool _allowClose;
     private bool _loadingLegacy;
     private bool _loadedLegacyEnabled;
@@ -88,11 +88,10 @@ public partial class GameOverlaySettingsWindow : Window
         InitializeComponent();
         MetricList.ItemsSource = _items;
         LegacyTargetBox.ItemsSource = _legacyTargets;
-        _previewDebounceTimer = new DispatcherTimer(DispatcherPriority.Input)
-        {
-            Interval = TimeSpan.FromMilliseconds(45)
-        };
-        _previewDebounceTimer.Tick += PreviewDebounceTimer_Tick;
+        _previewScheduler = new HudPreviewScheduler(
+            Dispatcher,
+            RequestPreviewNow,
+            DispatcherPriority.Render);
         Closing += (_, e) =>
         {
             if (_allowClose)
@@ -105,7 +104,7 @@ public partial class GameOverlaySettingsWindow : Window
         };
         Closed += (_, _) =>
         {
-            _previewDebounceTimer.Stop();
+            _previewScheduler.Dispose();
             LocalizationService.Current.CultureChanged -= OnCultureChanged;
         };
         LocalizationService.Current.CultureChanged += OnCultureChanged;
@@ -131,7 +130,7 @@ public partial class GameOverlaySettingsWindow : Window
     /// </summary>
     public void BeginPreviewSession()
     {
-        _previewDebounceTimer.Stop();
+        _previewScheduler.Cancel();
         _sessionFinalized = false;
         _previewSessionActive = true;
         SetPreviewStatus(_coordinateContext is null ? L("HudPreviewNoMonitor") : string.Empty);
@@ -143,7 +142,7 @@ public partial class GameOverlaySettingsWindow : Window
     /// </summary>
     public void RebasePreviewSession()
     {
-        _previewDebounceTimer.Stop();
+        _previewScheduler.Cancel();
         _sessionFinalized = false;
         _previewSessionActive = true;
     }
@@ -433,12 +432,6 @@ public partial class GameOverlaySettingsWindow : Window
         RequestPreviewNow();
     }
 
-    private void PreviewDebounceTimer_Tick(object? sender, EventArgs e)
-    {
-        _previewDebounceTimer.Stop();
-        RequestPreviewNow();
-    }
-
     private void OnCultureChanged(object? sender, EventArgs e)
     {
         bool previous = _suppressPreview;
@@ -608,8 +601,7 @@ public partial class GameOverlaySettingsWindow : Window
             return;
         }
 
-        _previewDebounceTimer.Stop();
-        _previewDebounceTimer.Start();
+        _previewScheduler.Request();
     }
 
     private void RequestPreviewNow()
@@ -726,7 +718,7 @@ public partial class GameOverlaySettingsWindow : Window
             return;
         }
 
-        _previewDebounceTimer.Stop();
+        _previewScheduler.Cancel();
         try
         {
             PreviewSessionFinished?.Invoke(committed);

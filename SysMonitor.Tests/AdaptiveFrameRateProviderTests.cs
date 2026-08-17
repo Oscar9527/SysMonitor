@@ -26,6 +26,24 @@ public sealed class AdaptiveFrameRateProviderTests
     }
 
     [Fact]
+    public async Task ZeroFpsIsAValidRtssSample()
+    {
+        var rtss = new FakeRtssSource
+        {
+            Result = SharedMemoryValue.Present(0, "RTSS reports no presents")
+        };
+        await using var provider = new AdaptiveFrameRateProvider(rtss, new FakeFrameRateProvider());
+
+        await provider.StartAsync(456);
+        await WaitUntilAsync(
+            () => provider.Latest.Source == FrameRateSource.RtssSharedMemory,
+            TimeSpan.FromSeconds(2));
+
+        Assert.Equal(FrameRateStatus.Active, provider.Latest.Status);
+        Assert.Equal(0d, provider.Latest.PresentFps);
+    }
+
+    [Fact]
     public async Task FallsBackRecoversAndStartIsIdempotent()
     {
         var rtss = new FakeRtssSource();
@@ -44,6 +62,10 @@ public sealed class AdaptiveFrameRateProviderTests
             TimeSpan.FromSeconds(2));
         Assert.Equal(144.4, provider.Latest.PresentFps);
         Assert.True(fallback.StopCount >= 1);
+        fallback.Emit(88);
+        await Task.Delay(50);
+        Assert.Equal(FrameRateSource.RtssSharedMemory, provider.Latest.Source);
+        Assert.Equal(144.4, provider.Latest.PresentFps);
 
         await provider.StopAsync();
         await provider.StopAsync();
@@ -135,5 +157,17 @@ public sealed class AdaptiveFrameRateProviderTests
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        internal void Emit(double fps)
+        {
+            Latest = new FrameRateSnapshot(
+                fps,
+                FrameRateStatus.Active,
+                Latest.TargetProcessId,
+                DateTimeOffset.UtcNow,
+                null,
+                FrameRateSource.PresentMon);
+            SnapshotUpdated?.Invoke(this, Latest);
+        }
     }
 }
