@@ -158,7 +158,7 @@
   <data name="HudLayoutVertical" xml:space="preserve"><value>Vertical</value></data>
   <data name="HudLayoutVerticalDescription" xml:space="preserve"><value>Complete CPU, GPU, FPS, memory and network view</value></data>
   <data name="HudLayoutHorizontal" xml:space="preserve"><value>Horizontal</value></data>
-  <data name="HudLayoutHorizontalDescription" xml:space="preserve"><value>Compact CPU, GPU and FPS view</value></data>
+  <data name="HudLayoutHorizontalDescription" xml:space="preserve"><value>Arrange every selected metric in one row, including memory and network</value></data>
   <data name="HudAdvancedTitle" xml:space="preserve"><value>Advanced settings (optional)</value></data>
   <data name="HudPositionTitle" xml:space="preserve"><value>HUD position</value></data>
   <data name="HudPositionHelp" xml:space="preserve"><value>Drag the sliders to preview the position instantly. Select Save to keep it; the number boxes provide one-pixel adjustment.</value></data>

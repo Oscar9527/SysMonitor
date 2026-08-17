@@ -586,16 +586,15 @@ public sealed class SettingsService
         NormalizeColor(value.LabelColor, "#FF66D9FF"),
         NormalizeColor(value.ValueColor, "#FFFFFFFF"),
         NormalizeColor(value.OutlineColor, "#FF000000"),
-        double.IsFinite(value.OutlineThickness) ? Math.Clamp(value.OutlineThickness, 0, 4) : 1d,
+        double.IsFinite(value.OutlineThickness) ? Math.Clamp(value.OutlineThickness, 0.5d, 4) : 1.5d,
         NormalizeColor(value.ShadowColor, "#CC000000"),
-        double.IsFinite(value.ShadowOpacity) ? Math.Clamp(value.ShadowOpacity, 0, 1) : 0.85d,
+        double.IsFinite(value.ShadowOpacity) ? Math.Clamp(value.ShadowOpacity, 0.35d, 1) : 0.85d,
         double.IsFinite(value.ShadowDepth) ? Math.Clamp(value.ShadowDepth, 0, 8) : 1d,
         NormalizeColor(value.GpuColor, "#FF66D9FF"),
         NormalizeColor(value.CpuColor, "#FF8BE9FD"),
         NormalizeColor(value.FpsColor, "#FF50FA7B"),
         NormalizeColor(value.MemoryColor, "#FFF1FA8C"),
-        NormalizeColor(value.NetworkColor, "#FFFFB86C"),
-        double.IsFinite(value.BackgroundOpacity) ? Math.Clamp(value.BackgroundOpacity, 0, 1) : 0.8d);
+        NormalizeColor(value.NetworkColor, "#FFFFB86C"));
 
     internal static List<GameOverlayMonitorPositionSettings> NormalizeOverlayMonitorPositions(
         IEnumerable<GameOverlayMonitorPositionSettings>? positions)

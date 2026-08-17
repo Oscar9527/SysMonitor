@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using SysMonitor.Models;
 using SysMonitor.Services;
@@ -310,21 +311,20 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             ConfigureVerticalGrid();
         }
 
-        bool horizontal = _layoutMode == "horizontal";
-        CpuLabel.Visibility = CpuValue.Visibility = horizontal || _metrics.Cpu
+        CpuLabel.Visibility = CpuValue.Visibility = _metrics.Cpu
             ? Visibility.Visible
             : Visibility.Collapsed;
-        GpuLabel.Visibility = GpuValue.Visibility = horizontal || _metrics.Gpu
+        GpuLabel.Visibility = GpuValue.Visibility = _metrics.Gpu
             ? Visibility.Visible
             : Visibility.Collapsed;
         FpsLabel.Visibility = FpsValue.Visibility = _lastFrameRateVisible == true &&
-            (horizontal || _metrics.FrameRate)
+            _metrics.FrameRate
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-        MemoryLabel.Visibility = MemoryValue.Visibility = !horizontal && _metrics.Memory
+        MemoryLabel.Visibility = MemoryValue.Visibility = _metrics.Memory
             ? Visibility.Visible
             : Visibility.Collapsed;
-        NetworkLabel.Visibility = NetworkValue.Visibility = !horizontal && _metrics.Network
+        NetworkLabel.Visibility = NetworkValue.Visibility = _metrics.Network
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
@@ -366,13 +366,23 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         OverlayGrid.RowDefinitions.Clear();
         OverlayGrid.ColumnDefinitions.Clear();
         OverlayGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        for (int index = 0; index < 6; index++) OverlayGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        (TextBlock label, TextBlock value)[] items =
-        [
-            (CpuLabel, CpuValue),
-            (GpuLabel, GpuValue),
-            (FpsLabel, FpsValue)
-        ];
+        string[] visibleOrder = BuildVisibleMetricOrder(
+            _metrics,
+            _lastFrameRateVisible == true).ToArray();
+        for (int index = 0; index < Math.Max(1, visibleOrder.Length * 2); index++)
+        {
+            OverlayGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        }
+
+        (TextBlock label, TextBlock value)[] items = visibleOrder.Select(id => id switch
+        {
+            "cpu" => (CpuLabel, CpuValue),
+            "gpu" => (GpuLabel, GpuValue),
+            "fps" => (FpsLabel, FpsValue),
+            "memory" => (MemoryLabel, MemoryValue),
+            "network" => (NetworkLabel, NetworkValue),
+            _ => (CpuLabel, CpuValue)
+        }).ToArray();
         for (int index = 0; index < items.Length; index++)
         {
             (TextBlock label, TextBlock value) = items[index];
@@ -385,16 +395,31 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             label.HorizontalAlignment = value.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
         }
 
-        Grid.SetRow(MemoryLabel, 0);
-        Grid.SetRow(MemoryValue, 0);
-        Grid.SetRow(NetworkLabel, 0);
-        Grid.SetRow(NetworkValue, 0);
+    }
+
+    internal static IReadOnlyList<string> BuildVisibleMetricOrder(
+        GameOverlayMetricVisibility metrics,
+        bool frameRateVisible)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        var enabled = new Dictionary<string, bool>(StringComparer.Ordinal)
+        {
+            ["cpu"] = metrics.Cpu,
+            ["gpu"] = metrics.Gpu,
+            ["fps"] = metrics.FrameRate && frameRateVisible,
+            ["memory"] = metrics.Memory,
+            ["network"] = metrics.Network
+        };
+        return GameOverlayMetricOrder.Normalize(metrics.Order)
+            .Where(id => enabled.TryGetValue(id, out bool show) && show)
+            .ToArray();
     }
 
     public void SetAppearance(GameOverlayAppearance appearance)
     {
         _appearance = SettingsService.NormalizeOverlayAppearance(appearance ?? new GameOverlayAppearance());
-        OverlaySurface.Background = CreateBackgroundBrush(_appearance.BackgroundOpacity);
+        OverlaySurface.Background = System.Windows.Media.Brushes.Transparent;
+        OverlaySurface.BorderBrush = System.Windows.Media.Brushes.Transparent;
         MediaFontFamily family;
         try { family = new MediaFontFamily(_appearance.FontFamily); }
         catch (ArgumentException) { family = new MediaFontFamily("Consolas"); }
@@ -404,14 +429,12 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         SolidColorBrush fpsBrush = CreateBrush(_appearance.FpsColor, Colors.LightGreen);
         SolidColorBrush memoryBrush = CreateBrush(_appearance.MemoryColor, Colors.Khaki);
         SolidColorBrush networkBrush = CreateBrush(_appearance.NetworkColor, Colors.Orange);
+        DropShadowEffect textEffect = CreateTextEffect(_appearance);
+        OverlayGrid.Effect = textEffect;
         foreach (TextBlock text in new[] { GpuLabel, GpuValue, CpuLabel, CpuValue, FpsLabel, FpsValue, MemoryLabel, MemoryValue, NetworkLabel, NetworkValue })
         {
             text.FontFamily = family;
             text.FontSize = _appearance.FontSize;
-            // Text effects allocate a render target/blur shader on every
-            // appearance refresh and are particularly expensive while a HUD
-            // is being previewed.  Solid text remains readable over games and
-            // avoids a per-refresh GPU effect allocation.
             text.Effect = null;
         }
         GpuLabel.Foreground = GpuValue.Foreground = gpuBrush;
@@ -426,7 +449,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     {
         ArgumentNullException.ThrowIfNull(monitor);
         bool horizontal = _layoutMode == "horizontal";
-        bool showFrameRate = ShouldShowFrameRate(frame, horizontal || _metrics.FrameRate);
+        bool showFrameRate = ShouldShowFrameRate(frame, _metrics.FrameRate);
         string fps = showFrameRate && frame.FramesPerSecond is double fpsValue
             ? fpsValue.ToString("0", LocalizationService.Current.ActiveCulture)
             : "--";
@@ -435,17 +458,18 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         string gpu = FormatPercent(monitor.Gpu?.UsagePercent);
         string gpuTemperature = FormatTemperature(monitor.Gpu?.TemperatureCelsius);
 
-        SetRow(GpuLabel, GpuValue, horizontal || _metrics.Gpu,
+        SetRow(GpuLabel, GpuValue, _metrics.Gpu,
             horizontal ? BuildHorizontalMetricValue(gpu, gpuTemperature) : BuildGpuValue(monitor, gpu, gpuTemperature));
-        SetRow(CpuLabel, CpuValue, horizontal || _metrics.Cpu,
+        SetRow(CpuLabel, CpuValue, _metrics.Cpu,
             horizontal ? BuildHorizontalMetricValue(cpu, cpuTemperature) : BuildCpuValue(monitor, cpu, cpuTemperature));
         SetRow(FpsLabel, FpsValue, showFrameRate, fps);
-        SetRow(MemoryLabel, MemoryValue, !horizontal && _metrics.Memory, BuildMemoryValue(monitor, FormatPercent(monitor.MemoryUsagePercent)));
-        SetRow(NetworkLabel, NetworkValue, !horizontal && _metrics.Network,
+        SetRow(MemoryLabel, MemoryValue, _metrics.Memory, BuildMemoryValue(monitor, FormatPercent(monitor.MemoryUsagePercent)));
+        SetRow(NetworkLabel, NetworkValue, _metrics.Network,
             $"\u2193 {FormatRate(monitor.DownloadBytesPerSecond)}  \u2191 {FormatRate(monitor.UploadBytesPerSecond)}");
         if (_lastFrameRateVisible != showFrameRate)
         {
             _lastFrameRateVisible = showFrameRate;
+            ConfigureGridLayout();
             SchedulePosition();
         }
     }
@@ -589,15 +613,19 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static string FormatRate(double value) => value switch { <= 0 => "0", < 1024 * 1024 => $"{value / 1024d:0.#}K", _ => $"{value / 1024d / 1024d:0.#}M" };
 
     private static SolidColorBrush CreateBrush(string value, MediaColor fallback) => new(ParseColor(value, fallback));
-    private static SolidColorBrush CreateBackgroundBrush(double opacity)
+    private static DropShadowEffect CreateTextEffect(GameOverlayAppearance appearance)
     {
-        var brush = new SolidColorBrush(MediaColor.FromArgb(
-            OverlayBackgroundOpacity.ToAlpha(opacity),
-            0x17,
-            0x18,
-            0x1B));
-        brush.Freeze();
-        return brush;
+        var effect = new DropShadowEffect
+        {
+            Color = ParseColor(appearance.OutlineColor, Colors.Black),
+            BlurRadius = 1d + (appearance.OutlineThickness * 2d),
+            ShadowDepth = appearance.ShadowDepth,
+            Direction = 315d,
+            Opacity = appearance.ShadowOpacity,
+            RenderingBias = RenderingBias.Performance
+        };
+        effect.Freeze();
+        return effect;
     }
     private static MediaColor ParseColor(string value, MediaColor fallback)
     {

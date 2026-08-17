@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using SysMonitor.Models;
 using SysMonitor.Services;
 using Forms = System.Windows.Forms;
@@ -50,7 +51,6 @@ public partial class GameOverlayAppearanceWindow : Window
             FontBox.SelectedItem = FontBox.Items.Cast<MediaFontFamily>().FirstOrDefault(font => string.Equals(font.Source, _editing.FontFamily, StringComparison.OrdinalIgnoreCase)) ?? FontBox.Items.Cast<MediaFontFamily>().FirstOrDefault();
             FontSizeSlider.Value = _editing.FontSize; OutlineSlider.Value = _editing.OutlineThickness;
             ShadowOpacitySlider.Value = _editing.ShadowOpacity; ShadowDepthSlider.Value = _editing.ShadowDepth;
-            BackgroundOpacitySlider.Value = _editing.BackgroundOpacity;
             SkinBox.SelectedIndex = -1;
         }
         finally { _loading = false; }
@@ -61,8 +61,7 @@ public partial class GameOverlayAppearanceWindow : Window
     {
         FontFamily = (FontBox.SelectedItem as MediaFontFamily)?.Source ?? "Consolas",
         FontSize = FontSizeSlider.Value, OutlineThickness = OutlineSlider.Value,
-        ShadowOpacity = ShadowOpacitySlider.Value, ShadowDepth = ShadowDepthSlider.Value,
-        BackgroundOpacity = BackgroundOpacitySlider.Value
+        ShadowOpacity = ShadowOpacitySlider.Value, ShadowDepth = ShadowDepthSlider.Value
     });
 
     private void Changed(object sender, RoutedEventArgs e)
@@ -79,14 +78,12 @@ public partial class GameOverlayAppearanceWindow : Window
         GameOverlayAppearance selected = skin.Appearance;
         _editing = SettingsService.NormalizeOverlayAppearance(selected with
         {
-            FontFamily = _editing.FontFamily, FontSize = _editing.FontSize,
-            BackgroundOpacity = _editing.BackgroundOpacity
+            FontFamily = _editing.FontFamily, FontSize = _editing.FontSize
         });
         _loading = true;
         try
         {
             OutlineSlider.Value = _editing.OutlineThickness; ShadowOpacitySlider.Value = _editing.ShadowOpacity; ShadowDepthSlider.Value = _editing.ShadowDepth;
-            BackgroundOpacitySlider.Value = _editing.BackgroundOpacity;
         }
         finally { _loading = false; }
         UpdateVisuals();
@@ -100,7 +97,7 @@ public partial class GameOverlayAppearanceWindow : Window
         {
             "Gpu" => _editing.GpuColor, "Cpu" => _editing.CpuColor, "Fps" => _editing.FpsColor,
             "Memory" => _editing.MemoryColor, "Network" => _editing.NetworkColor,
-            "Outline" => _editing.OutlineColor, "Shadow" => _editing.ShadowColor, _ => "#FFFFFFFF"
+            "Outline" or "Shadow" => _editing.OutlineColor, _ => "#FFFFFFFF"
         };
         using var dialog = new Forms.ColorDialog { FullOpen = true, Color = ToDrawingColor(current) };
         if (dialog.ShowDialog() != Forms.DialogResult.OK) return;
@@ -109,8 +106,8 @@ public partial class GameOverlayAppearanceWindow : Window
         {
             "Gpu" => _editing with { GpuColor = hex }, "Cpu" => _editing with { CpuColor = hex },
             "Fps" => _editing with { FpsColor = hex }, "Memory" => _editing with { MemoryColor = hex },
-            "Network" => _editing with { NetworkColor = hex }, "Outline" => _editing with { OutlineColor = hex },
-            "Shadow" => _editing with { ShadowColor = hex }, _ => _editing
+            "Network" => _editing with { NetworkColor = hex },
+            "Outline" or "Shadow" => _editing with { OutlineColor = hex, ShadowColor = hex }, _ => _editing
         };
         _editing = SettingsService.NormalizeOverlayAppearance(_editing);
         UpdateVisuals();
@@ -121,23 +118,31 @@ public partial class GameOverlayAppearanceWindow : Window
     {
         FontSizeText.Text = $"{FontSizeSlider.Value:0}px"; OutlineText.Text = $"{OutlineSlider.Value:0.0}";
         ShadowOpacityText.Text = $"{ShadowOpacitySlider.Value:0%}"; ShadowDepthText.Text = $"{ShadowDepthSlider.Value:0.0}";
-        BackgroundOpacityText.Text = $"{BackgroundOpacitySlider.Value:0%}";
-        PreviewSurface.Background = BackgroundBrush(_editing.BackgroundOpacity);
+        PreviewSurface.Background = System.Windows.Media.Brushes.Transparent;
         ApplyColor(GpuColorButton, GpuColorText, _editing.GpuColor); ApplyColor(CpuColorButton, CpuColorText, _editing.CpuColor);
         ApplyColor(FpsColorButton, FpsColorText, _editing.FpsColor); ApplyColor(MemoryColorButton, MemoryColorText, _editing.MemoryColor); ApplyColor(NetworkColorButton, NetworkColorText, _editing.NetworkColor);
         MediaFontFamily family = FontBox.SelectedItem as MediaFontFamily ?? new MediaFontFamily("Consolas");
-        foreach (TextBlock preview in new[] { PreviewGpu, PreviewCpu, PreviewFps, PreviewMemory, PreviewNetwork }) { preview.FontFamily = family; preview.FontSize = FontSizeSlider.Value; }
+        DropShadowEffect effect = CreateTextEffect(_editing);
+        PreviewPanel.Effect = effect;
+        foreach (TextBlock preview in new[] { PreviewGpu, PreviewCpu, PreviewFps, PreviewMemory, PreviewNetwork }) { preview.FontFamily = family; preview.FontSize = FontSizeSlider.Value; preview.Effect = null; }
         PreviewGpu.Foreground = BrushFor(_editing.GpuColor); PreviewCpu.Foreground = BrushFor(_editing.CpuColor); PreviewFps.Foreground = BrushFor(_editing.FpsColor); PreviewMemory.Foreground = BrushFor(_editing.MemoryColor); PreviewNetwork.Foreground = BrushFor(_editing.NetworkColor);
     }
 
     private static void ApplyColor(WpfButton button, TextBlock text, string hex) { button.Background = BrushFor(hex); text.Text = hex[1..]; }
     private static SolidColorBrush BrushFor(string hex) { var brush = new SolidColorBrush((MediaColor)MediaColorConverter.ConvertFromString(hex)!); brush.Freeze(); return brush; }
-    private static SolidColorBrush BackgroundBrush(double opacity)
+    private static DropShadowEffect CreateTextEffect(GameOverlayAppearance appearance)
     {
-        byte alpha = OverlayBackgroundOpacity.ToAlpha(opacity);
-        var brush = new SolidColorBrush(MediaColor.FromArgb(alpha, 0x17, 0x18, 0x1B));
-        brush.Freeze();
-        return brush;
+        var effect = new DropShadowEffect
+        {
+            Color = (MediaColor)MediaColorConverter.ConvertFromString(appearance.OutlineColor)!,
+            BlurRadius = 1d + (appearance.OutlineThickness * 2d),
+            ShadowDepth = appearance.ShadowDepth,
+            Direction = 315d,
+            Opacity = appearance.ShadowOpacity,
+            RenderingBias = RenderingBias.Performance
+        };
+        effect.Freeze();
+        return effect;
     }
     private static DrawingColor ToDrawingColor(string hex) { MediaColor color = (MediaColor)MediaColorConverter.ConvertFromString(hex)!; return DrawingColor.FromArgb(color.A, color.R, color.G, color.B); }
     private void Apply_Click(object sender, RoutedEventArgs e) { _applied = Read(); Applied?.Invoke(_applied); Hide(); }

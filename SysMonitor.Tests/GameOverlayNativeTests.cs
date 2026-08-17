@@ -337,4 +337,41 @@ public sealed class GameOverlayNativeTests
 
         Assert.Equal("RAM 48%  3200 MHz", text);
     }
+
+    [Fact]
+    public void HorizontalLayoutIncludesEveryEnabledMetricIncludingMemory()
+    {
+        var metrics = new GameOverlayMetricVisibility(
+            FrameRate: true,
+            Cpu: true,
+            Gpu: false,
+            Memory: true,
+            Network: true)
+        {
+            Order = ["memory", "cpu", "fps", "network", "gpu"]
+        };
+
+        IReadOnlyList<string> visible = GameOverlayWindow.BuildVisibleMetricOrder(
+            metrics,
+            frameRateVisible: true);
+
+        Assert.Equal(["memory", "cpu", "fps", "network"], visible);
+    }
+
+    [Fact]
+    public void HorizontalLayoutRemovesOnlyUnavailableFrameRate()
+    {
+        var metrics = new GameOverlayMetricVisibility(
+            FrameRate: true,
+            Cpu: false,
+            Gpu: false,
+            Memory: true,
+            Network: false);
+
+        IReadOnlyList<string> visible = GameOverlayWindow.BuildVisibleMetricOrder(
+            metrics,
+            frameRateVisible: false);
+
+        Assert.Equal(["memory"], visible);
+    }
 }

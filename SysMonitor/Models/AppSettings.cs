@@ -133,16 +133,15 @@ public sealed class GameOverlayAppearanceSettings
     public string LabelColor { get; set; } = "#FFC2C7D0";
     public string ValueColor { get; set; } = "#FFF4F5F7";
     public string OutlineColor { get; set; } = "#FF000000";
-    public double OutlineThickness { get; set; } = 0d;
+    public double OutlineThickness { get; set; } = 1.5d;
     public string ShadowColor { get; set; } = "#CC000000";
-    public double ShadowOpacity { get; set; } = 0d;
-    public double ShadowDepth { get; set; } = 0d;
+    public double ShadowOpacity { get; set; } = 0.85d;
+    public double ShadowDepth { get; set; } = 1d;
     public string GpuColor { get; set; } = "#FF7E57C2";
     public string CpuColor { get; set; } = "#FF1976D2";
     public string FpsColor { get; set; } = "#FF1B9A5A";
     public string MemoryColor { get; set; } = "#FFD97706";
     public string NetworkColor { get; set; } = "#FF0097A7";
-    public double BackgroundOpacity { get; set; } = 0.8d;
 
     public GameOverlayAppearance ToEffective() => new(
         FontFamily,
@@ -158,8 +157,7 @@ public sealed class GameOverlayAppearanceSettings
         CpuColor,
         FpsColor,
         MemoryColor,
-        NetworkColor,
-        BackgroundOpacity);
+        NetworkColor);
 
     public static GameOverlayAppearanceSettings FromEffective(GameOverlayAppearance value) => new()
     {
@@ -176,8 +174,7 @@ public sealed class GameOverlayAppearanceSettings
         CpuColor = value.CpuColor,
         FpsColor = value.FpsColor,
         MemoryColor = value.MemoryColor,
-        NetworkColor = value.NetworkColor,
-        BackgroundOpacity = value.BackgroundOpacity
+        NetworkColor = value.NetworkColor
     };
 }
 
@@ -187,16 +184,15 @@ public sealed record GameOverlayAppearance(
     string LabelColor = "#FFC2C7D0",
     string ValueColor = "#FFF4F5F7",
     string OutlineColor = "#FF000000",
-    double OutlineThickness = 0d,
+    double OutlineThickness = 1.5d,
     string ShadowColor = "#CC000000",
-    double ShadowOpacity = 0d,
-    double ShadowDepth = 0d,
+    double ShadowOpacity = 0.85d,
+    double ShadowDepth = 1d,
     string GpuColor = "#FF7E57C2",
     string CpuColor = "#FF1976D2",
     string FpsColor = "#FF1B9A5A",
     string MemoryColor = "#FFD97706",
-    string NetworkColor = "#FF0097A7",
-    double BackgroundOpacity = 0.8d);
+    string NetworkColor = "#FF0097A7");
 
 public sealed class BandMetricVisibilitySettings
 {

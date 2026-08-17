@@ -1,5 +1,13 @@
 # SysMonitor 1.5.0 validation
 
+## v1.5.0 beta.10 transparent text HUD pass
+
+- Removed the HUD's black rounded surface from both the real overlay and appearance preview. The overlay root has a transparent background, transparent border, zero border thickness and zero padding.
+- Readability now comes from per-metric text colors plus one performance-biased text-layer shadow/outline effect. Outline strength, outline color, shadow opacity and shadow offset are live-previewed and persisted.
+- Horizontal layout now honors every enabled metric and the saved order. Memory and network are no longer hard-coded as vertical-only; missing FPS removes only the FPS item.
+- Deterministic WPF tests assert alpha-zero HUD background, zero border, active configured text effect, and horizontal memory visibility with CPU/GPU disabled.
+- Full automated result: 322 passed, 0 failed, 0 skipped. Portable single-file size: 8,990,208 bytes. SHA-256: `D190C9AB2153B99609D067DB631F10EE3B463A7B3214D4E6F52B3E82CC2954ED`.
+
 ## v1.5.0 beta.9 menu, opacity and window-follow pass
 
 - Tray root and nested menus use localized preferred sizing, a dedicated shortcut column, DPI-scaled item height, and monitor-work-area width/height caps with overflow scrolling.

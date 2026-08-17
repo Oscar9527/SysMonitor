@@ -5,8 +5,8 @@
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         Background="Transparent" ShowActivated="False" ShowInTaskbar="False"
         Focusable="False" IsHitTestVisible="False">
-    <Border x:Name="OverlaySurface" Margin="0" Padding="8,6" Background="#CC17181B" BorderBrush="#45474F"
-            BorderThickness="1" CornerRadius="8"
+    <Border x:Name="OverlaySurface" Margin="0" Padding="0" Background="Transparent" BorderBrush="Transparent"
+            BorderThickness="0" CornerRadius="0"
             AutomationProperties.Name="SysMonitor performance overlay">
         <Grid x:Name="OverlayGrid" MinWidth="250">
             <Grid.Resources>
