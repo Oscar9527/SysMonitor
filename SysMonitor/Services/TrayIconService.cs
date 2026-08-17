@@ -97,7 +97,6 @@ public sealed class TrayIconService : IDisposable
             _gameOverlayPositionItem,
             _gameOverlayPresetItem,
             _gameOverlayMetricsItem,
-            _gameOverlayConfigurationItem,
             _gameOverlayAppearanceItem
         ]);
 
@@ -121,6 +120,7 @@ public sealed class TrayIconService : IDisposable
         [
             _panelItem,
             _gameOverlayItem,
+            _gameOverlayConfigurationItem,
             _gameOverlaySettingsItem,
             _appearanceItem,
             new Forms.ToolStripSeparator(),
@@ -324,9 +324,9 @@ public sealed class TrayIconService : IDisposable
         _gameOverlayPositionItem.Text = localization.GetString("TrayGameOverlayPosition");
         _gameOverlayPresetItem.Text = localization.GetString("TrayGameOverlayPreset");
         _gameOverlayMetricsItem.Text = localization.GetString("TrayGameOverlayMetrics");
-        _gameOverlayAppearanceItem.Text = "HUD 外观…";
-        _gameOverlayConfigurationItem.Text = "项目与采样…";
-        _gameOverlaySettingsItem.Text = "HUD 设置";
+        _gameOverlayAppearanceItem.Text = localization.GetString("TrayGameOverlayAppearance");
+        _gameOverlayConfigurationItem.Text = localization.GetString("TrayGameOverlayQuickSettings");
+        _gameOverlaySettingsItem.Text = localization.GetString("TrayGameOverlayAdvanced");
         _gameOverlayFpsMetricItem.Text = localization.GetString("TrayGameOverlayMetricFps");
         _gameOverlayCpuMetricItem.Text = localization.GetString("TrayGameOverlayMetricCpu");
         _gameOverlayGpuMetricItem.Text = localization.GetString("TrayGameOverlayMetricGpu");

@@ -103,6 +103,9 @@
   <data name="TrayGameOverlayMetricGpu" xml:space="preserve"><value>GPU</value></data>
   <data name="TrayGameOverlayMetricMemory" xml:space="preserve"><value>Memory</value></data>
   <data name="TrayGameOverlayMetricNetwork" xml:space="preserve"><value>Network</value></data>
+  <data name="TrayGameOverlayQuickSettings" xml:space="preserve"><value>HUD layout &amp; position…</value></data>
+  <data name="TrayGameOverlayAdvanced" xml:space="preserve"><value>Advanced HUD options</value></data>
+  <data name="TrayGameOverlayAppearance" xml:space="preserve"><value>HUD appearance…</value></data>
   <data name="TrayGameOverlayTarget" xml:space="preserve"><value>Select monitored program…</value></data>
   <data name="TrayGameOverlayPositionLeft" xml:space="preserve"><value>Top left</value></data>
   <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>Top center</value></data>
