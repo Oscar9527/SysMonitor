@@ -50,6 +50,7 @@ public partial class GameOverlayAppearanceWindow : Window
             FontBox.SelectedItem = FontBox.Items.Cast<MediaFontFamily>().FirstOrDefault(font => string.Equals(font.Source, _editing.FontFamily, StringComparison.OrdinalIgnoreCase)) ?? FontBox.Items.Cast<MediaFontFamily>().FirstOrDefault();
             FontSizeSlider.Value = _editing.FontSize; OutlineSlider.Value = _editing.OutlineThickness;
             ShadowOpacitySlider.Value = _editing.ShadowOpacity; ShadowDepthSlider.Value = _editing.ShadowDepth;
+            BackgroundOpacitySlider.Value = _editing.BackgroundOpacity;
             SkinBox.SelectedIndex = -1;
         }
         finally { _loading = false; }
@@ -60,7 +61,8 @@ public partial class GameOverlayAppearanceWindow : Window
     {
         FontFamily = (FontBox.SelectedItem as MediaFontFamily)?.Source ?? "Consolas",
         FontSize = FontSizeSlider.Value, OutlineThickness = OutlineSlider.Value,
-        ShadowOpacity = ShadowOpacitySlider.Value, ShadowDepth = ShadowDepthSlider.Value
+        ShadowOpacity = ShadowOpacitySlider.Value, ShadowDepth = ShadowDepthSlider.Value,
+        BackgroundOpacity = BackgroundOpacitySlider.Value
     });
 
     private void Changed(object sender, RoutedEventArgs e)
@@ -77,12 +79,14 @@ public partial class GameOverlayAppearanceWindow : Window
         GameOverlayAppearance selected = skin.Appearance;
         _editing = SettingsService.NormalizeOverlayAppearance(selected with
         {
-            FontFamily = _editing.FontFamily, FontSize = _editing.FontSize
+            FontFamily = _editing.FontFamily, FontSize = _editing.FontSize,
+            BackgroundOpacity = _editing.BackgroundOpacity
         });
         _loading = true;
         try
         {
             OutlineSlider.Value = _editing.OutlineThickness; ShadowOpacitySlider.Value = _editing.ShadowOpacity; ShadowDepthSlider.Value = _editing.ShadowDepth;
+            BackgroundOpacitySlider.Value = _editing.BackgroundOpacity;
         }
         finally { _loading = false; }
         UpdateVisuals();
@@ -117,6 +121,8 @@ public partial class GameOverlayAppearanceWindow : Window
     {
         FontSizeText.Text = $"{FontSizeSlider.Value:0}px"; OutlineText.Text = $"{OutlineSlider.Value:0.0}";
         ShadowOpacityText.Text = $"{ShadowOpacitySlider.Value:0%}"; ShadowDepthText.Text = $"{ShadowDepthSlider.Value:0.0}";
+        BackgroundOpacityText.Text = $"{BackgroundOpacitySlider.Value:0%}";
+        PreviewSurface.Background = BackgroundBrush(_editing.BackgroundOpacity);
         ApplyColor(GpuColorButton, GpuColorText, _editing.GpuColor); ApplyColor(CpuColorButton, CpuColorText, _editing.CpuColor);
         ApplyColor(FpsColorButton, FpsColorText, _editing.FpsColor); ApplyColor(MemoryColorButton, MemoryColorText, _editing.MemoryColor); ApplyColor(NetworkColorButton, NetworkColorText, _editing.NetworkColor);
         MediaFontFamily family = FontBox.SelectedItem as MediaFontFamily ?? new MediaFontFamily("Consolas");
@@ -126,6 +132,13 @@ public partial class GameOverlayAppearanceWindow : Window
 
     private static void ApplyColor(WpfButton button, TextBlock text, string hex) { button.Background = BrushFor(hex); text.Text = hex[1..]; }
     private static SolidColorBrush BrushFor(string hex) { var brush = new SolidColorBrush((MediaColor)MediaColorConverter.ConvertFromString(hex)!); brush.Freeze(); return brush; }
+    private static SolidColorBrush BackgroundBrush(double opacity)
+    {
+        byte alpha = OverlayBackgroundOpacity.ToAlpha(opacity);
+        var brush = new SolidColorBrush(MediaColor.FromArgb(alpha, 0x17, 0x18, 0x1B));
+        brush.Freeze();
+        return brush;
+    }
     private static DrawingColor ToDrawingColor(string hex) { MediaColor color = (MediaColor)MediaColorConverter.ConvertFromString(hex)!; return DrawingColor.FromArgb(color.A, color.R, color.G, color.B); }
     private void Apply_Click(object sender, RoutedEventArgs e) { _applied = Read(); Applied?.Invoke(_applied); Hide(); }
     private void Cancel_Click(object sender, RoutedEventArgs e) => CancelAndHide();

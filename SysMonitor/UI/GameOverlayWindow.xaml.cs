@@ -34,6 +34,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static readonly nint HwndNoTopmost = new(-2);
 
     private readonly DispatcherTimer _positionTimer;
+    private readonly GameOverlayWindowTracker _windowTracker;
     private readonly OverlayMonitorIdentityResolver _monitorIdentityResolver = new();
     private HwndSource? _source;
     private nint _targetWindow;
@@ -50,6 +51,8 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private nint _lastAppliedInsertAfter;
     private uint _lastAppliedFlags;
     private bool _placementApplied;
+    private bool _targetMinimized;
+    private bool _restoreAfterTargetMinimize;
     private bool? _lastFrameRateVisible;
     private GameOverlayMetricVisibility _metrics = new();
     private GameOverlayAppearance _appearance = new();
@@ -69,6 +72,11 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             Interval = TimeSpan.FromMilliseconds(750)
         };
         _positionTimer.Tick += (_, _) => PositionWithoutActivation(refreshMonitor: true);
+        _windowTracker = new GameOverlayWindowTracker(Dispatcher);
+        _windowTracker.PositionRefreshRequested += OnTrackedPositionRefreshRequested;
+        _windowTracker.TargetInvalidated += OnTrackedTargetInvalidated;
+        _windowTracker.TargetMinimized += OnTrackedTargetMinimized;
+        _windowTracker.TargetRestored += OnTrackedTargetRestored;
         SourceInitialized += OnSourceInitialized;
         Closed += OnClosed;
     }
@@ -79,7 +87,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void SetTarget(ForegroundTarget? target)
     {
         _targetWindow = target?.WindowHandle ?? nint.Zero;
+        _targetMinimized = false;
+        _restoreAfterTargetMinimize = false;
         InvalidateMonitorCache();
+        _windowTracker.SetTarget(target);
         PositionWithoutActivation();
     }
 
@@ -383,6 +394,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void SetAppearance(GameOverlayAppearance appearance)
     {
         _appearance = SettingsService.NormalizeOverlayAppearance(appearance ?? new GameOverlayAppearance());
+        OverlaySurface.Background = CreateBackgroundBrush(_appearance.BackgroundOpacity);
         MediaFontFamily family;
         try { family = new MediaFontFamily(_appearance.FontFamily); }
         catch (ArgumentException) { family = new MediaFontFamily("Consolas"); }
@@ -440,6 +452,17 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     public void ShowWithoutActivation()
     {
+        _restoreAfterTargetMinimize = true;
+        if (_targetMinimized)
+        {
+            if (IsVisible)
+            {
+                Hide();
+            }
+
+            return;
+        }
+
         if (!IsVisible) Show();
         _placementApplied = false;
         PositionWithoutActivation();
@@ -448,6 +471,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     public void HideOverlay()
     {
+        _restoreAfterTargetMinimize = false;
         _positionTimer.Stop();
         _placementApplied = false;
         Hide();
@@ -565,6 +589,16 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static string FormatRate(double value) => value switch { <= 0 => "0", < 1024 * 1024 => $"{value / 1024d:0.#}K", _ => $"{value / 1024d / 1024d:0.#}M" };
 
     private static SolidColorBrush CreateBrush(string value, MediaColor fallback) => new(ParseColor(value, fallback));
+    private static SolidColorBrush CreateBackgroundBrush(double opacity)
+    {
+        var brush = new SolidColorBrush(MediaColor.FromArgb(
+            OverlayBackgroundOpacity.ToAlpha(opacity),
+            0x17,
+            0x18,
+            0x1B));
+        brush.Freeze();
+        return brush;
+    }
     private static MediaColor ParseColor(string value, MediaColor fallback)
     {
         try { return (MediaColor)MediaColorConverter.ConvertFromString(value)!; }
@@ -577,6 +611,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _source.AddHook(WindowProc);
         nint existing = GetWindowLongPtr(_source.Handle, GwlExStyle);
         _ = SetWindowLongPtr(_source.Handle, GwlExStyle, new nint(ApplyNoActivateStyles(existing.ToInt64())));
+        _windowTracker.SetOverlayWindow(_source.Handle);
         PositionWithoutActivation();
     }
 
@@ -584,7 +619,64 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     {
         _positionTimer.Stop();
         _placementApplied = false;
+        _windowTracker.PositionRefreshRequested -= OnTrackedPositionRefreshRequested;
+        _windowTracker.TargetInvalidated -= OnTrackedTargetInvalidated;
+        _windowTracker.TargetMinimized -= OnTrackedTargetMinimized;
+        _windowTracker.TargetRestored -= OnTrackedTargetRestored;
+        _windowTracker.Dispose();
         if (_source is not null) { _source.RemoveHook(WindowProc); _source = null; }
+    }
+
+    private void OnTrackedPositionRefreshRequested(object? sender, EventArgs e)
+    {
+        // Exact per-monitor coordinates are intentionally stationary.  Native
+        // target movement notifications only drive the legacy target-following
+        // mode; exact placement continues to be controlled by the settings.
+        if (IsExactPositionActive())
+        {
+            return;
+        }
+
+        PositionWithoutActivation(refreshMonitor: true);
+    }
+
+    private void OnTrackedTargetInvalidated(object? sender, EventArgs e)
+    {
+        _targetWindow = nint.Zero;
+        _targetMinimized = false;
+        _restoreAfterTargetMinimize = false;
+        InvalidateMonitorCache();
+        _positionTimer.Stop();
+        _placementApplied = false;
+        if (IsVisible)
+        {
+            Hide();
+        }
+
+        TargetInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnTrackedTargetMinimized(object? sender, EventArgs e)
+    {
+        _targetMinimized = true;
+        _restoreAfterTargetMinimize |= IsVisible;
+        _positionTimer.Stop();
+        _placementApplied = false;
+        if (IsVisible)
+        {
+            Hide();
+        }
+    }
+
+    private void OnTrackedTargetRestored(object? sender, EventArgs e)
+    {
+        _targetMinimized = false;
+        bool shouldRestore = _restoreAfterTargetMinimize;
+        _restoreAfterTargetMinimize = false;
+        if (shouldRestore)
+        {
+            ShowWithoutActivation();
+        }
     }
 
     private nint WindowProc(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
@@ -696,6 +788,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _lastAppliedFlags = flags;
         _placementApplied = true;
     }
+
+    private bool IsExactPositionActive() =>
+        TryResolveMonitorIdentity(forceRefresh: false, out OverlayMonitorIdentity identity) &&
+        TryFindExactPosition(identity, _monitorPositions, out _);
 
     private OverlayPixelRect CalculateLegacyPlacementForContext(OverlayMonitorIdentity identity)
     {

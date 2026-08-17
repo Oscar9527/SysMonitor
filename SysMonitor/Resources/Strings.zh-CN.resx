@@ -90,8 +90,8 @@
   <data name="OverlayStateWaitingForTarget" xml:space="preserve"><value>等待切换到前台游戏</value></data>
   <data name="OverlayStateStarting" xml:space="preserve"><value>等待呈现事件</value></data>
   <data name="OverlayStateUnavailable" xml:space="preserve"><value>帧率暂不可用</value></data>
-  <data name="TrayShowGameOverlay" xml:space="preserve"><value>显示游戏叠加层  Ctrl+Shift+F10</value></data>
-  <data name="TrayHideGameOverlay" xml:space="preserve"><value>隐藏游戏叠加层  Ctrl+Shift+F10</value></data>
+  <data name="TrayShowGameOverlay" xml:space="preserve"><value>显示游戏叠加层</value></data>
+  <data name="TrayHideGameOverlay" xml:space="preserve"><value>隐藏游戏叠加层</value></data>
   <data name="TrayGameOverlayPosition" xml:space="preserve"><value>帧率助手位置</value></data>
   <data name="TrayGameOverlayPreset" xml:space="preserve"><value>HUD 排版</value></data>
   <data name="TrayGameOverlayPresetCompact" xml:space="preserve"><value>紧凑</value></data>

@@ -142,6 +142,7 @@ public sealed class GameOverlayAppearanceSettings
     public string FpsColor { get; set; } = "#FF1B9A5A";
     public string MemoryColor { get; set; } = "#FFD97706";
     public string NetworkColor { get; set; } = "#FF0097A7";
+    public double BackgroundOpacity { get; set; } = 0.8d;
 
     public GameOverlayAppearance ToEffective() => new(
         FontFamily,
@@ -157,7 +158,8 @@ public sealed class GameOverlayAppearanceSettings
         CpuColor,
         FpsColor,
         MemoryColor,
-        NetworkColor);
+        NetworkColor,
+        BackgroundOpacity);
 
     public static GameOverlayAppearanceSettings FromEffective(GameOverlayAppearance value) => new()
     {
@@ -174,7 +176,8 @@ public sealed class GameOverlayAppearanceSettings
         CpuColor = value.CpuColor,
         FpsColor = value.FpsColor,
         MemoryColor = value.MemoryColor,
-        NetworkColor = value.NetworkColor
+        NetworkColor = value.NetworkColor,
+        BackgroundOpacity = value.BackgroundOpacity
     };
 }
 
@@ -192,7 +195,8 @@ public sealed record GameOverlayAppearance(
     string CpuColor = "#FF1976D2",
     string FpsColor = "#FF1B9A5A",
     string MemoryColor = "#FFD97706",
-    string NetworkColor = "#FF0097A7");
+    string NetworkColor = "#FF0097A7",
+    double BackgroundOpacity = 0.8d);
 
 public sealed class BandMetricVisibilitySettings
 {

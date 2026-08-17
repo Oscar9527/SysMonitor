@@ -594,7 +594,8 @@ public sealed class SettingsService
         NormalizeColor(value.CpuColor, "#FF8BE9FD"),
         NormalizeColor(value.FpsColor, "#FF50FA7B"),
         NormalizeColor(value.MemoryColor, "#FFF1FA8C"),
-        NormalizeColor(value.NetworkColor, "#FFFFB86C"));
+        NormalizeColor(value.NetworkColor, "#FFFFB86C"),
+        double.IsFinite(value.BackgroundOpacity) ? Math.Clamp(value.BackgroundOpacity, 0, 1) : 0.8d);
 
     internal static List<GameOverlayMonitorPositionSettings> NormalizeOverlayMonitorPositions(
         IEnumerable<GameOverlayMonitorPositionSettings>? positions)

@@ -1,5 +1,13 @@
 # SysMonitor 1.5.0 validation
 
+## v1.5.0 beta.9 menu, opacity and window-follow pass
+
+- Tray root and nested menus use localized preferred sizing, a dedicated shortcut column, DPI-scaled item height, and monitor-work-area width/height caps with overflow scrolling.
+- HUD background opacity is persisted independently from text colors. Legacy settings default to the former 80% black surface; invalid values are finite-clamped to 0–100%.
+- Game-window following uses out-of-context WinEvent hooks only. Native callbacks enqueue coalesced UI work; a roughly 16 ms render-priority cadence is active only during move/size and the original 750 ms recovery poll remains.
+- Target identity is validated by HWND, PID, and process start generation. Minimize is temporary; destroy or identity mismatch permanently invalidates the binding. Hook setup failure safely falls back without injection or cross-process reparenting.
+- Full automated result: 329 passed, 0 failed, 0 skipped. Portable single-file size: 8,986,112 bytes. SHA-256: `218BA20E07421CDFC234C26C8CA37EC1258F4A3F7AD727351F5C4D0F0D29653B`.
+
 Validation date: 2026-08-17
 Environment: Windows 11 x64; running game and foreground input left untouched
 

@@ -123,6 +123,7 @@ public sealed class TrayIconService : IDisposable
             Font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
             Padding = new Forms.Padding(4, 6, 4, 6),
             ShowImageMargin = false,
+            ShowCheckMargin = true,
             Renderer = Forms.SystemInformation.HighContrast
                 ? new Forms.ToolStripSystemRenderer()
                 : new MacToolStripRenderer()
@@ -376,6 +377,7 @@ public sealed class TrayIconService : IDisposable
         _gameOverlayTargetItem.Enabled = _gameOverlayAvailable;
         _gameOverlayItem.Text = LocalizationService.Current.GetString(
             GetGameOverlayResourceKey(_gameOverlayVisible, _gameOverlayAvailable));
+        _gameOverlayItem.ShortcutKeyDisplayString = "Ctrl+Shift+F10";
     }
 
     internal static string GetGameOverlayResourceKey(bool visible, bool available) =>
@@ -392,6 +394,15 @@ public sealed class TrayIconService : IDisposable
         _contextMenu.Renderer = Forms.SystemInformation.HighContrast
             ? new Forms.ToolStripSystemRenderer()
             : new MacToolStripRenderer();
+        PrepareDropDownLayout(_contextMenu, Forms.Screen.FromPoint(Forms.Cursor.Position).WorkingArea);
+    }
+
+    private static void OnDropDownOpening(object? sender, EventArgs e)
+    {
+        if (sender is Forms.ToolStripDropDown dropDown)
+        {
+            PrepareDropDownLayout(dropDown, Forms.Screen.FromPoint(Forms.Cursor.Position).WorkingArea);
+        }
     }
 
     private void OnNotifyIconMouseUp(object? sender, Forms.MouseEventArgs e)
@@ -506,7 +517,7 @@ public sealed class TrayIconService : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
-    private static void ConfigureMenuItems(Forms.ToolStripItemCollection items)
+    internal static void ConfigureMenuItems(Forms.ToolStripItemCollection items)
     {
         foreach (Forms.ToolStripItem item in items)
         {
@@ -523,11 +534,47 @@ public sealed class TrayIconService : IDisposable
                 continue;
             }
 
-            menuItem.AutoSize = false;
-            menuItem.Height = 32;
-            menuItem.Padding = new Forms.Padding(10, 0, 10, 0);
+            // Localized labels and per-monitor DPI can change after startup.
+            // Let ToolStrip measure both columns instead of freezing the
+            // default item width/height, which clipped long menu labels.
+            menuItem.AutoSize = true;
+            menuItem.Padding = new Forms.Padding(10, 6, 10, 6);
+            menuItem.Margin = Forms.Padding.Empty;
+            if (menuItem.DropDown is Forms.ToolStripDropDownMenu dropDownMenu)
+            {
+                dropDownMenu.AutoSize = true;
+                dropDownMenu.MinimumSize = new Size(220, 0);
+                dropDownMenu.ShowImageMargin = false;
+                dropDownMenu.ShowCheckMargin = true;
+                dropDownMenu.Opening -= OnDropDownOpening;
+                dropDownMenu.Opening += OnDropDownOpening;
+            }
+
             ConfigureMenuItems(menuItem.DropDownItems);
         }
+    }
+
+    internal static void PrepareDropDownLayout(
+        Forms.ToolStripDropDown dropDown,
+        Rectangle workingArea)
+    {
+        ArgumentNullException.ThrowIfNull(dropDown);
+
+        // Keep a small safety inset so Windows can place the native popup and
+        // its shadow wholly inside the active monitor. Constraining the height
+        // also enables ToolStripDropDownMenu's built-in scroll buttons when a
+        // translated menu is taller than the available work area.
+        int maximumWidth = Math.Max(120, workingArea.Width - 16);
+        int maximumHeight = Math.Max(96, workingArea.Height - 16);
+        dropDown.AutoSize = true;
+        dropDown.MaximumSize = new Size(maximumWidth, maximumHeight);
+        dropDown.PerformLayout();
+
+        Size preferred = dropDown.GetPreferredSize(new Size(maximumWidth, maximumHeight));
+        int preferredWidth = Math.Clamp(preferred.Width, 120, maximumWidth);
+        int minimumWidth = Math.Min(maximumWidth, Math.Max(220, preferredWidth));
+        dropDown.MinimumSize = new Size(minimumWidth, 0);
+        dropDown.PerformLayout();
     }
 
     private Forms.ToolStripMenuItem CreateOverlayPositionItem(double position)

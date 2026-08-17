@@ -90,8 +90,8 @@
   <data name="OverlayStateWaitingForTarget" xml:space="preserve"><value>Waiting for a foreground game</value></data>
   <data name="OverlayStateStarting" xml:space="preserve"><value>Waiting for Present events</value></data>
   <data name="OverlayStateUnavailable" xml:space="preserve"><value>FPS unavailable</value></data>
-  <data name="TrayShowGameOverlay" xml:space="preserve"><value>Show game overlay  Ctrl+Shift+F10</value></data>
-  <data name="TrayHideGameOverlay" xml:space="preserve"><value>Hide game overlay  Ctrl+Shift+F10</value></data>
+  <data name="TrayShowGameOverlay" xml:space="preserve"><value>Show game overlay</value></data>
+  <data name="TrayHideGameOverlay" xml:space="preserve"><value>Hide game overlay</value></data>
   <data name="TrayGameOverlayPosition" xml:space="preserve"><value>Frame-rate assistant position</value></data>
   <data name="TrayGameOverlayPreset" xml:space="preserve"><value>HUD layout</value></data>
   <data name="TrayGameOverlayPresetCompact" xml:space="preserve"><value>Compact</value></data>

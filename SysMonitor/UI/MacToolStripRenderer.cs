@@ -2,6 +2,7 @@ using DrawingColor = System.Drawing.Color;
 using DrawingPen = System.Drawing.Pen;
 using DrawingPoint = System.Drawing.Point;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows;
 using System.Windows.Media;
 using Forms = System.Windows.Forms;
@@ -63,10 +64,38 @@ internal sealed class MacToolStripRenderer : Forms.ToolStripProfessionalRenderer
 
     protected override void OnRenderSeparator(Forms.ToolStripSeparatorRenderEventArgs e)
     {
-        Rectangle bounds = e.Item.Bounds;
-        int y = bounds.Top + (bounds.Height / 2);
+        Rectangle bounds = new(DrawingPoint.Empty, e.Item.Size);
+        int y = bounds.Height / 2;
         using var pen = new DrawingPen(BorderColor);
         e.Graphics.DrawLine(pen, bounds.Left + 8, y, bounds.Right - 8, y);
+    }
+
+    protected override void OnRenderArrow(Forms.ToolStripArrowRenderEventArgs e)
+    {
+        e.ArrowColor = e.Item?.Enabled != false ? ForegroundColor : SecondaryColor;
+        base.OnRenderArrow(e);
+    }
+
+    protected override void OnRenderItemCheck(Forms.ToolStripItemImageRenderEventArgs e)
+    {
+        Rectangle area = e.ImageRectangle;
+        if (area.Width <= 0 || area.Height <= 0)
+        {
+            area = new Rectangle(8, 0, 18, e.Item.Height);
+        }
+
+        int centerY = area.Top + (area.Height / 2);
+        DrawingPoint first = new(area.Left + 3, centerY);
+        DrawingPoint second = new(area.Left + 7, centerY + 4);
+        DrawingPoint third = new(area.Left + 15, centerY - 5);
+        using var pen = new DrawingPen(e.Item.Enabled ? ForegroundColor : SecondaryColor, 2f)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round,
+            LineJoin = LineJoin.Round
+        };
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        e.Graphics.DrawLines(pen, new DrawingPoint[] { first, second, third });
     }
 
     protected override void OnRenderImageMargin(Forms.ToolStripRenderEventArgs e)
