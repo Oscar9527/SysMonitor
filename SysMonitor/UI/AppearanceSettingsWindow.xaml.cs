@@ -87,7 +87,7 @@ public partial class AppearanceSettingsWindow : Window
         ArgumentNullException.ThrowIfNull(value);
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => LoadAppearance(value));
+            _ = Dispatcher.InvokeAsync(() => LoadAppearance(value));
             return;
         }
 
@@ -98,7 +98,7 @@ public partial class AppearanceSettingsWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => LoadUiCulture(culturePreference));
+            _ = Dispatcher.InvokeAsync(() => LoadUiCulture(culturePreference));
             return;
         }
 
@@ -125,7 +125,7 @@ public partial class AppearanceSettingsWindow : Window
         if (!Dispatcher.CheckAccess())
         {
             ThemeCatalogItem[] copy = themes.ToArray();
-            _ = Dispatcher.BeginInvoke(() => LoadThemes(copy, selectedThemeId, markApplied));
+            _ = Dispatcher.InvokeAsync(() => LoadThemes(copy, selectedThemeId, markApplied));
             return;
         }
 
@@ -161,7 +161,7 @@ public partial class AppearanceSettingsWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(ForceClose);
+            _ = Dispatcher.InvokeAsync(ForceClose);
             return;
         }
 
@@ -625,7 +625,7 @@ public partial class AppearanceSettingsWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => OnCultureChanged(sender, e));
+            _ = Dispatcher.InvokeAsync(() => OnCultureChanged(sender, e));
             return;
         }
 
@@ -636,7 +636,7 @@ public partial class AppearanceSettingsWindow : Window
     {
         if (_controlsReady)
         {
-            _ = Dispatcher.BeginInvoke(ScheduleLivePreview);
+            _ = Dispatcher.InvokeAsync(ScheduleLivePreview);
         }
     }
 

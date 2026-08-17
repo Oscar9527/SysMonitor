@@ -25,6 +25,11 @@ Get-ChildItem -LiteralPath $artifactDirectory -Filter 'SysMonitor.Core.*.exe' -F
 # WPF-generated sources are stored under a runtime-specific obj directory.
 # Clear them before publishing so switching branches or restoring an older
 # snapshot cannot compile stale x:Name fields from a previous XAML layout.
+dotnet restore $projectPath `
+    -r $RuntimeIdentifier `
+    --nologo
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 dotnet clean $projectPath `
     -c $Configuration `
     -r $RuntimeIdentifier `

@@ -50,7 +50,7 @@ internal sealed class HudPreviewScheduler : IDisposable
 
         try
         {
-            _dispatcher.BeginInvoke(_priority, new Action(Run));
+            _dispatcher.InvokeAsync(Run, _priority);
         }
         catch (InvalidOperationException)
         {
@@ -118,7 +118,7 @@ internal sealed class HudPreviewScheduler : IDisposable
             {
                 try
                 {
-                    _dispatcher.BeginInvoke(_priority, new Action(Run));
+                    _dispatcher.InvokeAsync(Run, _priority);
                 }
                 catch (InvalidOperationException)
                 {

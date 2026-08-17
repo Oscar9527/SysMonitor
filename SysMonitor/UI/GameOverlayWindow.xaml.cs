@@ -602,7 +602,9 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             return;
         }
 
-        Dispatcher.BeginInvoke(PositionWithoutActivation, DispatcherPriority.Render);
+        Dispatcher.InvokeAsync(
+            () => PositionWithoutActivation(),
+            DispatcherPriority.Render);
     }
 
     private void PositionWithoutActivation(bool refreshMonitor = false)

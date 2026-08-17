@@ -117,9 +117,9 @@ public sealed class TaskbarRegionMonitor : IDisposable
 
             try
             {
-                _ = _dispatcher.BeginInvoke(
-                    DispatcherPriority.Render,
-                    new Action(() => Publish(snapshot)));
+                _ = _dispatcher.InvokeAsync(
+                    () => Publish(snapshot),
+                    DispatcherPriority.Render);
             }
             catch (InvalidOperationException)
             {

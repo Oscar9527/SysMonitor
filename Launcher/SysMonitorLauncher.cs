@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Threading;
 using Microsoft.Win32;
 using System.Windows.Forms;
 
@@ -18,12 +19,46 @@ internal static class SysMonitorLauncher
 {
     private const string CoreResourceName = "SysMonitor.Core.1.5.0.exe";
     private const string RuntimeDownloadUrl = "https://dotnet.microsoft.com/download/dotnet/8.0/runtime";
+    private const string LauncherMutexName = @"Local\SysMonitor.Launcher";
+    private const string ShowPanelEventName = @"Local\SysMonitor.ShowPanel";
+    private const string ExitForUpdateEventName = @"Local\SysMonitor.ExitForUpdate";
 
     [STAThread]
     private static int Main(string[] args)
     {
+        using var launcherMutex = new Mutex(false, LauncherMutexName);
+        bool ownsMutex;
+        try
+        {
+            ownsMutex = launcherMutex.WaitOne(TimeSpan.FromSeconds(12));
+        }
+        catch (AbandonedMutexException)
+        {
+            ownsMutex = true;
+        }
+
+        if (!ownsMutex)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return Run(args);
+        }
+        finally
+        {
+            launcherMutex.ReleaseMutex();
+        }
+    }
+
+    private static int Run(string[] args)
+    {
         string runtimeDirectory = GetRuntimeDirectory();
-        if (!TryStopExistingRuntimeProcesses(runtimeDirectory, out string? stopError))
+        if (!TryStopExistingRuntimeProcesses(
+                runtimeDirectory,
+                out bool existingInstanceActivated,
+                out string? stopError))
         {
             MessageBox.Show(
                 stopError ?? "无法关闭正在运行的旧版 SysMonitor，请从托盘退出后重试。",
@@ -31,6 +66,11 @@ internal static class SysMonitorLauncher
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
             return 1;
+        }
+
+        if (existingInstanceActivated)
+        {
+            return 0;
         }
 
         if (!TryExtractCore(runtimeDirectory, out string corePath, out string? extractionError))
@@ -93,8 +133,10 @@ internal static class SysMonitorLauncher
 
     private static bool TryStopExistingRuntimeProcesses(
         string runtimeDirectory,
+        out bool existingInstanceActivated,
         out string? error)
     {
+        existingInstanceActivated = false;
         error = null;
         string normalizedRuntimeDirectory = Path.GetFullPath(runtimeDirectory)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -139,9 +181,21 @@ internal static class SysMonitorLauncher
                     continue;
                 }
 
+                if (CoreMatchesEmbeddedResource(processPath!))
+                {
+                    if (!TrySignalControlEvent(ShowPanelEventName, TimeSpan.FromSeconds(8)))
+                    {
+                        error = "SysMonitor 正在启动，请稍候片刻后再试。";
+                        return false;
+                    }
+
+                    existingInstanceActivated = true;
+                    return true;
+                }
+
                 try
                 {
-                    KillProcessTree(process.Id);
+                    RequestExistingCoreExit();
                     if (!process.WaitForExit(5000))
                     {
                         error = $"旧版 SysMonitor 仍在运行（PID {process.Id}）。";
@@ -159,43 +213,38 @@ internal static class SysMonitorLauncher
         return true;
     }
 
-    private static void KillProcessTree(int processId)
+    private static void RequestExistingCoreExit()
     {
-        var startInfo = new ProcessStartInfo
+        if (!TrySignalControlEvent(ExitForUpdateEventName, TimeSpan.FromSeconds(8)))
         {
-            FileName = "taskkill.exe",
-            Arguments = $"/PID {processId} /T /F",
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-        };
-        using Process? taskkill = Process.Start(startInfo);
-        if (taskkill is null)
-        {
-            throw new InvalidOperationException("无法启动旧版进程清理程序。");
-        }
-
-        _ = taskkill.StandardOutput.ReadToEnd();
-        _ = taskkill.StandardError.ReadToEnd();
-        bool completed = taskkill.WaitForExit(5000);
-        if (!completed || (taskkill.ExitCode != 0 && IsProcessRunning(processId)))
-        {
-            throw new InvalidOperationException("无法完整关闭旧版 SysMonitor 进程树。");
+            throw new InvalidOperationException(
+                "SysMonitor 正在启动或版本过旧，无法安全退出。请先从托盘菜单退出后重试。");
         }
     }
 
-    private static bool IsProcessRunning(int processId)
+    private static bool TrySignalControlEvent(string eventName, TimeSpan timeout)
     {
-        try
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        do
         {
-            using Process process = Process.GetProcessById(processId);
-            return !process.HasExited;
+            try
+            {
+                using EventWaitHandle controlEvent = EventWaitHandle.OpenExisting(eventName);
+                return controlEvent.Set();
+            }
+            catch (WaitHandleCannotBeOpenedException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+
+            Thread.Sleep(100);
         }
-        catch (ArgumentException)
-        {
-            return false;
-        }
+        while (stopwatch.Elapsed < timeout);
+
+        return false;
     }
 
     private static bool TryExtractCore(

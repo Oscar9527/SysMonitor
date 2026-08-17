@@ -107,7 +107,7 @@ public partial class DetailWindow : Window
         ArgumentNullException.ThrowIfNull(theme);
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => ApplyTheme(theme));
+            _ = Dispatcher.InvokeAsync(() => ApplyTheme(theme));
             return;
         }
 
@@ -122,7 +122,7 @@ public partial class DetailWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => UpdateHistory(history));
+            _ = Dispatcher.InvokeAsync(() => UpdateHistory(history));
             return;
         }
 
@@ -135,7 +135,7 @@ public partial class DetailWindow : Window
         ArgumentNullException.ThrowIfNull(snapshot);
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => UpdateSnapshot(snapshot));
+            _ = Dispatcher.InvokeAsync(() => UpdateSnapshot(snapshot));
             return;
         }
 
@@ -176,7 +176,7 @@ public partial class DetailWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => SetPinned(isPinned));
+            _ = Dispatcher.InvokeAsync(() => SetPinned(isPinned));
             return;
         }
 
@@ -197,7 +197,7 @@ public partial class DetailWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(ForceClose);
+            _ = Dispatcher.InvokeAsync(ForceClose);
             return;
         }
 
@@ -451,7 +451,7 @@ public partial class DetailWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => OnCultureChanged(sender, e));
+            _ = Dispatcher.InvokeAsync(() => OnCultureChanged(sender, e));
             return;
         }
 

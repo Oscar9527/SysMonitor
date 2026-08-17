@@ -331,7 +331,7 @@ public sealed class GameOverlayController : IAsyncDisposable
         }
         else
         {
-            dispatcher.BeginInvoke(action);
+            dispatcher.InvokeAsync(action);
         }
     }
 

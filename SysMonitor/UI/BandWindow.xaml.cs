@@ -125,7 +125,7 @@ public partial class BandWindow : Window
         ArgumentNullException.ThrowIfNull(theme);
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => ApplyTheme(theme));
+            _ = Dispatcher.InvokeAsync(() => ApplyTheme(theme));
             return;
         }
 
@@ -147,7 +147,7 @@ public partial class BandWindow : Window
         ArgumentNullException.ThrowIfNull(appearance);
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(() => ApplyAppearance(appearance));
+            Dispatcher.InvokeAsync(() => ApplyAppearance(appearance));
             return;
         }
 
@@ -221,7 +221,7 @@ public partial class BandWindow : Window
         ArgumentNullException.ThrowIfNull(snapshot);
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(() => UpdateSnapshot(snapshot));
+            Dispatcher.InvokeAsync(() => UpdateSnapshot(snapshot));
             return;
         }
 
@@ -299,7 +299,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(StartPositionTracking);
+            Dispatcher.InvokeAsync(StartPositionTracking);
             return;
         }
 
@@ -322,7 +322,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(StopPositionTracking);
+            Dispatcher.InvokeAsync(StopPositionTracking);
             return;
         }
 
@@ -417,7 +417,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(RequestClose);
+            Dispatcher.InvokeAsync(RequestClose);
             return;
         }
 
@@ -431,7 +431,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(RequestHealthCheck);
+            Dispatcher.InvokeAsync(RequestHealthCheck);
             return;
         }
 
@@ -545,9 +545,8 @@ public partial class BandWindow : Window
         {
             try
             {
-                Dispatcher.BeginInvoke(
-                    DispatcherPriority.Input,
-                    new Action(() =>
+                Dispatcher.InvokeAsync(
+                    () =>
                     {
                         if (!_explicitClose &&
                             generation == Volatile.Read(ref _toggleGeneration) &&
@@ -558,7 +557,8 @@ public partial class BandWindow : Window
                                 $"hwnd=0x{windowHandle.ToInt64():X} clickSequence={generation}");
                             ToggleDetailsRequested?.Invoke(this, EventArgs.Empty);
                         }
-                    }));
+                    },
+                    DispatcherPriority.Input);
             }
             catch (InvalidOperationException)
             {
@@ -583,9 +583,8 @@ public partial class BandWindow : Window
         _dpiRepositionPending = true;
         try
         {
-            Dispatcher.BeginInvoke(
-                DispatcherPriority.Render,
-                new Action(() =>
+            Dispatcher.InvokeAsync(
+                () =>
                 {
                     _dpiRepositionPending = false;
                     if (!_explicitClose && !Dispatcher.HasShutdownStarted)
@@ -593,7 +592,8 @@ public partial class BandWindow : Window
                         _placementInvalidated = true;
                         Reposition();
                     }
-                }));
+                },
+                DispatcherPriority.Render);
         }
         catch (InvalidOperationException)
         {
@@ -609,7 +609,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.HasShutdownStarted)
         {
-            Dispatcher.BeginInvoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 TaskbarPositioner.Invalidate();
                 _placementInvalidated = true;
@@ -624,7 +624,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.HasShutdownStarted)
         {
-            Dispatcher.BeginInvoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 ApplySystemTheme();
                 TaskbarPositioner.Invalidate();
@@ -715,9 +715,9 @@ public partial class BandWindow : Window
             {
                 Show();
                 BandDiagnostics.Log($"band shown hwnd=0x{handle.ToInt64():X}");
-                Dispatcher.BeginInvoke(
-                    DispatcherPriority.ApplicationIdle,
-                    new Action(VerifyFirstShowContract));
+                Dispatcher.InvokeAsync(
+                    VerifyFirstShowContract,
+                    DispatcherPriority.ApplicationIdle);
             }
         }
 

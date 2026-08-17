@@ -11,6 +11,8 @@ namespace SysMonitor;
 public partial class App : System.Windows.Application
 {
     private const string MutexName = @"Local\SysMonitor.SingleInstance";
+    private const string ShowPanelEventName = @"Local\SysMonitor.ShowPanel";
+    private const string ExitForUpdateEventName = @"Local\SysMonitor.ExitForUpdate";
 
     private readonly SettingsService _settingsService = new();
     private readonly StartupService _startupService = new();
@@ -21,6 +23,10 @@ public partial class App : System.Windows.Application
     private readonly RtssLegacyCompatibilityService _rtssLegacyCompatibilityService =
         RtssLegacyCompatibilityService.CreateDefault();
     private Mutex? _singleInstanceMutex;
+    private EventWaitHandle? _showPanelEvent;
+    private EventWaitHandle? _exitForUpdateEvent;
+    private RegisteredWaitHandle? _showPanelRegistration;
+    private RegisteredWaitHandle? _exitForUpdateRegistration;
     private MonitorService? _monitorService;
     private GlobalHotkeyService? _gameOverlayHotkey;
     private GameOverlayFrameProviderAdapter? _gameOverlayFrameProvider;
@@ -113,12 +119,14 @@ public partial class App : System.Windows.Application
         _singleInstanceMutex = new Mutex(true, MutexName, out bool isFirstInstance);
         if (!isFirstInstance)
         {
+            SignalExistingInstance();
             _singleInstanceMutex.Dispose();
             _singleInstanceMutex = null;
             Shutdown();
             return;
         }
 
+        CreateControlEvents();
         BandDiagnostics.LogProcessSession();
         _ = _startupService.RefreshExistingRegistration();
         DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -223,6 +231,7 @@ public partial class App : System.Windows.Application
 
             _monitorService.SnapshotUpdated += OnSnapshotUpdated;
             await _monitorService.StartAsync();
+            RegisterControlEventCallbacks();
 
             if (e.Args.Any(argument =>
                     string.Equals(argument, "--show-panel", StringComparison.OrdinalIgnoreCase)))
@@ -413,9 +422,8 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        _ = Dispatcher.BeginInvoke(
-            DispatcherPriority.Background,
-            new Action(() =>
+        _ = Dispatcher.InvokeAsync(
+            () =>
             {
                 Dispatcher.VerifyAccess();
                 _ = _metricHistory.TryAdd(new MetricHistoryPoint(
@@ -434,7 +442,8 @@ public partial class App : System.Windows.Application
                 {
                     visibleDetail.UpdateHistory(_metricHistory.Snapshot());
                 }
-            }));
+            },
+            DispatcherPriority.Background);
     }
 
     private void OnToggleDetailsRequested(object? sender, EventArgs e)
@@ -850,6 +859,118 @@ public partial class App : System.Windows.Application
     {
         bool visible = _gameOverlayController?.DesiredVisible == true;
         _trayIcon?.SetGameOverlayState(visible, available: true);
+    }
+
+    private void CreateControlEvents()
+    {
+        try
+        {
+            _showPanelEvent = new EventWaitHandle(
+                false,
+                EventResetMode.AutoReset,
+                ShowPanelEventName);
+            _exitForUpdateEvent = new EventWaitHandle(
+                false,
+                EventResetMode.AutoReset,
+                ExitForUpdateEventName);
+            BandDiagnostics.Log("launcher control events created");
+        }
+        catch (Exception exception)
+        {
+            DisposeControlEvents();
+            LogException("Launcher control event creation failed", exception);
+        }
+    }
+
+    private void RegisterControlEventCallbacks()
+    {
+        if (_showPanelEvent is null || _exitForUpdateEvent is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _showPanelRegistration = ThreadPool.RegisterWaitForSingleObject(
+                _showPanelEvent,
+                static (state, timedOut) =>
+                {
+                    var app = (App)state!;
+                    BandDiagnostics.Log($"launcher show event received timedOut={timedOut}");
+                    _ = app.Dispatcher.InvokeAsync(
+                        app.ShowDetailsFromExternalActivation,
+                        DispatcherPriority.Normal);
+                },
+                this,
+                Timeout.Infinite,
+                executeOnlyOnce: false);
+            _exitForUpdateRegistration = ThreadPool.RegisterWaitForSingleObject(
+                _exitForUpdateEvent,
+                static (state, timedOut) =>
+                {
+                    var app = (App)state!;
+                    BandDiagnostics.Log($"launcher exit event received timedOut={timedOut}");
+                    _ = app.Dispatcher.InvokeAsync(
+                        () => _ = app.ExitAsync(),
+                        DispatcherPriority.Send);
+                },
+                this,
+                Timeout.Infinite,
+                executeOnlyOnce: false);
+            BandDiagnostics.Log("launcher control events ready");
+        }
+        catch (Exception exception)
+        {
+            DisposeControlEvents();
+            LogException("Launcher control event registration failed", exception);
+        }
+    }
+
+    private static void SignalExistingInstance()
+    {
+        try
+        {
+            using EventWaitHandle showEvent = EventWaitHandle.OpenExisting(ShowPanelEventName);
+            showEvent.Set();
+        }
+        catch (WaitHandleCannotBeOpenedException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private void DisposeControlEvents()
+    {
+        _showPanelRegistration?.Unregister(null);
+        _showPanelRegistration = null;
+        _exitForUpdateRegistration?.Unregister(null);
+        _exitForUpdateRegistration = null;
+        _showPanelEvent?.Dispose();
+        _showPanelEvent = null;
+        _exitForUpdateEvent?.Dispose();
+        _exitForUpdateEvent = null;
+    }
+
+    private void ShowDetailsFromExternalActivation()
+    {
+        if (_isExiting)
+        {
+            return;
+        }
+
+        if (_detailWindow is { IsVisible: true, WindowState: not WindowState.Minimized } detail)
+        {
+            if (!detail.IsActive)
+            {
+                detail.Activate();
+            }
+
+            return;
+        }
+
+        OnToggleDetailsRequested(null, EventArgs.Empty);
     }
 
     private static void EnsureWindowsDirectoryEnvironment()
@@ -1435,6 +1556,7 @@ public partial class App : System.Windows.Application
         }
 
         _isExiting = true;
+        DisposeControlEvents();
         StopBandRecreateTimer();
         try
         {
