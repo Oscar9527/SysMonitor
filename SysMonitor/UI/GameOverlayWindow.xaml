@@ -24,14 +24,14 @@
                 <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions><ColumnDefinition Width="68"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <TextBlock x:Name="GpuLabel" Grid.Row="0" Grid.Column="0" Text="GPU" Foreground="#FFFF8C00" AutomationProperties.Name="GPU"/>
-            <TextBlock x:Name="GpuValue" Grid.Row="0" Grid.Column="1" Foreground="#FFFF8C00" AutomationProperties.Name="GPU value"/>
-            <TextBlock x:Name="CpuLabel" Grid.Row="1" Grid.Column="0" Text="CPU" Foreground="#FF00E5FF" AutomationProperties.Name="CPU"/>
-            <TextBlock x:Name="CpuValue" Grid.Row="1" Grid.Column="1" Foreground="#FF00E5FF" AutomationProperties.Name="CPU value"/>
-            <TextBlock x:Name="FpsLabel" Grid.Row="2" Grid.Column="0" Text="FPS" Foreground="#FF00E676" AutomationProperties.Name="FPS"/>
-            <TextBlock x:Name="FpsValue" Grid.Row="2" Grid.Column="1" Foreground="#FF00E676" AutomationProperties.Name="FPS value"/>
-            <TextBlock x:Name="MemoryLabel" Grid.Row="3" Grid.Column="0" Text="RAM" Foreground="#FFFFD600" AutomationProperties.Name="Memory"/>
-            <TextBlock x:Name="MemoryValue" Grid.Row="3" Grid.Column="1" Foreground="#FFFFD600" AutomationProperties.Name="Memory value"/>
+            <TextBlock x:Name="CpuLabel" Grid.Row="0" Grid.Column="0" Text="CPU" Foreground="#FF00E5FF" AutomationProperties.Name="CPU"/>
+            <TextBlock x:Name="CpuValue" Grid.Row="0" Grid.Column="1" Foreground="#FF00E5FF" AutomationProperties.Name="CPU value"/>
+            <TextBlock x:Name="GpuLabel" Grid.Row="1" Grid.Column="0" Text="GPU" Foreground="#FFFF8C00" AutomationProperties.Name="GPU"/>
+            <TextBlock x:Name="GpuValue" Grid.Row="1" Grid.Column="1" Foreground="#FFFF8C00" AutomationProperties.Name="GPU value"/>
+            <TextBlock x:Name="MemoryLabel" Grid.Row="2" Grid.Column="0" Text="RAM" Foreground="#FFFFD600" AutomationProperties.Name="Memory"/>
+            <TextBlock x:Name="MemoryValue" Grid.Row="2" Grid.Column="1" Foreground="#FFFFD600" AutomationProperties.Name="Memory value"/>
+            <TextBlock x:Name="FpsLabel" Grid.Row="3" Grid.Column="0" Text="FPS" Foreground="#FF00E676" AutomationProperties.Name="FPS"/>
+            <TextBlock x:Name="FpsValue" Grid.Row="3" Grid.Column="1" Foreground="#FF00E676" AutomationProperties.Name="FPS value"/>
             <TextBlock x:Name="NetworkLabel" Grid.Row="4" Grid.Column="0" Text="NET" Foreground="#FFE040FB" AutomationProperties.Name="Network"/>
             <TextBlock x:Name="NetworkValue" Grid.Row="4" Grid.Column="1" Foreground="#FFE040FB" AutomationProperties.Name="Network value"/>
         </Grid>

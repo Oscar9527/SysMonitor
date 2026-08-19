@@ -61,6 +61,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public GameOverlayWindow()
     {
         InitializeComponent();
+        ConfigureGridLayout();
         // The legacy XAML margin was intended as a visual inset, but it also
         // leaked into the native window bounds.  Exact coordinates are
         // physical pixels, so keep the root content flush with the HWND.
@@ -561,13 +562,29 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     {
         metrics ??= new GameOverlayMetricVisibility();
         var rows = new List<string>();
-        if (metrics.Gpu) rows.Add(preset == "compact" ? $"GPU {gpu}" : $"GPU {gpu}  {gpuTemperature}");
-        if (metrics.Cpu) rows.Add(preset == "compact" ? $"CPU {cpu}" : $"CPU {cpu}  {cpuTemperature}");
-        if (metrics.FrameRate) rows.Add(string.IsNullOrWhiteSpace(frameState) ? $"FPS {fps}" : $"FPS {fps}  {frameState}");
-        if (metrics.Memory) rows.Add(preset == "detailed" && !string.IsNullOrWhiteSpace(memoryFrequency)
-            ? $"RAM {memory}  {memoryFrequency}"
-            : $"RAM {memory}");
-        if (metrics.Network) rows.Add($"NET \u2193 {download}  \u2191 {upload}");
+        foreach (string id in GameOverlayMetricOrder.Normalize(metrics.Order))
+        {
+            switch (id)
+            {
+                case "cpu" when metrics.Cpu:
+                    rows.Add(preset == "compact" ? $"CPU {cpu}" : $"CPU {cpu}  {cpuTemperature}");
+                    break;
+                case "gpu" when metrics.Gpu:
+                    rows.Add(preset == "compact" ? $"GPU {gpu}" : $"GPU {gpu}  {gpuTemperature}");
+                    break;
+                case "memory" when metrics.Memory:
+                    rows.Add(preset == "detailed" && !string.IsNullOrWhiteSpace(memoryFrequency)
+                        ? $"RAM {memory}  {memoryFrequency}"
+                        : $"RAM {memory}");
+                    break;
+                case "fps" when metrics.FrameRate:
+                    rows.Add(string.IsNullOrWhiteSpace(frameState) ? $"FPS {fps}" : $"FPS {fps}  {frameState}");
+                    break;
+                case "network" when metrics.Network:
+                    rows.Add($"NET \u2193 {download}  \u2191 {upload}");
+                    break;
+            }
+        }
         return string.Join(Environment.NewLine, rows);
     }
 
