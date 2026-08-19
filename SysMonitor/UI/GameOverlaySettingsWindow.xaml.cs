@@ -65,7 +65,8 @@ public sealed record GameOverlayConfigurationRequest(
     int PositionBottom = 0,
     GameOverlayPositionChange PositionChange = GameOverlayPositionChange.None,
     int? PositionX = null,
-    int? PositionY = null);
+    int? PositionY = null,
+    double? HorizontalPositionPercent = null);
 
 public partial class GameOverlaySettingsWindow : Window
 {
@@ -81,6 +82,7 @@ public partial class GameOverlaySettingsWindow : Window
     private bool _previewSessionActive;
     private bool _sessionFinalized = true;
     private OverlaySettingsCoordinateContext? _coordinateContext;
+    private double _selectedPositionPercent = 50d;
     private string _previewStatus = string.Empty;
 
     public GameOverlaySettingsWindow()
@@ -178,7 +180,8 @@ public partial class GameOverlaySettingsWindow : Window
         IEnumerable<LegacyFpsTargetView> legacyTargets,
         string? preferredLegacyPath,
         string layoutMode = "vertical",
-        OverlaySettingsCoordinateContext? coordinateContext = null)
+        OverlaySettingsCoordinateContext? coordinateContext = null,
+        double horizontalPositionPercent = 50d)
     {
         if (!_previewSessionActive || _sessionFinalized)
         {
@@ -201,6 +204,7 @@ public partial class GameOverlaySettingsWindow : Window
 
             LoadSamplingItems(sampling);
             LoadLayoutItems(layoutMode);
+            LoadPositionPresetItems(horizontalPositionPercent);
             MetricList.SelectedIndex = _items.Count == 0 ? -1 : 0;
 
             LoadCoordinateContext(coordinateContext);
@@ -229,6 +233,35 @@ public partial class GameOverlaySettingsWindow : Window
         finally
         {
             _suppressPreview = false;
+        }
+    }
+
+    private void LoadPositionPresetItems(double positionPercent)
+    {
+        _selectedPositionPercent = double.IsFinite(positionPercent) ? Math.Clamp(positionPercent, 0, 100) : 50d;
+        PositionLeftRadio.IsChecked = Math.Abs(_selectedPositionPercent - 0) < 1;
+        PositionCenterRadio.IsChecked = Math.Abs(_selectedPositionPercent - 50) < 1;
+        PositionRightRadio.IsChecked = Math.Abs(_selectedPositionPercent - 100) < 1;
+        if (PositionLeftRadio.IsChecked != true && PositionCenterRadio.IsChecked != true && PositionRightRadio.IsChecked != true)
+        {
+            PositionCenterRadio.IsChecked = true;
+        }
+    }
+
+    private void PositionPreset_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_suppressPreview || sender is not System.Windows.Controls.RadioButton { IsChecked: true } radio || radio.Tag is not string tag)
+        {
+            return;
+        }
+
+        if (double.TryParse(tag, CultureInfo.InvariantCulture, out double percent))
+        {
+            _selectedPositionPercent = percent;
+            _coordinateDirty = true;
+            ExactPositionBox.IsChecked = false;
+            RefreshCoordinateEnabled();
+            RequestPreviewNow();
         }
     }
 
@@ -360,7 +393,8 @@ public partial class GameOverlaySettingsWindow : Window
             context?.Bottom ?? 0,
             positionChange,
             positionX,
-            positionY);
+            positionY,
+            ExactPositionBox.IsChecked == true ? null : _selectedPositionPercent);
         if (ApplyRequested?.Invoke(request) != false)
         {
             _coordinateDirty = false;

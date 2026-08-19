@@ -60,6 +60,38 @@ public sealed class GameOverlayControllerTests
         await controller.HideAsync();
     }
 
+    [Fact]
+    public async Task TargetInvalidated_KeepsOverlayVisibleWhenDesiredVisible()
+    {
+        DateTimeOffset started = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var candidate = new ForegroundWindowCandidate(
+            new nint(9), 99, started, "game", "GameWindow", true, true, false);
+        var tracker = new ForegroundTargetTracker(
+            new RepeatingSource(candidate),
+            999,
+            delay: (_, _) => Task.CompletedTask);
+        var provider = new ImmediateFrameProvider();
+        var view = new FakeView();
+        await using var controller = new GameOverlayController(
+            provider,
+            new FakeMonitorService(),
+            tracker,
+            view,
+            action => action());
+
+        await controller.ToggleFromTrayAsync();
+        Assert.True(view.Visible);
+
+        // Raise target invalidated
+        view.RaiseTargetInvalidated();
+
+        // Overlay should remain visible showing waiting/system stats
+        Assert.True(controller.DesiredVisible);
+        Assert.True(view.Visible);
+
+        await controller.HideAsync();
+    }
+
     private sealed class RepeatingSource(ForegroundWindowCandidate? candidate)
         : IForegroundWindowSource
     {
@@ -138,11 +170,7 @@ public sealed class GameOverlayControllerTests
 
     private sealed class FakeView : IGameOverlayView
     {
-        public event EventHandler? TargetInvalidated
-        {
-            add { }
-            remove { }
-        }
+        public event EventHandler? TargetInvalidated;
         public bool OverlayVisible => Visible;
         public bool Visible { get; private set; }
         public int ShowCalls { get; private set; }
@@ -153,5 +181,6 @@ public sealed class GameOverlayControllerTests
             double? currentFrequencyMegahertz = null) { }
         public void ShowWithoutActivation() { Visible = true; ShowCalls++; }
         public void HideOverlay() => Visible = false;
+        public void RaiseTargetInvalidated() => TargetInvalidated?.Invoke(this, EventArgs.Empty);
     }
 }

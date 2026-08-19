@@ -533,7 +533,12 @@ public sealed class GameOverlayWindowTracker : IDisposable
     {
         if (_minimized)
         {
-            HandleMinimizeEnd();
+            if (_targetIdentity is GameOverlayTargetIdentity minIdentity &&
+                IsWindow(minIdentity.WindowHandle) &&
+                !IsIconic(minIdentity.WindowHandle))
+            {
+                HandleMinimizeEnd();
+            }
             return;
         }
 
@@ -816,6 +821,10 @@ public sealed class GameOverlayWindowTracker : IDisposable
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindow(nint windowHandle);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsIconic(nint windowHandle);
 
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(nint windowHandle, out uint processId);

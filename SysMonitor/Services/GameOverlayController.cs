@@ -230,6 +230,7 @@ public sealed class GameOverlayController : IAsyncDisposable
                 _view.ShowWithoutActivation();
             });
             RaiseStateChanged();
+            _ = MonitorForegroundTargetsAsync(generation, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -238,6 +239,75 @@ public sealed class GameOverlayController : IAsyncDisposable
         finally
         {
             _operations.Release();
+        }
+    }
+
+    private async Task MonitorForegroundTargetsAsync(long generation, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested && IsCurrent(generation, visible: true))
+        {
+            try
+            {
+                await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+                if (!IsCurrent(generation, visible: true) || cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                ForegroundWindowCandidate? candidate = _targetTracker.CaptureCandidate();
+                if (candidate is not null && _targetTracker.IsQualifiedCandidate(candidate))
+                {
+                    ForegroundTarget? currentTarget = CurrentTarget;
+                    if (currentTarget is null ||
+                        candidate.WindowHandle != currentTarget.WindowHandle ||
+                        candidate.ProcessId != currentTarget.ProcessId)
+                    {
+                        var newTarget = new ForegroundTarget(
+                            candidate.WindowHandle,
+                            candidate.ProcessId,
+                            candidate.ProcessStartedAt,
+                            DateTimeOffset.UtcNow,
+                            candidate.ExecutablePath);
+
+                        await _operations.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        try
+                        {
+                            if (!IsCurrent(generation, visible: true) || cancellationToken.IsCancellationRequested)
+                            {
+                                break;
+                            }
+
+                            _targetTracker.SetManualTarget(newTarget);
+                            if (currentTarget?.ProcessId != newTarget.ProcessId)
+                            {
+                                await _frameProvider.StartAsync(newTarget.ProcessId, cancellationToken).ConfigureAwait(false);
+                            }
+
+                            RunOnUi(() =>
+                            {
+                                if (IsCurrent(generation, visible: true))
+                                {
+                                    _view.SetTarget(newTarget);
+                                    _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
+                                    _view.ShowWithoutActivation();
+                                }
+                            });
+                            RaiseStateChanged();
+                        }
+                        finally
+                        {
+                            _operations.Release();
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -276,6 +346,10 @@ public sealed class GameOverlayController : IAsyncDisposable
                     null,
                     GameOverlayFrameStatus.WaitingForTarget,
                     DateTimeOffset.UtcNow));
+            if (DesiredVisible)
+            {
+                _view.ShowWithoutActivation();
+            }
         });
         CancellationTokenSource cancellation;
         long generation;
@@ -324,6 +398,8 @@ public sealed class GameOverlayController : IAsyncDisposable
                     _view.ShowWithoutActivation();
                 }
             });
+            RaiseStateChanged();
+            _ = MonitorForegroundTargetsAsync(generation, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -1040,19 +1040,15 @@ public partial class App : System.Windows.Application
             ? Math.Clamp(positionPercent, 0, 100)
             : 50d;
         _settings.GameOverlayHorizontalPositionPercent = normalized;
-        if (_gameOverlayWindow is not null &&
-            _gameOverlayWindow.TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity identity))
-        {
-            RemoveOverlayMonitorPosition(identity);
-            _gameOverlayWindow.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
-        }
+        _settings.GameOverlayMonitorPositions?.Clear();
+        _gameOverlayWindow?.SetMonitorPositions([]);
+        _gameOverlayWindow?.SetHorizontalPositionPercent(normalized);
         PatchSettings(settings =>
         {
             settings.GameOverlayHorizontalPositionPercent = normalized;
-            settings.GameOverlayMonitorPositions = SettingsService.NormalizeOverlayMonitorPositions(
-                _settings.GameOverlayMonitorPositions);
+            settings.GameOverlayMonitorPositions = [];
         });
-        _gameOverlayWindow?.SetHorizontalPositionPercent(normalized);
+        _trayIcon?.SetGameOverlayPosition(normalized);
     }
 
     private void OnGameOverlayPresetChanged(string preset)
@@ -1274,7 +1270,8 @@ public partial class App : System.Windows.Application
             _gameOverlayWindow is not null &&
                 _gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext coordinateContext)
                     ? coordinateContext
-                    : null);
+                    : null,
+            _settings.GameOverlayHorizontalPositionPercent);
     }
 
     private static string BuildLegacyTargetDisplayName(string? executableName, string? executablePath)
@@ -1302,8 +1299,8 @@ public partial class App : System.Windows.Application
                 ExactEnabled: request.PositionChange == GameOverlayPositionChange.Set);
             if (_gameOverlayWindow is null ||
                 !_gameOverlayWindow.TryGetCurrentCoordinateContext(out OverlaySettingsCoordinateContext currentContext) ||
-                !_gameOverlayWindow.TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity currentIdentity) ||
-                !GameOverlayWindow.CoordinateContextMatches(requestedContext, currentContext))
+                !GameOverlayWindow.CoordinateContextMatches(requestedContext, currentContext) ||
+                !_gameOverlayWindow.TryGetCurrentMonitorIdentity(out OverlayMonitorIdentity currentIdentity))
             {
                 System.Windows.MessageBox.Show(
                     _gameOverlaySettingsWindow,
@@ -1318,9 +1315,9 @@ public partial class App : System.Windows.Application
             positionIdentity = currentIdentity;
         }
 
-        if (request.LegacyChanged)
+        if (request.LegacyChanged && !string.IsNullOrWhiteSpace(request.LegacyExecutablePath))
         {
-            if (string.IsNullOrWhiteSpace(request.LegacyExecutablePath))
+            if (_sessionGameSafeMode)
             {
                 ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: false);
                 return false;
@@ -1377,6 +1374,7 @@ public partial class App : System.Windows.Application
             SettingsService.NormalizeOverlayMonitorPositions(_settings.GameOverlayMonitorPositions);
         GameOverlayMetricVisibilitySettings? previousMetrics = _settings.GameOverlayMetrics;
         string previousSampling = _settings.GameOverlaySampling;
+        double previousHorizontalPositionPercent = _settings.GameOverlayHorizontalPositionPercent;
 
         GameOverlayMetricVisibility metrics = request.Metrics;
         string sampling = request.Sampling;
@@ -1386,10 +1384,24 @@ public partial class App : System.Windows.Application
             StringComparison.OrdinalIgnoreCase)
                 ? "horizontal"
                 : "vertical";
+
+        if (request.HorizontalPositionPercent is double percent)
+        {
+            double normalized = Math.Clamp(percent, 0, 100);
+            _settings.GameOverlayHorizontalPositionPercent = normalized;
+            _trayIcon?.SetGameOverlayPosition(normalized);
+        }
+
         if (positionIdentity is OverlayMonitorIdentity identity)
         {
             RemoveOverlayMonitorPosition(identity);
-            if (request.PositionChange == GameOverlayPositionChange.Set &&
+            if (request.PositionChange == GameOverlayPositionChange.Reset)
+            {
+                _settings.GameOverlayMonitorPositions?.Clear();
+                _gameOverlayWindow?.SetMonitorPositions([]);
+                _gameOverlayWindow?.SetHorizontalPositionPercent(_settings.GameOverlayHorizontalPositionPercent);
+            }
+            else if (request.PositionChange == GameOverlayPositionChange.Set &&
                 request.PositionX is int positionX &&
                 request.PositionY is int positionY)
             {
@@ -1419,6 +1431,7 @@ public partial class App : System.Windows.Application
         if (!TryPatchSettings(settings =>
             {
                 settings.GameOverlayLayoutMode = _settings.GameOverlayLayoutMode;
+                settings.GameOverlayHorizontalPositionPercent = _settings.GameOverlayHorizontalPositionPercent;
                 settings.GameOverlayMonitorPositions = SettingsService.NormalizeOverlayMonitorPositions(
                     _settings.GameOverlayMonitorPositions);
                 settings.GameOverlayMetrics = _settings.GameOverlayMetrics;
@@ -1429,6 +1442,7 @@ public partial class App : System.Windows.Application
             _settings.GameOverlayMonitorPositions = previousMonitorPositions;
             _settings.GameOverlayMetrics = previousMetrics;
             _settings.GameOverlaySampling = previousSampling;
+            _settings.GameOverlayHorizontalPositionPercent = previousHorizontalPositionPercent;
             ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: true);
             System.Windows.MessageBox.Show(
                 _gameOverlaySettingsWindow,

@@ -22,57 +22,23 @@ public sealed class GameOverlayNativeTests
     }
 
     [Fact]
-    public void ZOrder_NoTargetDemotesOverlayFromTopmostTier()
+    public void ZOrder_AlwaysMaintainsTopmostTierToPreventWindowSwitchLoss()
     {
-        OverlayZOrderDecision decision = GameOverlayWindow.ResolveZOrder(
+        OverlayZOrderDecision decisionNoTarget = GameOverlayWindow.ResolveZOrder(
             new nint(10), nint.Zero, nint.Zero, targetTopmost: false);
+        Assert.True(decisionNoTarget.Topmost);
+        Assert.Equal(new nint(-1), decisionNoTarget.InsertAfter);
+        Assert.False(decisionNoTarget.PreserveZOrder);
 
-        Assert.False(decision.Topmost);
-        Assert.Equal(new nint(-2), decision.InsertAfter);
-        Assert.False(decision.PreserveZOrder);
-    }
-
-    [Fact]
-    public void ZOrder_AlreadyImmediatelyAboveTargetPreservesOrder()
-    {
-        var overlay = new nint(10);
-        OverlayZOrderDecision decision = GameOverlayWindow.ResolveZOrder(
-            overlay, new nint(20), overlay, targetTopmost: false);
-
-        Assert.False(decision.Topmost);
-        Assert.True(decision.PreserveZOrder);
-    }
-
-    [Fact]
-    public void ZOrder_UsesExistingTargetPredecessor()
-    {
-        OverlayZOrderDecision decision = GameOverlayWindow.ResolveZOrder(
+        OverlayZOrderDecision decisionWithTarget = GameOverlayWindow.ResolveZOrder(
             new nint(10), new nint(20), new nint(30), targetTopmost: false);
+        Assert.True(decisionWithTarget.Topmost);
+        Assert.Equal(new nint(-1), decisionWithTarget.InsertAfter);
 
-        Assert.Equal(new nint(30), decision.InsertAfter);
-        Assert.False(decision.PreserveZOrder);
-    }
-
-    [Fact]
-    public void ZOrder_TopmostTargetWithoutPredecessorUsesTopmostTier()
-    {
-        OverlayZOrderDecision decision = GameOverlayWindow.ResolveZOrder(
+        OverlayZOrderDecision decisionTopmostTarget = GameOverlayWindow.ResolveZOrder(
             new nint(10), new nint(20), nint.Zero, targetTopmost: true);
-
-        Assert.True(decision.Topmost);
-        Assert.Equal(new nint(-1), decision.InsertAfter);
-        Assert.False(decision.PreserveZOrder);
-    }
-
-    [Fact]
-    public void ZOrder_NonTopmostTargetWithoutPredecessorUsesNormalTop()
-    {
-        OverlayZOrderDecision decision = GameOverlayWindow.ResolveZOrder(
-            new nint(10), new nint(20), nint.Zero, targetTopmost: false);
-
-        Assert.False(decision.Topmost);
-        Assert.Equal(nint.Zero, decision.InsertAfter);
-        Assert.False(decision.PreserveZOrder);
+        Assert.True(decisionTopmostTarget.Topmost);
+        Assert.Equal(new nint(-1), decisionTopmostTarget.InsertAfter);
     }
 
     [Fact]

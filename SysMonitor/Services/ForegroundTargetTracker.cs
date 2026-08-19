@@ -34,6 +34,11 @@ public sealed class ForegroundTargetTracker
 
     public ForegroundTarget? SnapshotTriggerCandidate() => CaptureQualified(record: false);
 
+    public ForegroundWindowCandidate? CaptureCandidate() => _source.Capture();
+
+    public bool IsQualifiedCandidate(ForegroundWindowCandidate? candidate) =>
+        ForegroundTargetPolicy.IsQualified(candidate, _currentProcessId);
+
     public void SetManualTarget(ForegroundTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);

@@ -90,6 +90,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _targetWindow = target?.WindowHandle ?? nint.Zero;
         _targetMinimized = false;
         _restoreAfterTargetMinimize = false;
+        _placementApplied = false;
         InvalidateMonitorCache();
         _windowTracker.SetTarget(target);
         PositionWithoutActivation();
@@ -100,6 +101,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _horizontalPositionPercent = double.IsFinite(positionPercent)
             ? Math.Clamp(positionPercent, 0, 100)
             : 50d;
+        _placementApplied = false;
         PositionWithoutActivation();
     }
 
@@ -132,6 +134,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void SetMonitorPositions(IEnumerable<GameOverlayMonitorPositionSettings>? positions)
     {
         _monitorPositions = SettingsService.NormalizeOverlayMonitorPositions(positions);
+        _placementApplied = false;
         PositionWithoutActivation();
     }
 
@@ -520,8 +523,15 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         int height = Math.Min(workingArea.Height, Math.Max(1, (int)Math.Ceiling(heightDip * scale)));
         int margin = Math.Max(0, (int)Math.Round(marginDip * scale));
         double travel = Math.Max(0, workingArea.Width - width - (margin * 2));
-        int x = Math.Clamp(workingArea.Left + margin + (int)Math.Round(travel * Math.Clamp(horizontalPositionPercent, 0, 100) / 100d), workingArea.Left, workingArea.Right - width);
-        int y = Math.Clamp(workingArea.Top + margin, workingArea.Top, workingArea.Bottom - height);
+        double percent = Math.Clamp(horizontalPositionPercent, 0, 100) / 100d;
+        int x = Math.Clamp(
+            workingArea.Left + margin + (int)Math.Round(travel * percent),
+            workingArea.Left,
+            Math.Max(workingArea.Left, workingArea.Right - width));
+        int y = Math.Clamp(
+            workingArea.Top + margin,
+            workingArea.Top,
+            Math.Max(workingArea.Top, workingArea.Bottom - height));
         return new OverlayPixelRect(x, y, x + width, y + height);
     }
 
@@ -693,37 +703,23 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _targetMinimized = false;
         _restoreAfterTargetMinimize = false;
         InvalidateMonitorCache();
-        _positionTimer.Stop();
         _placementApplied = false;
-        if (IsVisible)
-        {
-            Hide();
-        }
-
+        PositionWithoutActivation();
         TargetInvalidated?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnTrackedTargetMinimized(object? sender, EventArgs e)
     {
         _targetMinimized = true;
-        _restoreAfterTargetMinimize |= IsVisible;
-        _positionTimer.Stop();
         _placementApplied = false;
-        if (IsVisible)
-        {
-            Hide();
-        }
+        PositionWithoutActivation();
     }
 
     private void OnTrackedTargetRestored(object? sender, EventArgs e)
     {
         _targetMinimized = false;
-        bool shouldRestore = _restoreAfterTargetMinimize;
-        _restoreAfterTargetMinimize = false;
-        if (shouldRestore)
-        {
-            ShowWithoutActivation();
-        }
+        _placementApplied = false;
+        PositionWithoutActivation();
     }
 
     private nint WindowProc(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
@@ -766,17 +762,16 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             TryFindExactPosition(identity, _monitorPositions, out exactPosition);
 
         OverlayPixelRect placementArea;
-        if (!hasExactPosition && target != nint.Zero && TryGetClientAreaOnScreen(target, out OverlayPixelRect clientArea))
+        if (!hasExactPosition && target != nint.Zero && !IsIconic(target) && TryGetGamePlacementArea(target, out OverlayPixelRect gameArea))
         {
-            // A manually selected, windowed game must be anchored to its drawing
-            // surface, not to the top-left corner of the physical display.
-            placementArea = clientArea;
+            // Anchored to the drawing surface / visual frame of the game window
+            placementArea = gameArea;
         }
         else if (hasExactPosition && monitorIdentity is OverlayMonitorIdentity exactIdentity)
         {
             placementArea = ToOverlayRect(exactIdentity.Bounds);
         }
-        else if (!TryGetWorkArea(target, out placementArea))
+        else if (!TryGetWorkArea(target != nint.Zero && !IsIconic(target) ? target : nint.Zero, out placementArea))
         {
             return;
         }
@@ -800,14 +795,12 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _lastPlacement = placement;
         _lastPlacementMonitorId = monitorIdentity?.StableMonitorId;
         nint overlay = _source.Handle;
-        bool targetTopmost = target != nint.Zero && IsTopmost(target);
-        SynchronizeTopmostTier(overlay, targetTopmost);
-        nint predecessor = target != nint.Zero ? GetWindow(target, GwHwndPrev) : nint.Zero;
+        SynchronizeTopmostTier(overlay, true);
         OverlayZOrderDecision zOrder = ResolveZOrder(
             overlay,
             target,
-            predecessor,
-            targetTopmost);
+            nint.Zero,
+            true);
         uint flags = SwpNoActivate | SwpShowWindow;
         if (zOrder.PreserveZOrder)
         {
@@ -842,10 +835,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private OverlayPixelRect CalculateLegacyPlacementForContext(OverlayMonitorIdentity identity)
     {
-        OverlayPixelRect area = _targetWindow != nint.Zero &&
-            TryGetClientAreaOnScreen(_targetWindow, out OverlayPixelRect clientArea)
-                ? clientArea
-                : TryGetWorkArea(_targetWindow, out OverlayPixelRect workArea)
+        OverlayPixelRect area = _targetWindow != nint.Zero && !IsIconic(_targetWindow) &&
+            TryGetGamePlacementArea(_targetWindow, out OverlayPixelRect gameArea)
+                ? gameArea
+                : TryGetWorkArea(_targetWindow != nint.Zero && !IsIconic(_targetWindow) ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
                     ? workArea
                     : ToOverlayRect(identity.Bounds);
         return CalculatePlacement(
@@ -864,7 +857,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         out OverlayMonitorIdentity identity)
     {
         identity = default;
-        nint handle = _targetWindow != nint.Zero ? _targetWindow : _source?.Handle ?? nint.Zero;
+        nint handle = _targetWindow != nint.Zero && !IsIconic(_targetWindow) ? _targetWindow : _source?.Handle ?? nint.Zero;
         if (!forceRefresh && _hasCachedMonitorIdentity && _cachedIdentityWindow == handle)
         {
             identity = _cachedMonitorIdentity;
@@ -939,22 +932,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         nint targetPredecessor,
         bool targetTopmost)
     {
-        if (target == nint.Zero)
-        {
-            return new OverlayZOrderDecision(false, HwndNoTopmost, false);
-        }
-
-        if (targetPredecessor == overlay)
-        {
-            return new OverlayZOrderDecision(targetTopmost, nint.Zero, true);
-        }
-
-        nint insertAfter = targetPredecessor != nint.Zero
-            ? targetPredecessor
-            : targetTopmost
-                ? HwndTopmost
-                : HwndTop;
-        return new OverlayZOrderDecision(targetTopmost, insertAfter, false);
+        return new OverlayZOrderDecision(true, HwndTopmost, false);
     }
 
     private static bool IsTopmost(nint windowHandle) =>
@@ -963,19 +941,66 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static void SynchronizeTopmostTier(nint overlay, bool topmost)
     {
         bool currentlyTopmost = IsTopmost(overlay);
-        if (currentlyTopmost == topmost)
+        if (!currentlyTopmost)
         {
-            return;
+            _ = SetWindowPos(
+                overlay,
+                HwndTopmost,
+                0,
+                0,
+                0,
+                0,
+                SwpNoMove | SwpNoSize | SwpNoActivate | SwpShowWindow);
+        }
+    }
+
+    private static bool TryGetGamePlacementArea(nint windowHandle, out OverlayPixelRect area)
+    {
+        area = default;
+        if (windowHandle == nint.Zero || !IsWindow(windowHandle) || IsIconic(windowHandle))
+        {
+            return false;
         }
 
-        _ = SetWindowPos(
-            overlay,
-            topmost ? HwndTopmost : HwndNoTopmost,
-            0,
-            0,
-            0,
-            0,
-            SwpNoMove | SwpNoSize | SwpNoActivate);
+        // 1. Try Client Area (for windowed games)
+        if (TryGetClientAreaOnScreen(windowHandle, out OverlayPixelRect clientArea) &&
+            clientArea.Width >= 50 && clientArea.Height >= 50)
+        {
+            area = clientArea;
+            return true;
+        }
+
+        // 2. Try DWM Extended Frame Bounds (handles borderless / DPI scaled windows)
+        try
+        {
+            if (DwmGetWindowAttribute(windowHandle, DwmwaExtendedFrameBounds, out NativeRect frame, Marshal.SizeOf<NativeRect>()) == 0)
+            {
+                int width = frame.Right - frame.Left;
+                int height = frame.Bottom - frame.Top;
+                if (width >= 50 && height >= 50)
+                {
+                    area = new OverlayPixelRect(frame.Left, frame.Top, frame.Right, frame.Bottom);
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        // 3. Try standard Window Rect
+        if (GetWindowRect(windowHandle, out NativeRect winRect))
+        {
+            int width = winRect.Right - winRect.Left;
+            int height = winRect.Bottom - winRect.Top;
+            if (width >= 50 && height >= 50)
+            {
+                area = new OverlayPixelRect(winRect.Left, winRect.Top, winRect.Right, winRect.Bottom);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryGetClientAreaOnScreen(nint windowHandle, out OverlayPixelRect area)
@@ -1003,11 +1028,16 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static nint GetWindowLongPtr(nint windowHandle, int index) => IntPtr.Size == 8 ? GetWindowLongPtr64(windowHandle, index) : new nint(GetWindowLong32(windowHandle, index));
     private static nint SetWindowLongPtr(nint windowHandle, int index, nint value) => IntPtr.Size == 8 ? SetWindowLongPtr64(windowHandle, index, value) : new nint(SetWindowLong32(windowHandle, index, value.ToInt32()));
 
+    private const int DwmwaExtendedFrameBounds = 9;
+
     [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left; public int Top; public int Right; public int Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X; public int Y; }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect MonitorArea; public NativeRect WorkArea; public uint Flags; }
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindow(nint windowHandle);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsIconic(nint windowHandle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetClientRect(nint windowHandle, out NativeRect rectangle);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetWindowRect(nint windowHandle, out NativeRect rectangle);
+    [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint hwnd, int dwAttribute, out NativeRect pvAttribute, int cbAttribute);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ClientToScreen(nint windowHandle, ref NativePoint point);
     [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint windowHandle, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
