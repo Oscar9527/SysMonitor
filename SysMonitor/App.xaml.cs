@@ -1,7 +1,9 @@
 using System.Diagnostics;
-using System.Threading;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 using SysMonitor.Models;
 using SysMonitor.Services;
@@ -494,6 +496,12 @@ public partial class App : System.Windows.Application
             detail.ShowActivated = showPolicy.Activate;
             detail.UpdateSnapshot(_monitorService?.Latest ?? MonitorSnapshot.Empty);
             detail.UpdateHistory(_metricHistory.Snapshot());
+
+            if (clickBand is not null || (_settings.PanelLeft == null && _settings.PanelTop == null))
+            {
+                PositionDetailAboveBand(detail, clickBand);
+            }
+
             if (!detail.IsVisible)
             {
                 BandDiagnostics.Log($"detail toggle action=show activate={showPolicy.Activate}");
@@ -743,15 +751,18 @@ public partial class App : System.Windows.Application
         detail.HideRequested += OnDetailHideRequested;
         detail.LocationChanged += OnDetailLocationChanged;
 
-        Rect workArea = SystemParameters.WorkArea;
-        double left = _settings.PanelLeft ??
-            Math.Max(workArea.Left + 16, workArea.Right - detail.Width - 16);
-        double top = _settings.PanelTop ??
-            Math.Max(workArea.Top + 16, workArea.Bottom - detail.Height - 56);
-
         detail.WindowStartupLocation = WindowStartupLocation.Manual;
-        detail.Left = Math.Clamp(left, workArea.Left, Math.Max(workArea.Left, workArea.Right - detail.Width));
-        detail.Top = Math.Clamp(top, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - detail.Height));
+        if (_settings.PanelLeft is double left && _settings.PanelTop is double top)
+        {
+            Rect workArea = SystemParameters.WorkArea;
+            detail.Left = Math.Clamp(left, workArea.Left, Math.Max(workArea.Left, workArea.Right - detail.Width));
+            detail.Top = Math.Clamp(top, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - detail.Height));
+        }
+        else
+        {
+            PositionDetailAboveBand(detail, _bandWindow);
+        }
+
         _detailWindow = detail;
         return detail;
     }
@@ -1892,4 +1903,65 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private void PositionDetailAboveBand(DetailWindow detail, BandWindow? clickBand)
+    {
+        Rect workArea = SystemParameters.WorkArea;
+        double targetLeft;
+        double targetTop = Math.Max(workArea.Top + 10, workArea.Bottom - detail.Height - 12);
+
+        nint bandHandle = clickBand?.NativeHandle ?? _bandHandle;
+        if (bandHandle != nint.Zero && TaskbarPositioner.IsWindowHandleAlive(bandHandle) &&
+            GetWindowRect(bandHandle, out NativeRect bandRect) && bandRect.Right > bandRect.Left)
+        {
+            double dpiScale = 1.0;
+            try
+            {
+                dpiScale = VisualTreeHelper.GetDpi(detail).DpiScaleX;
+                if (dpiScale <= 0) dpiScale = 1.0;
+            }
+            catch
+            {
+                dpiScale = 1.0;
+            }
+
+            double bandCenterDip = ((bandRect.Left + bandRect.Right) / 2.0) / dpiScale;
+            targetLeft = bandCenterDip - (detail.Width / 2.0);
+            if (targetLeft + detail.Width > workArea.Right - 14)
+            {
+                targetLeft = workArea.Right - detail.Width - 14;
+            }
+
+            if (targetLeft < workArea.Left + 14)
+            {
+                targetLeft = workArea.Left + 14;
+            }
+
+            double bandTopDip = bandRect.Top / dpiScale;
+            if (bandTopDip > workArea.Top + detail.Height + 20)
+            {
+                targetTop = bandTopDip - detail.Height - 8;
+            }
+        }
+        else
+        {
+            targetLeft = Math.Max(workArea.Left + 16, workArea.Right - detail.Width - 16);
+            targetTop = Math.Max(workArea.Top + 16, workArea.Bottom - detail.Height - 12);
+        }
+
+        detail.Left = Math.Clamp(targetLeft, workArea.Left, Math.Max(workArea.Left, workArea.Right - detail.Width));
+        detail.Top = Math.Clamp(targetTop, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - detail.Height));
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(nint hWnd, out NativeRect lpRect);
 }
