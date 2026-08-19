@@ -103,18 +103,71 @@
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
         </Style>
+
+        <Style x:Key="ModernScrollViewerStyle" TargetType="ScrollViewer">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <ScrollContentPresenter CanContentScroll="{TemplateBinding CanContentScroll}" />
+                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                                       HorizontalAlignment="Right"
+                                       Width="6"
+                                       Margin="0,4,4,4"
+                                       Minimum="{TemplateBinding ScrollableHeight}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}">
+                                <ScrollBar.Template>
+                                    <ControlTemplate TargetType="ScrollBar">
+                                        <Grid Background="Transparent">
+                                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                                <Track.Thumb>
+                                                    <Thumb>
+                                                        <Thumb.Template>
+                                                            <ControlTemplate TargetType="Thumb">
+                                                                <Border Background="{DynamicResource AppSecondaryTextBrush}"
+                                                                        Opacity="0.35"
+                                                                        CornerRadius="3" />
+                                                            </ControlTemplate>
+                                                        </Thumb.Template>
+                                                    </Thumb>
+                                                </Track.Thumb>
+                                            </Track>
+                                        </Grid>
+                                    </ControlTemplate>
+                                </ScrollBar.Template>
+                            </ScrollBar>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <!-- Outer container providing smooth 16px corner radius and soft shadow -->
-    <Border Margin="14"
+    <Border x:Name="RootBorder"
+            Margin="14"
             Background="{DynamicResource AppBackgroundBrush}"
             BorderBrush="{DynamicResource AppSeparatorBrush}"
             BorderThickness="1"
-            CornerRadius="16"
-            ClipToBounds="True">
+            CornerRadius="16">
         <Border.Effect>
             <DropShadowEffect BlurRadius="28" ShadowDepth="6" Direction="270" Color="#000000" Opacity="0.18" />
         </Border.Effect>
+
+        <Border.OpacityMask>
+            <VisualBrush>
+                <VisualBrush.Visual>
+                    <Border Background="Black"
+                            CornerRadius="16"
+                            Width="{Binding ActualWidth, ElementName=RootBorder}"
+                            Height="{Binding ActualHeight, ElementName=RootBorder}" />
+                </VisualBrush.Visual>
+            </VisualBrush>
+        </Border.OpacityMask>
 
         <Grid>
             <Grid.RowDefinitions>
@@ -157,6 +210,7 @@
             </Grid>
 
             <ScrollViewer Grid.Row="1"
+                          Style="{StaticResource ModernScrollViewerStyle}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           PanningMode="VerticalFirst">
