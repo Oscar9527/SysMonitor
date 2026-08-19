@@ -764,12 +764,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             TryFindExactPosition(identity, _monitorPositions, out exactPosition);
 
         OverlayPixelRect placementArea;
-        if (!hasExactPosition && target != nint.Zero && !IsIconic(target) && IsWindowVisible(target) && TryGetGamePlacementArea(target, out OverlayPixelRect gameArea))
-        {
-            // Anchored to the drawing surface / visual frame of the game window
-            placementArea = gameArea;
-        }
-        else if (hasExactPosition && monitorIdentity is OverlayMonitorIdentity exactIdentity)
+        if (hasExactPosition && monitorIdentity is OverlayMonitorIdentity exactIdentity)
         {
             placementArea = ToOverlayRect(exactIdentity.Bounds);
         }
@@ -838,12 +833,9 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private OverlayPixelRect CalculateLegacyPlacementForContext(OverlayMonitorIdentity identity)
     {
         bool isTargetAlive = _targetWindow != nint.Zero && !IsIconic(_targetWindow) && IsWindowVisible(_targetWindow);
-        OverlayPixelRect area = isTargetAlive &&
-            TryGetGamePlacementArea(_targetWindow, out OverlayPixelRect gameArea)
-                ? gameArea
-                : TryGetWorkArea(isTargetAlive ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
-                    ? workArea
-                    : ToOverlayRect(identity.Bounds);
+        OverlayPixelRect area = TryGetWorkArea(isTargetAlive ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
+            ? workArea
+            : ToOverlayRect(identity.Bounds);
         return CalculatePlacement(
             area,
             GetWidthDip(),
