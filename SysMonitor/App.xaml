@@ -1,28 +1,53 @@
 <Application x:Class="SysMonitor.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:system="clr-namespace:System;assembly=System.Runtime">
     <Application.Resources>
-        <FontFamily x:Key="AppFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
+        <FontFamily x:Key="AppFontFamily">Segoe UI Variable Display, Segoe UI Variable Text, -apple-system, Segoe UI, sans-serif</FontFamily>
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F5F7" />
         <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="AppTextBrush" Color="#1D1D1F" />
-        <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#6E6E73" />
-        <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#8E8E93" />
+        <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#86868B" />
+        <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#A1A1A6" />
         <SolidColorBrush x:Key="AppSeparatorBrush" Color="#E5E5EA" />
-        <SolidColorBrush x:Key="AppControlBrush" Color="#F0F0F3" />
-        <SolidColorBrush x:Key="AppAccentBrush" Color="#007AFF" />
+        <SolidColorBrush x:Key="AppControlBrush" Color="#F2F2F7" />
+        <SolidColorBrush x:Key="AppAccentBrush" Color="#0071E3" />
+        <SolidColorBrush x:Key="CpuMetricBrush" Color="#0071E3" />
+        <SolidColorBrush x:Key="MemoryMetricBrush" Color="#FF9500" />
+        <SolidColorBrush x:Key="GpuMetricBrush" Color="#AF52DE" />
+        <SolidColorBrush x:Key="WarningMetricBrush" Color="#FF9500" />
+        <SolidColorBrush x:Key="CriticalMetricBrush" Color="#FF3B30" />
+        <SolidColorBrush x:Key="CpuMetricSoftBrush" Color="#EBF3FC" />
+        <SolidColorBrush x:Key="MemoryMetricSoftBrush" Color="#FFF6EB" />
+        <SolidColorBrush x:Key="GpuMetricSoftBrush" Color="#F8F0FC" />
+        <SolidColorBrush x:Key="DetailPinBackgroundBrush" Color="#EBF3FC" />
+        <SolidColorBrush x:Key="DetailPinForegroundBrush" Color="#0071E3" />
+        <SolidColorBrush x:Key="DetailUnpinnedForegroundBrush" Color="#86868B" />
+        <SolidColorBrush x:Key="MetricTrackBrush" Color="#EFEFF4" />
+        <SolidColorBrush x:Key="BandBackgroundBrush" Color="#00000000" />
+        <SolidColorBrush x:Key="BandTextBrush" Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="BandSeparatorBrush" Color="#55FFFFFF" />
+        <CornerRadius x:Key="AppGroupCornerRadius">12</CornerRadius>
+        <CornerRadius x:Key="MacWindowCornerRadius">16</CornerRadius>
+        <CornerRadius x:Key="MacCardCornerRadius">12</CornerRadius>
+        <CornerRadius x:Key="MacControlCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="MacPillCornerRadius">16</CornerRadius>
+        <CornerRadius x:Key="BandCornerRadius">0</CornerRadius>
+        <system:Double x:Key="AppShadowOpacity">0.14</system:Double>
 
         <Style x:Key="AppWindowStyle" TargetType="Window">
-            <Setter Property="Background" Value="{StaticResource AppBackgroundBrush}" />
-            <Setter Property="Foreground" Value="{StaticResource AppTextBrush}" />
-            <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+            <Setter Property="FontFamily" Value="{DynamicResource AppFontFamily}" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
         </Style>
 
         <Style x:Key="AppGroupStyle" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppSeparatorBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppSeparatorBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="CornerRadius" Value="{DynamicResource MacCardCornerRadius}" />
         </Style>
     </Application.Resources>
 </Application>

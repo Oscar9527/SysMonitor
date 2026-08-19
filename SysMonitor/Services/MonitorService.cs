@@ -1,13 +1,22 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.NetworkInformation;
+using System.Net;
 using System.Runtime.InteropServices;
 using SysMonitor.Models;
 
 namespace SysMonitor.Services;
 
+internal enum CpuTemperatureSource
+{
+    None,
+    Unavailable,
+    LibreHardwareMonitor,
+}
+
 public sealed class MonitorService : IMonitorService
 {
+    private static long s_nextProducerId;
     private static readonly TimeSpan NetworkRefreshInterval = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan DriveRefreshInterval = TimeSpan.FromSeconds(10);
     private static readonly string[] VirtualAdapterMarkers =
@@ -15,12 +24,21 @@ public sealed class MonitorService : IMonitorService
         "Hyper-V", "VMware", "Docker", "TAP", "TUN", "Virtual", "虚拟",
     };
 
+    private static readonly string[] AdditionalVirtualAdapterMarkers =
+    {
+        "ZeroTier", "WireGuard", "OpenVPN", "Wintun", "Tailscale", "Hamachi",
+    };
+
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly CpuUsageReader _cpuReader = new();
-    private readonly CpuTemperatureReader _cpuTemperatureReader = new();
-    private readonly GpuTelemetryCoordinator _gpuCoordinator = new();
+    private readonly CpuTemperatureReader? _cpuTemperatureReader;
+    private readonly CpuFrequencyReader _cpuFrequencyReader = new();
+    private readonly MemoryFrequencyReader _memoryFrequencyReader = new();
+    private TimeSpan _samplingInterval;
+    private readonly GpuTelemetryCoordinator _gpuCoordinator;
     private readonly DriveTelemetryCache _driveTelemetry = new(GetSystemDriveRoot());
     private readonly List<NetworkCounter> _networkCounters = new();
+    private readonly long _producerId = Interlocked.Increment(ref s_nextProducerId);
     private CancellationTokenSource? _runCancellation;
     private Task? _samplingTask;
     private MonitorSnapshot _latest = MonitorSnapshot.Empty;
@@ -31,11 +49,44 @@ public sealed class MonitorService : IMonitorService
     private long _networkLastTimestamp;
     private long _networkRefreshTimestamp;
     private long _driveRefreshTimestamp;
+    private int _detailedTelemetryEnabled;
     private bool _disposed;
+    private CpuTemperatureSource _cpuTemperatureSource;
 
     public event EventHandler<MonitorSnapshot>? SnapshotUpdated;
 
     public MonitorSnapshot Latest => Volatile.Read(ref _latest);
+
+    public void SetSamplingInterval(TimeSpan interval)
+    {
+        if (interval >= TimeSpan.FromMilliseconds(250) && interval <= TimeSpan.FromSeconds(10))
+            _samplingInterval = interval;
+    }
+
+    /// <summary>Enables clock reads required only by the detailed game HUD.</summary>
+    public void SetDetailedTelemetryEnabled(bool enabled) =>
+        Volatile.Write(ref _detailedTelemetryEnabled, enabled ? 1 : 0);
+
+    public MonitorService()
+        : this(MonitorOptions.GameSafe)
+    {
+    }
+
+    public MonitorService(MonitorOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        _cpuTemperatureReader = options.EnableCpuTemperatureReader
+            ? new CpuTemperatureReader()
+            : null;
+        _samplingInterval = options.SamplingInterval is { } interval && interval >= TimeSpan.FromMilliseconds(250)
+            ? interval
+            : TimeSpan.FromSeconds(1);
+        _gpuCoordinator = new GpuTelemetryCoordinator(options.EnableLibreHardwareMonitor);
+        BandDiagnostics.Log(
+            $"monitor options gpuCompatibility={options.EnableLibreHardwareMonitor} " +
+            $"cpuTemperature={options.EnableCpuTemperatureReader} " +
+            $"libreHardwareMonitor={options.EnableLibreHardwareMonitor}");
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
@@ -52,7 +103,7 @@ public sealed class MonitorService : IMonitorService
             _runCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             PrimeCpu();
             _cpuReader.Start();
-            _cpuTemperatureReader.Start();
+            _cpuTemperatureReader?.Start();
             InitializeNetworkCounters();
             await _gpuCoordinator.StartAsync(_runCancellation.Token).ConfigureAwait(false);
             _samplingTask = Task.Run(
@@ -84,7 +135,7 @@ public sealed class MonitorService : IMonitorService
             }
 
             await _gpuCoordinator.StopAsync().ConfigureAwait(false);
-            _cpuTemperatureReader.Stop();
+            _cpuTemperatureReader?.Stop();
             _cpuReader.Stop();
             _samplingTask = null;
             _runCancellation?.Dispose();
@@ -115,18 +166,23 @@ public sealed class MonitorService : IMonitorService
 
         await StopAsync().ConfigureAwait(false);
         await _gpuCoordinator.DisposeAsync().ConfigureAwait(false);
-        _cpuTemperatureReader.Dispose();
+        _cpuTemperatureReader?.Dispose();
         _cpuReader.Dispose();
         _lifecycle.Dispose();
     }
 
     private async Task SamplingLoopAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        do
+        while (!cancellationToken.IsCancellationRequested)
         {
             double cpuUsage = ReadCpuUsage();
-            double? cpuTemperature = _cpuTemperatureReader.Read();
+            double? cpuTemperature = ReadCpuTemperature();
+            // Current CPU clock and the DIMM configuration query are used only
+            // in the detailed HUD. Keeping them off for the normal tray/band
+            // session avoids allocating a WMI provider and native buffers.
+            bool detailedTelemetry = Volatile.Read(ref _detailedTelemetryEnabled) != 0;
+            double? cpuFrequency = detailedTelemetry ? _cpuFrequencyReader.ReadCurrentMhz() : null;
+            double? memoryFrequency = detailedTelemetry ? _memoryFrequencyReader.ReadConfiguredMhz() : null;
             (double usage, long used, long total) memory = ReadMemory();
             (double download, double upload) network = ReadNetwork();
             RefreshDrivesIfDue();
@@ -147,12 +203,43 @@ public sealed class MonitorService : IMonitorService
                 network.upload,
                 systemDrive?.Name ?? _driveTelemetry.SystemDriveName,
                 systemDrive?.UsagePercent ?? 0d,
-                fixedDrives);
+                fixedDrives)
+            {
+                ProducerId = _producerId,
+                MonotonicTimestamp = Stopwatch.GetTimestamp(),
+                CpuFrequencyMhz = cpuFrequency,
+                MemoryFrequencyMhz = memoryFrequency
+            };
 
             Volatile.Write(ref _latest, snapshot);
             RaiseSnapshotUpdated(snapshot);
+            try { await Task.Delay(_samplingInterval, cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
         }
-        while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false));
+    }
+
+    private double? ReadCpuTemperature()
+    {
+        double? temperature = _cpuTemperatureReader?.Read();
+        if (temperature is double value)
+        {
+            LogCpuTemperatureSource(CpuTemperatureSource.LibreHardwareMonitor, "independent CPU sensor reader");
+            return value;
+        }
+
+        LogCpuTemperatureSource(CpuTemperatureSource.Unavailable, "no readable CPU temperature sensor");
+        return null;
+    }
+
+    private void LogCpuTemperatureSource(CpuTemperatureSource source, string detail)
+    {
+        if (_cpuTemperatureSource == source)
+        {
+            return;
+        }
+
+        _cpuTemperatureSource = source;
+        BandDiagnostics.Log($"CPU temperature source={source} detail={detail}");
     }
 
     private void PrimeCpu()
@@ -397,13 +484,21 @@ public sealed class MonitorService : IMonitorService
 
         try
         {
-            foreach (NetworkInterface networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+            NetworkInterface[] interfaces = NetworkInterface.GetAllNetworkInterfaces();
+            List<NetworkInterface> candidates = interfaces.Where(IsPhysicalActiveAdapter).ToList();
+            uint? defaultRouteIndex = TryGetDefaultRouteInterfaceIndex();
+            List<NetworkInterface> selected = defaultRouteIndex is uint index
+                ? candidates.Where(networkInterface => TryGetInterfaceIndex(networkInterface) == index).ToList()
+                : [];
+            if (selected.Count == 0)
             {
-                if (!IsPhysicalActiveAdapter(networkInterface))
-                {
-                    continue;
-                }
+                selected = candidates.Where(HasDefaultGateway).ToList();
+            }
 
+            // Report the active internet uplink rather than summing every
+            // adapter. Overlay/VPN traffic may otherwise be counted twice.
+            foreach (NetworkInterface networkInterface in selected.Count > 0 ? selected : candidates)
+            {
                 if (existing.TryGetValue(networkInterface.Id, out NetworkCounter? oldCounter))
                 {
                     oldCounter.Interface = networkInterface;
@@ -431,6 +526,36 @@ public sealed class MonitorService : IMonitorService
 
         _networkCounters.Clear();
         _networkCounters.AddRange(rebuilt);
+        BandDiagnostics.LogRateLimited(
+            "network-uplink",
+            $"network uplink adapters={string.Join(", ", rebuilt.Select(counter => counter.Interface.Name))}",
+            TimeSpan.FromMinutes(5));
+    }
+
+    private static bool HasDefaultGateway(NetworkInterface networkInterface)
+    {
+        try
+        {
+            return networkInterface.GetIPProperties().GatewayAddresses.Any(gateway =>
+                gateway.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                !IPAddress.Any.Equals(gateway.Address));
+        }
+        catch { return false; }
+    }
+
+    private static uint? TryGetDefaultRouteInterfaceIndex()
+    {
+        try
+        {
+            return GetBestInterface(0x01010101, out uint index) == 0 ? index : null;
+        }
+        catch { return null; }
+    }
+
+    private static uint? TryGetInterfaceIndex(NetworkInterface networkInterface)
+    {
+        try { return (uint)networkInterface.GetIPProperties().GetIPv4Properties().Index; }
+        catch { return null; }
     }
 
     private static bool IsPhysicalActiveAdapter(NetworkInterface networkInterface)
@@ -460,9 +585,12 @@ public sealed class MonitorService : IMonitorService
         }
 
         string identity = networkInterface.Name + " " + networkInterface.Description;
-        return !VirtualAdapterMarkers.Any(marker =>
+        return !VirtualAdapterMarkers.Concat(AdditionalVirtualAdapterMarkers).Any(marker =>
             identity.Contains(marker, StringComparison.OrdinalIgnoreCase));
     }
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetBestInterface(uint destinationAddress, out uint bestInterfaceIndex);
 
     private void RaiseSnapshotUpdated(MonitorSnapshot snapshot)
     {

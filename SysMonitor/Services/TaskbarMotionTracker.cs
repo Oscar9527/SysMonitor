@@ -249,9 +249,8 @@ public sealed class TaskbarMotionTracker : IDisposable
 
         try
         {
-            _ = _dispatcher.BeginInvoke(
-                DispatcherPriority.Render,
-                new Action(() =>
+            _ = _dispatcher.InvokeAsync(
+                () =>
                 {
                     if (Volatile.Read(ref _closing) != 0 ||
                         generation != Volatile.Read(ref _generation))
@@ -260,7 +259,8 @@ public sealed class TaskbarMotionTracker : IDisposable
                     }
 
                     ScheduleQuietProbe(generation);
-                }));
+                },
+                DispatcherPriority.Render);
         }
         catch (InvalidOperationException)
         {

@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$version = '1.2.16'
+$version = '1.5.0'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $artifactDirectory = Join-Path $repositoryRoot 'artifacts'
 $publishDirectory = Join-Path $repositoryRoot "work\portable-core-$version"
@@ -16,6 +16,25 @@ $sourcePath = Join-Path $PSScriptRoot 'SysMonitorLauncher.cs'
 
 New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
 New-Item -ItemType Directory -Force -Path $publishDirectory | Out-Null
+
+# Remove obsolete intermediate cores left by older build scripts. The release
+# directory must contain only the portable launcher requested by users.
+Get-ChildItem -LiteralPath $artifactDirectory -Filter 'SysMonitor.Core.*.exe' -File |
+    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
+
+# WPF-generated sources are stored under a runtime-specific obj directory.
+# Clear them before publishing so switching branches or restoring an older
+# snapshot cannot compile stale x:Name fields from a previous XAML layout.
+dotnet restore $projectPath `
+    -r $RuntimeIdentifier `
+    --nologo
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+dotnet clean $projectPath `
+    -c $Configuration `
+    -r $RuntimeIdentifier `
+    --nologo
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 dotnet publish $projectPath `
     -c $Configuration `

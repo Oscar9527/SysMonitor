@@ -110,4 +110,21 @@ public sealed class GpuSensorSelectorTests
         Assert.Null(selected.TemperatureCelsius);
         Assert.Null(selected.DedicatedMemoryTotalBytes);
     }
+
+    [Fact]
+    public void CompatibilityClocksUseOnlyExactCoreAndMemoryNames()
+    {
+        GpuSensorSelection selected = GpuSensorSelector.Select(
+            GpuVendor.Amd,
+            new[]
+            {
+                new GpuSensorReading("GPU Core", GpuSensorKind.Clock, 2100),
+                new GpuSensorReading("GPU Memory", GpuSensorKind.Clock, 1750),
+                new GpuSensorReading("GPU Shader", GpuSensorKind.Clock, 9999),
+                new GpuSensorReading("GPU Memory Effective", GpuSensorKind.Clock, 14000),
+            });
+
+        Assert.Equal(2100, selected.CoreClockMhz);
+        Assert.Equal(1750, selected.MemoryClockMhz);
+    }
 }

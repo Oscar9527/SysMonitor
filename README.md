@@ -1,5 +1,14 @@
 # SysMonitor
 
+## v1.5 游戏监控悬浮窗
+
+- 按 `Ctrl+Shift+F10` 显示或隐藏透明悬浮窗；窗口不抢焦点、鼠标可穿透，并跟随目标程序所在显示器。
+- 显示 Present FPS，以及系统总体 CPU、内存、GPU、温度和可用的当前频率。没有可信帧率时会隐藏 FPS 行；其他缺失数据显示 `--`，不会伪造数值。
+- HUD 设置提供 X/Y 滑块并实时预览位置，右侧数字框可做 1 像素精确微调；多显示器坐标可为负数，并按显示器分别记忆。纵向/横向用两个明显按钮即时切换，横向只显示 CPU 占用/温度、GPU 占用/温度和有效 FPS；不常用选项收进“高级设置”。
+- 帧率默认优先只读已经运行的 RTSS 共享内存；约 1 秒内没有可用样本时，回退到随包 PresentMon 2.5.1 的 Windows ETW 采集。SysMonitor 自身不注入 DLL、不 Hook 图形 API、不读写游戏进程内存，也不为帧率安装驱动。对于无法被上述方式观测的旧版 DirectDraw 游戏，可在设置中按单个游戏明确启用 RTSS 兼容配置；该操作只修改对应应用配置，RTSS 自身仍可能使用图形 API Hook，其反作弊与游戏兼容性取决于 RTSS 和目标游戏。
+- 游戏安全模式默认开启；GPU 兼容传感器保持关闭，CPU 温度由 SysMonitor 自带的 CPU 专用读取器独立采集。主动启用完整兼容传感器后仍需重启，但游戏悬浮窗和快捷键始终可用，不受传感器模式影响。
+- ETW 属于 Windows 系统级观测机制，但不同游戏和反作弊策略可能不同，因此本项目不宣称获得 ACE 或其他反作弊产品认证。无权限或没有 Present 事件时会显示明确状态。
+
 [![Release](https://img.shields.io/github/v/release/Oscar9527/SysMonitor?display_name=tag&sort=semver)](https://github.com/Oscar9527/SysMonitor/releases)
 [![License](https://img.shields.io/github/license/Oscar9527/SysMonitor)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/Oscar9527/SysMonitor)
@@ -26,20 +35,23 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | CPU | 总体使用率、逻辑处理器数量、可用时显示 CPU 温度 |
 | 内存 | 物理内存使用率、已用/总容量 |
 | GPU | NVIDIA、AMD、Intel 使用率；硬件可提供时显示核心温度和专用显存 |
+| 历史曲线 | 详情面板显示最近 60 秒 CPU、GPU 使用率；漏采或不可用数据以断线表示 |
+| 游戏 HUD | 垂直/横向布局、每显示器精确 X/Y 坐标记忆、混合 DPI 与负坐标支持 |
+| 点击交互 | 整个透明 Band 区域均可点击；打开详情时保持当前应用焦点 |
 | 网络 | 所有活动 IPv4 网卡合计的下载/上传速率 |
 | 磁盘 | Band 显示系统盘使用率；详情面板显示所有可用固定磁盘的已用/总容量与使用率 |
 | 托盘 | 显示/隐藏面板、窗口置顶、开机自启、退出 |
-| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置、按项显示/隐藏、简体中文/English 和安全区域 |
+| 外观 | 字体、字号、项目间距 `0–18 px`、左右位置、按项显示/隐藏、简体中文/English、安全区域和安全主题包 |
 | 稳定性 | 父任务栏相对定位、固定指标槽位、等宽数字、边界迟滞和 Windows 10 重绘抑制 |
 | 便携运行 | 单文件启动器自动释放核心程序，不写入安装目录，不需要管理员权限 |
 
 ## 下载与发行版
 
 - [下载最新 Release](https://github.com/Oscar9527/SysMonitor/releases)
-- [SysMonitor v1.2.15](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.2.15)
-- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.2.15/SysMonitor.exe)
+- [SysMonitor v1.4.1](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.4.1)
+- [直接下载 SysMonitor.exe](https://github.com/Oscar9527/SysMonitor/releases/download/v1.4.1/SysMonitor.exe)
 
-当前版本：**1.2.15**
+当前公开版本：**1.4.1**（v1.5.0 游戏悬浮窗正在开发分支验证）
 
 发行包信息：
 
@@ -48,8 +60,8 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 文件名 | `SysMonitor.exe` |
 | 平台 | Windows 10/11 x64 |
 | 类型 | 便携式、单文件、无需安装 |
-| 大小 | 6,798,336 字节（约 6.48 MiB） |
-| SHA-256 | `F4C3A8E621DC7735023C60F2E528F582261448131A4DC14D3D736BF55AE04ED0` |
+| 大小 | 7,126,016 字节（约 6.80 MiB） |
+| SHA-256 | `68E812EEF1BD57692D3BF86DBD7367BCA09F35F1597F4D3A9E4EBF3F5F996C5B` |
 
 > 这是 framework-dependent 单文件版本，目标电脑需要安装 Microsoft .NET 8 Desktop Runtime x64。启动器检测到运行时缺失时，会打开官方 .NET 下载页面；不会静默安装或提权。
 
@@ -88,7 +100,7 @@ SysMonitor 是一个轻量、便携的 Windows 任务栏系统性能监视器。
 | 数据 | 来源 | 刷新周期 | 备注 |
 | --- | --- | --- | --- |
 | CPU 使用率 | PDH `Processor Utility` | 1 秒 | 使用 Windows 性能计数器 |
-| CPU 温度 | LibreHardwareMonitor 传感器 | 按需/缓存 | 取决于主板和 CPU 传感器支持 |
+| CPU 温度 | CPU 专用 LibreHardwareMonitor 读取器 | 每秒 | 无需安装 MSI Afterburner；必要时使用独立管理员助手 |
 | 内存 | PSAPI `GetPerformanceInfo` | 1 秒 | 物理内存使用率 |
 | GPU（NVIDIA） | `nvidia-smi`，LibreHardwareMonitor 回退 | 1 秒 | 优先使用 NVIDIA 驱动数据 |
 | GPU（AMD/Intel） | LibreHardwareMonitor | 1 秒 | 读取驱动公开的利用率和可用传感器 |
@@ -135,12 +147,27 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SysMonitor
 设置项包括：
 
 - 界面语言：跟随系统、简体中文或 English；切换后立即生效。
+- 主题：内建 Default / Midnight，或导入经过安全校验的 `.smonitor-theme` 文件；选择时实时预览，点击“应用”后保存。
 - Band 字体和字号。
 - CPU、内存、GPU、下载、上传、磁盘项目之间的间距。
 - CPU、内存、GPU、下载、上传和系统盘可分别显示或隐藏；全部隐藏后可从托盘重新打开设置。
 - Band 左右位置偏移。
 - 任务栏图标和通知区的安全边界。
 - 面板是否置顶。
+
+## 自定义主题
+
+1.3.0 的主题系统采用纯数据包设计：主题可以修改应用卡片、指标颜色、警告色、圆角、阴影、Band 背景和托盘图标，但不能包含或执行 DLL、脚本、XAML、字体及其他任意代码。
+
+主题包通过“任务栏外观”窗口导入，安装目录为：
+
+```text
+%APPDATA%\SysMonitor\Themes
+```
+
+程序会对 ZIP 路径、文件白名单、压缩率、解压大小、JSON 字段及 PNG/ICO 实际内容进行校验，并通过临时目录完整复验后一次性安装。关闭设置窗口会恢复最后已应用的主题，刚导入的包则保留在本地，方便之后再次选择。
+
+完整格式、限制和可直接打包的示例见 [主题包开发文档](docs/themes/README.md)。
 
 ## 构建
 
@@ -175,6 +202,7 @@ SysMonitor/
 SysMonitor.Tests/ # GPU、任务栏稳定、本地化和设置迁移测试
 Launcher/         # 最终便携单文件启动器与构建脚本
 docs/images/     # README 界面预览图
+docs/themes/     # 主题包规范、限制与可打包示例
 release/         # 可直接分发的单文件版本
 ```
 
@@ -190,7 +218,7 @@ release/         # 可直接分发的单文件版本
 
 ### CPU 温度显示为空
 
-这通常不是 CPU 使用率读取失败，而是当前电脑没有向 LibreHardwareMonitor 暴露可读的温度传感器。可以保留使用率、内存、GPU 和网络监控；程序不会显示不准确的估算值。
+CPU 温度由 SysMonitor 自带的 CPU 专用 LibreHardwareMonitor 读取器独立采集，不依赖 MSI Afterburner。普通权限无法读取 MSR 温度时，程序会按需启动同一 EXE 的独立管理员助手；若硬件或固件仍未公开温度，显示 `--`，不会伪造数值。
 
 ### GPU 项目隐藏或部分数据为空
 
@@ -199,7 +227,7 @@ release/         # 可直接分发的单文件版本
 ### Windows 10 任务栏出现闪烁
 
 1. 确认使用的是最新 Release。
-2. 1.2.15 已取消健康状态下的周期性重新定位，并过滤任务栏安全边界的像素级波动。
+2. 1.2.16 已取消健康状态下的周期性重新定位，并过滤任务栏安全边界的像素级波动。
 3. 在“任务栏外观”中调整左右位置和项目间距，避开通知区和任务栏图标安全区域。
 4. 不要同时运行多个旧版本 SysMonitor；新版启动器会迁移并清理旧核心进程。
 
@@ -217,4 +245,4 @@ release/         # 可直接分发的单文件版本
 
 ## 变更记录
 
-详见 [CHANGELOG.md](CHANGELOG.md)。
+详见 [CHANGELOG.md](CHANGELOG.md)。版本提交、标签和安全回退流程见 [版本留存与回退](docs/RELEASES.md)。

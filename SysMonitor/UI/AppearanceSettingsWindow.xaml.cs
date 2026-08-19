@@ -1,14 +1,19 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using SysMonitor.Models;
 using SysMonitor.Services;
 using MediaFontFamily = System.Windows.Media.FontFamily;
+using MediaBrush = System.Windows.Media.Brush;
+using MediaBrushes = System.Windows.Media.Brushes;
+using ThemeOpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using WpfTextBoxBase = System.Windows.Controls.Primitives.TextBoxBase;
 
 namespace SysMonitor.UI;
@@ -26,7 +31,12 @@ public partial class AppearanceSettingsWindow : Window
     private bool _controlsReady;
     private bool _loading;
     private bool _loadingLanguage;
+    private bool _loadingTheme;
     private bool _showingAppliedStatus;
+    private int _themeImportGeneration;
+    private CancellationTokenSource? _themeImportCancellation;
+    private IReadOnlyList<ThemeCatalogItem> _themeItems = Array.Empty<ThemeCatalogItem>();
+    private string _lastAppliedThemeId = AppSettings.DefaultThemeId;
     private BandAppearanceSettings _lastApplied =
         new(DefaultFontFamily, DefaultFontSize, DefaultPositionPercent, DefaultItemSpacingDip);
 
@@ -63,14 +73,21 @@ public partial class AppearanceSettingsWindow : Window
 
     public event EventHandler<BandAppearanceSettings>? AppearanceApplied;
     public event EventHandler<BandAppearanceSettings>? AppearancePreviewChanged;
+    public event EventHandler<AppearanceThemeApplyEventArgs>? AppearanceThemeApplied;
+    public event Action<string>? ThemePreviewRequested;
+    public event Action<ThemeImportResult>? ThemeImported;
     public event Action<string>? UiCultureChanged;
+    public Func<string, CancellationToken, Task<ThemeImportResult>>? ThemeImportRequested { get; set; }
+
+    public string SelectedThemeId =>
+        (ThemeComboBox.SelectedItem as ThemeCatalogItem)?.Id ?? _lastAppliedThemeId;
 
     public void LoadAppearance(BandAppearanceSettings value)
     {
         ArgumentNullException.ThrowIfNull(value);
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => LoadAppearance(value));
+            _ = Dispatcher.InvokeAsync(() => LoadAppearance(value));
             return;
         }
 
@@ -81,7 +98,7 @@ public partial class AppearanceSettingsWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => LoadUiCulture(culturePreference));
+            _ = Dispatcher.InvokeAsync(() => LoadUiCulture(culturePreference));
             return;
         }
 
@@ -99,16 +116,58 @@ public partial class AppearanceSettingsWindow : Window
         }
     }
 
+    public void LoadThemes(
+        IEnumerable<ThemeCatalogItem> themes,
+        string? selectedThemeId,
+        bool markApplied = true)
+    {
+        ArgumentNullException.ThrowIfNull(themes);
+        if (!Dispatcher.CheckAccess())
+        {
+            ThemeCatalogItem[] copy = themes.ToArray();
+            _ = Dispatcher.InvokeAsync(() => LoadThemes(copy, selectedThemeId, markApplied));
+            return;
+        }
+
+        _themeItems = themes.ToArray();
+        string requested = string.IsNullOrWhiteSpace(selectedThemeId)
+            ? AppSettings.DefaultThemeId
+            : selectedThemeId;
+        ThemeCatalogItem? selection = _themeItems.FirstOrDefault(item =>
+                string.Equals(item.Id, requested, StringComparison.OrdinalIgnoreCase)) ??
+            _themeItems.FirstOrDefault(item =>
+                string.Equals(item.Id, AppSettings.DefaultThemeId, StringComparison.OrdinalIgnoreCase)) ??
+            _themeItems.FirstOrDefault();
+        _loadingTheme = true;
+        try
+        {
+            ThemeComboBox.ItemsSource = _themeItems;
+            ThemeComboBox.SelectedItem = selection;
+        }
+        finally
+        {
+            _loadingTheme = false;
+        }
+
+        if (markApplied && selection is not null)
+        {
+            _lastAppliedThemeId = selection.Id;
+        }
+
+        UpdateThemeDetails(selection);
+    }
+
     public void ForceClose()
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(ForceClose);
+            _ = Dispatcher.InvokeAsync(ForceClose);
             return;
         }
 
         _allowClose = true;
         _previewTimer.Stop();
+        CancelThemeImport();
         Close();
     }
 
@@ -125,6 +184,9 @@ public partial class AppearanceSettingsWindow : Window
         PositionHelpText.Text = localization.GetString("AppearancePositionHelp");
         VisibleItemsLabelText.Text = localization.GetString("AppearanceVisibleItems");
         VisibleItemsHelpText.Text = localization.GetString("AppearanceVisibleItemsHelp");
+        ThemeLabelText.Text = localization.GetString("AppearanceTheme");
+        ImportThemeButton.Content = localization.GetString("AppearanceThemeImport");
+        DefaultThemeButton.Content = localization.GetString("AppearanceThemeDefault");
         CpuVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleCpu");
         MemoryVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleMemory");
         GpuVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleGpu");
@@ -152,6 +214,9 @@ public partial class AppearanceSettingsWindow : Window
         SetAutomationName(DownloadVisibilityCheckBox, localization.GetString("AppearanceVisibleDownload"));
         SetAutomationName(UploadVisibilityCheckBox, localization.GetString("AppearanceVisibleUpload"));
         SetAutomationName(DiskVisibilityCheckBox, localization.GetString("AppearanceVisibleSystemDisk"));
+        SetAutomationName(ThemeComboBox, localization.GetString("AppearanceTheme"));
+        SetAutomationName(ImportThemeButton, localization.GetString("AppearanceThemeImport"));
+        SetAutomationName(DefaultThemeButton, localization.GetString("AppearanceThemeDefault"));
         SetAutomationName(LanguageComboBox, localization.GetString("AppearanceLanguage"));
         SetAutomationName(ApplyButton, localization.GetString("AppearanceApply"));
         SetAutomationName(RestoreDefaultsButton, localization.GetString("AppearanceRestoreDefaults"));
@@ -303,11 +368,30 @@ public partial class AppearanceSettingsWindow : Window
     private void ApplyButton_Click(object sender, RoutedEventArgs e)
     {
         BandAppearanceSettings value = ReadControls();
-        LoadAppearanceCore(value, true);
         _previewTimer.Stop();
-        AppearanceApplied?.Invoke(this, value);
-        _showingAppliedStatus = true;
-        StatusText.Text = LocalizationService.Current.GetString("AppearanceApplied");
+        var request = new AppearanceThemeApplyEventArgs(value, SelectedThemeId);
+        AppearanceThemeApplied?.Invoke(this, request);
+        if (AppearanceThemeApplied is null)
+        {
+            AppearanceApplied?.Invoke(this, value);
+            request.Accepted = true;
+        }
+
+        if (request.Accepted)
+        {
+            LoadAppearanceCore(value, true);
+            _lastAppliedThemeId = SelectedThemeId;
+            _showingAppliedStatus = true;
+            StatusText.Foreground = FindResource("GpuMetricBrush") as MediaBrush ?? MediaBrushes.Green;
+            StatusText.Text = LocalizationService.Current.GetString("AppearanceApplied");
+        }
+        else
+        {
+            RestoreLastAppliedPreview();
+            StatusText.Foreground = FindResource("CriticalMetricBrush") as MediaBrush ?? MediaBrushes.Red;
+            StatusText.Text = request.ErrorMessage ??
+                LocalizationService.Current.GetString("AppearanceSaveFailed");
+        }
     }
 
     private void RestoreDefaultsButton_Click(object sender, RoutedEventArgs e)
@@ -327,12 +411,187 @@ public partial class AppearanceSettingsWindow : Window
         _previewTimer.Stop();
         LoadAppearanceCore(_lastApplied, false);
         AppearancePreviewChanged?.Invoke(this, _lastApplied);
+        SelectTheme(_lastAppliedThemeId, requestPreview: true);
+    }
+
+    private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        ThemeCatalogItem? selected = ThemeComboBox.SelectedItem as ThemeCatalogItem;
+        UpdateThemeDetails(selected);
+        if (!_loadingTheme && selected is not null)
+        {
+            _showingAppliedStatus = false;
+            StatusText.Text = string.Empty;
+            ThemePreviewRequested?.Invoke(selected.Id);
+        }
+    }
+
+    private async void ImportThemeButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ThemeOpenFileDialog
+        {
+            Filter = LocalizationService.Current.GetString("ThemePackageFilter"),
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != true || ThemeImportRequested is null)
+        {
+            return;
+        }
+
+        ImportThemeButton.IsEnabled = false;
+        StatusText.Foreground = FindResource("AppSecondaryTextBrush") as MediaBrush ?? MediaBrushes.Gray;
+        StatusText.Text = LocalizationService.Current.GetString("ThemeImporting");
+        var cancellation = new CancellationTokenSource();
+        int generation = checked(++_themeImportGeneration);
+        _themeImportCancellation = cancellation;
+        try
+        {
+            ThemeImportResult result = await ThemeImportRequested(dialog.FileName, cancellation.Token);
+            if (cancellation.IsCancellationRequested || generation != _themeImportGeneration)
+            {
+                return;
+            }
+
+            if (result.Success && result.Theme is not null)
+            {
+                ThemeImported?.Invoke(result);
+                StatusText.Foreground = FindResource("GpuMetricBrush") as MediaBrush ?? MediaBrushes.Green;
+                StatusText.Text = LocalizationService.Current.GetString("ThemeImportInstalledNotApplied");
+            }
+            else
+            {
+                StatusText.Foreground = FindResource("CriticalMetricBrush") as MediaBrush ?? MediaBrushes.Red;
+                StatusText.Text = LocalizationService.Current.Format(
+                    "ThemeImportFailed",
+                    GetThemeImportErrorText(result.ErrorCode));
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            return;
+        }
+        catch
+        {
+            if (cancellation.IsCancellationRequested || generation != _themeImportGeneration)
+            {
+                return;
+            }
+
+            StatusText.Foreground = FindResource("CriticalMetricBrush") as MediaBrush ?? MediaBrushes.Red;
+            StatusText.Text = LocalizationService.Current.Format(
+                "ThemeImportFailed",
+                GetThemeImportErrorText(ThemeImportErrorCode.IoFailure));
+        }
+        finally
+        {
+            if (ReferenceEquals(_themeImportCancellation, cancellation))
+            {
+                _themeImportCancellation = null;
+                ImportThemeButton.IsEnabled = true;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private void DefaultThemeButton_Click(object sender, RoutedEventArgs e) =>
+        SelectTheme(AppSettings.DefaultThemeId, requestPreview: true);
+
+    private static string GetThemeImportErrorText(ThemeImportErrorCode errorCode)
+    {
+        string key = errorCode switch
+        {
+            ThemeImportErrorCode.Cancelled => "ThemeImportReasonCancelled",
+            ThemeImportErrorCode.PackageNotFound => "ThemeImportReasonPackageNotFound",
+            ThemeImportErrorCode.InvalidPath => "ThemeImportReasonInvalidPath",
+            ThemeImportErrorCode.LimitExceeded => "ThemeImportReasonLimitExceeded",
+            ThemeImportErrorCode.InvalidManifest => "ThemeImportReasonInvalidManifest",
+            ThemeImportErrorCode.InvalidTheme => "ThemeImportReasonInvalidTheme",
+            ThemeImportErrorCode.InvalidAsset => "ThemeImportReasonInvalidAsset",
+            ThemeImportErrorCode.IncompatibleVersion => "ThemeImportReasonIncompatibleVersion",
+            ThemeImportErrorCode.DuplicateId => "ThemeImportReasonDuplicateId",
+            ThemeImportErrorCode.IoFailure => "ThemeImportReasonIoFailure",
+            _ => "ThemeImportReasonInvalidPackage"
+        };
+        return LocalizationService.Current.GetString(key);
+    }
+
+    private void SelectTheme(string id, bool requestPreview)
+    {
+        ThemeCatalogItem? item = _themeItems.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, id, StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+        {
+            return;
+        }
+
+        _loadingTheme = true;
+        try
+        {
+            ThemeComboBox.SelectedItem = item;
+        }
+        finally
+        {
+            _loadingTheme = false;
+        }
+
+        UpdateThemeDetails(item);
+        if (requestPreview)
+        {
+            ThemePreviewRequested?.Invoke(item.Id);
+        }
+    }
+
+    private void UpdateThemeDetails(ThemeCatalogItem? item)
+    {
+        ThemeNameText.Text = item?.Name ?? string.Empty;
+        ThemeMetadataText.Text = item is null
+            ? string.Empty
+            : LocalizationService.Current.Format(
+                "ThemeMetadata",
+                item.Author,
+                item.Version);
+        ThemePreviewImage.Source = LoadPreview(item?.PreviewPath);
+    }
+
+    private static BitmapSource? LoadPreview(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.DecodePixelWidth = 176;
+            image.UriSource = new Uri(path!, UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
+        CancelThemeImport();
         RestoreLastAppliedPreview();
         Hide();
+    }
+
+    private void CancelThemeImport()
+    {
+        checked { _themeImportGeneration++; }
+        _themeImportCancellation?.Cancel();
+        _themeImportCancellation = null;
+        ImportThemeButton.IsEnabled = true;
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -366,7 +625,7 @@ public partial class AppearanceSettingsWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            _ = Dispatcher.BeginInvoke(() => OnCultureChanged(sender, e));
+            _ = Dispatcher.InvokeAsync(() => OnCultureChanged(sender, e));
             return;
         }
 
@@ -377,7 +636,7 @@ public partial class AppearanceSettingsWindow : Window
     {
         if (_controlsReady)
         {
-            _ = Dispatcher.BeginInvoke(ScheduleLivePreview);
+            _ = Dispatcher.InvokeAsync(ScheduleLivePreview);
         }
     }
 
@@ -435,10 +694,28 @@ public partial class AppearanceSettingsWindow : Window
         }
 
         e.Cancel = true;
+        CancelThemeImport();
         RestoreLastAppliedPreview();
         Hide();
     }
 
-    private void AppearanceSettingsWindow_Closed(object? sender, EventArgs e) =>
+    private void AppearanceSettingsWindow_Closed(object? sender, EventArgs e)
+    {
+        CancelThemeImport();
         LocalizationService.Current.CultureChanged -= OnCultureChanged;
+    }
+}
+
+public sealed class AppearanceThemeApplyEventArgs : EventArgs
+{
+    public AppearanceThemeApplyEventArgs(BandAppearanceSettings appearance, string themeId)
+    {
+        Appearance = appearance;
+        ThemeId = themeId;
+    }
+
+    public BandAppearanceSettings Appearance { get; }
+    public string ThemeId { get; }
+    public bool Accepted { get; set; }
+    public string? ErrorMessage { get; set; }
 }

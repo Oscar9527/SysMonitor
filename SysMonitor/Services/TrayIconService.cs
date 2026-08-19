@@ -3,6 +3,8 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using SysMonitor.Models;
+using SysMonitor.UI;
 using Forms = System.Windows.Forms;
 
 namespace SysMonitor.Services;
@@ -12,24 +14,101 @@ public sealed class TrayIconService : IDisposable
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.ContextMenuStrip _contextMenu;
     private readonly Forms.ToolStripMenuItem _panelItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayTargetItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayPositionItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayPresetItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayMetricsItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayAppearanceItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayConfigurationItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlaySettingsItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayFpsMetricItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayCpuMetricItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayGpuMetricItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayMemoryMetricItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayNetworkMetricItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayCompactItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayRivatunerItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayDetailedItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayLeftItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayCenterItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayRightItem;
     private readonly Forms.ToolStripMenuItem _appearanceItem;
+    private readonly Forms.ToolStripMenuItem _gameSafeModeItem;
     private readonly Forms.ToolStripMenuItem _pinItem;
     private readonly Forms.ToolStripMenuItem _startupItem;
     private readonly Forms.ToolStripMenuItem _exitItem;
-    private readonly Icon _icon;
+    private readonly Icon _defaultIcon;
+    private Icon? _themedIcon;
     private bool _syncingState;
     private bool _panelVisible;
+    private bool _gameOverlayVisible;
+    private bool _gameOverlayAvailable = true;
     private bool _disposed;
 
     public TrayIconService()
     {
-        _icon = CreateIcon();
+        _defaultIcon = CreateIcon();
 
         _panelItem = new Forms.ToolStripMenuItem();
         _panelItem.Click += OnPanelItemClick;
 
+        _gameOverlayItem = new Forms.ToolStripMenuItem();
+        _gameOverlayItem.Click += OnGameOverlayItemClick;
+
+        _gameOverlayTargetItem = new Forms.ToolStripMenuItem();
+        _gameOverlayTargetItem.Click += OnGameOverlayTargetItemClick;
+
+        _gameOverlayPositionItem = new Forms.ToolStripMenuItem();
+        _gameOverlayLeftItem = CreateOverlayPositionItem(0);
+        _gameOverlayCenterItem = CreateOverlayPositionItem(50);
+        _gameOverlayRightItem = CreateOverlayPositionItem(100);
+        _gameOverlayPositionItem.DropDownItems.AddRange(
+        [
+            _gameOverlayLeftItem,
+            _gameOverlayCenterItem,
+            _gameOverlayRightItem
+        ]);
+
+        _gameOverlayPresetItem = new Forms.ToolStripMenuItem();
+        _gameOverlayCompactItem = CreateOverlayPresetItem("compact");
+        _gameOverlayRivatunerItem = CreateOverlayPresetItem("rivatuner");
+        _gameOverlayDetailedItem = CreateOverlayPresetItem("detailed");
+        _gameOverlayPresetItem.DropDownItems.AddRange(
+        [ _gameOverlayCompactItem, _gameOverlayRivatunerItem, _gameOverlayDetailedItem ]);
+
+        _gameOverlayMetricsItem = new Forms.ToolStripMenuItem();
+        _gameOverlayFpsMetricItem = CreateOverlayMetricItem("fps", true);
+        _gameOverlayCpuMetricItem = CreateOverlayMetricItem("cpu", true);
+        _gameOverlayGpuMetricItem = CreateOverlayMetricItem("gpu", true);
+        _gameOverlayMemoryMetricItem = CreateOverlayMetricItem("memory", true);
+        _gameOverlayNetworkMetricItem = CreateOverlayMetricItem("network", false);
+        _gameOverlayMetricsItem.DropDownItems.AddRange(
+        [ _gameOverlayFpsMetricItem, _gameOverlayCpuMetricItem, _gameOverlayGpuMetricItem, _gameOverlayMemoryMetricItem, _gameOverlayNetworkMetricItem ]);
+
+        _gameOverlayAppearanceItem = new Forms.ToolStripMenuItem();
+        _gameOverlayAppearanceItem.Click += OnGameOverlayAppearanceItemClick;
+
+        _gameOverlayConfigurationItem = new Forms.ToolStripMenuItem();
+        _gameOverlayConfigurationItem.Click += OnGameOverlayConfigurationItemClick;
+
+        _gameOverlaySettingsItem = new Forms.ToolStripMenuItem();
+        _gameOverlaySettingsItem.DropDownItems.AddRange(
+        [
+            _gameOverlayConfigurationItem,
+            _gameOverlayAppearanceItem,
+            _gameOverlayTargetItem,
+            new Forms.ToolStripSeparator(),
+            _gameOverlayPositionItem,
+            _gameOverlayPresetItem,
+            _gameOverlayMetricsItem
+        ]);
+
         _appearanceItem = new Forms.ToolStripMenuItem();
         _appearanceItem.Click += OnAppearanceItemClick;
+
+        _gameSafeModeItem = new Forms.ToolStripMenuItem { CheckOnClick = true, Checked = true };
+        _gameSafeModeItem.CheckedChanged += OnGameSafeModeCheckedChanged;
 
         _pinItem = new Forms.ToolStripMenuItem { CheckOnClick = true };
         _pinItem.CheckedChanged += OnPinCheckedChanged;
@@ -40,21 +119,36 @@ public sealed class TrayIconService : IDisposable
         _exitItem = new Forms.ToolStripMenuItem();
         _exitItem.Click += OnExitItemClick;
 
-        _contextMenu = new Forms.ContextMenuStrip();
+        _contextMenu = new Forms.ContextMenuStrip
+        {
+            AutoSize = true,
+            Font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
+            Padding = new Forms.Padding(4, 6, 4, 6),
+            ShowImageMargin = false,
+            ShowCheckMargin = true,
+            Renderer = Forms.SystemInformation.HighContrast
+                ? new Forms.ToolStripSystemRenderer()
+                : new MacToolStripRenderer()
+        };
         _contextMenu.Items.AddRange(
         [
             _panelItem,
+            _gameOverlayItem,
+            _gameOverlaySettingsItem,
             _appearanceItem,
             new Forms.ToolStripSeparator(),
+            _gameSafeModeItem,
             _pinItem,
             _startupItem,
             new Forms.ToolStripSeparator(),
             _exitItem
         ]);
+        ConfigureMenuItems(_contextMenu.Items);
+        _contextMenu.Opening += OnContextMenuOpening;
 
         _notifyIcon = new Forms.NotifyIcon
         {
-            Icon = _icon,
+            Icon = _defaultIcon,
             Text = "SysMonitor",
             ContextMenuStrip = _contextMenu,
             Visible = true
@@ -65,10 +159,24 @@ public sealed class TrayIconService : IDisposable
     }
 
     public event EventHandler? ToggleDetailsRequested;
+    public event EventHandler? ToggleGameOverlayRequested;
+    public event EventHandler? SelectGameOverlayTargetRequested;
+    public event Action<double>? GameOverlayPositionChanged;
+    public event Action<string>? GameOverlayPresetChanged;
+    public event Action<GameOverlayMetricVisibility>? GameOverlayMetricsChanged;
+    public event EventHandler? GameOverlayAppearanceRequested;
+    public event EventHandler? GameOverlayConfigurationRequested;
     public event EventHandler? AppearanceSettingsRequested;
+    public event Action<bool>? GameSafeModeChangeRequested;
     public event Action<bool>? PinToggled;
     public event Action<bool>? StartupToggled;
     public event EventHandler? ExitRequested;
+
+    public bool GameOverlayVisible => _gameOverlayVisible;
+
+    public bool GameOverlayAvailable => _gameOverlayAvailable;
+
+    public bool GameSafeModeEnabled => _gameSafeModeItem.Checked;
 
     public void SetPanelVisible(bool visible)
     {
@@ -89,6 +197,95 @@ public sealed class TrayIconService : IDisposable
         SetCheckedWithoutNotification(_startupItem, enabled);
     }
 
+    public void SetGameOverlayState(bool visible, bool available)
+    {
+        ThrowIfDisposed();
+        _gameOverlayVisible = visible;
+        _gameOverlayAvailable = available;
+        SetGameOverlayItemText();
+    }
+
+    public void SetGameOverlayPosition(double positionPercent)
+    {
+        double normalized = double.IsFinite(positionPercent)
+            ? Math.Clamp(positionPercent, 0, 100)
+            : 50d;
+        foreach (Forms.ToolStripMenuItem item in new[]
+                 { _gameOverlayLeftItem, _gameOverlayCenterItem, _gameOverlayRightItem })
+        {
+            item.Checked = Math.Abs((double)item.Tag! - normalized) < 0.1;
+        }
+    }
+
+    public void SetGameOverlayPreset(string? preset)
+    {
+        string normalized = preset?.ToLowerInvariant() ?? "rivatuner";
+        foreach (Forms.ToolStripMenuItem item in new[] { _gameOverlayCompactItem, _gameOverlayRivatunerItem, _gameOverlayDetailedItem })
+        {
+            item.Checked = string.Equals(item.Tag as string, normalized, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    public void SetGameOverlayMetrics(GameOverlayMetricVisibility metrics)
+    {
+        SetCheckedWithoutNotification(_gameOverlayFpsMetricItem, metrics.FrameRate);
+        SetCheckedWithoutNotification(_gameOverlayCpuMetricItem, metrics.Cpu);
+        SetCheckedWithoutNotification(_gameOverlayGpuMetricItem, metrics.Gpu);
+        SetCheckedWithoutNotification(_gameOverlayMemoryMetricItem, metrics.Memory);
+        SetCheckedWithoutNotification(_gameOverlayNetworkMetricItem, metrics.Network);
+    }
+
+    public void SetGameSafeMode(bool enabled)
+    {
+        ThrowIfDisposed();
+        SetCheckedWithoutNotification(_gameSafeModeItem, enabled);
+    }
+
+    public void ShowGameSafeModeRestartRequired()
+    {
+        ThrowIfDisposed();
+        LocalizationService localization = LocalizationService.Current;
+        _notifyIcon.ShowBalloonTip(
+            5000,
+            localization.GetString("TrayGameSafeModeRestartTitle"),
+            localization.GetString("TrayGameSafeModeRestartMessage"),
+            Forms.ToolTipIcon.Info);
+    }
+
+    public bool ApplyThemeIcon(string? iconPath)
+    {
+        ThrowIfDisposed();
+        if (string.IsNullOrWhiteSpace(iconPath))
+        {
+            UseDefaultIcon();
+            return true;
+        }
+
+        Icon? replacement = null;
+        try
+        {
+            using var stream = new FileStream(
+                iconPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            using var loaded = new Icon(stream);
+            replacement = (Icon)loaded.Clone();
+            Icon? oldThemed = _themedIcon;
+            _notifyIcon.Icon = replacement;
+            _themedIcon = replacement;
+            replacement = null;
+            oldThemed?.Dispose();
+            return true;
+        }
+        catch
+        {
+            replacement?.Dispose();
+            UseDefaultIcon();
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -101,13 +298,32 @@ public sealed class TrayIconService : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.MouseUp -= OnNotifyIconMouseUp;
         _panelItem.Click -= OnPanelItemClick;
+        _gameOverlayItem.Click -= OnGameOverlayItemClick;
+        _gameOverlayTargetItem.Click -= OnGameOverlayTargetItemClick;
+        _gameOverlayLeftItem.Click -= OnGameOverlayPositionItemClick;
+        _gameOverlayCenterItem.Click -= OnGameOverlayPositionItemClick;
+        _gameOverlayRightItem.Click -= OnGameOverlayPositionItemClick;
+        _gameOverlayCompactItem.Click -= OnGameOverlayPresetItemClick;
+        _gameOverlayRivatunerItem.Click -= OnGameOverlayPresetItemClick;
+        _gameOverlayDetailedItem.Click -= OnGameOverlayPresetItemClick;
+        _gameOverlayFpsMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
+        _gameOverlayCpuMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
+        _gameOverlayGpuMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
+        _gameOverlayMemoryMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
+        _gameOverlayNetworkMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
+        _gameOverlayAppearanceItem.Click -= OnGameOverlayAppearanceItemClick;
+        _gameOverlayConfigurationItem.Click -= OnGameOverlayConfigurationItemClick;
         _appearanceItem.Click -= OnAppearanceItemClick;
+        _gameSafeModeItem.CheckedChanged -= OnGameSafeModeCheckedChanged;
         _pinItem.CheckedChanged -= OnPinCheckedChanged;
         _startupItem.CheckedChanged -= OnStartupCheckedChanged;
         _exitItem.Click -= OnExitItemClick;
+        _contextMenu.Opening -= OnContextMenuOpening;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();
-        _icon.Dispose();
+        _themedIcon?.Dispose();
+        _themedIcon = null;
+        _defaultIcon.Dispose();
     }
 
     internal void ApplyLocalizedText()
@@ -119,7 +335,28 @@ public sealed class TrayIconService : IDisposable
 
         LocalizationService localization = LocalizationService.Current;
         SetPanelItemText();
+        SetGameOverlayItemText();
+        _gameOverlayTargetItem.Text = localization.GetString("TrayGameOverlayTarget");
+        _gameOverlayPositionItem.Text = localization.GetString("TrayGameOverlayPosition");
+        _gameOverlayPresetItem.Text = localization.GetString("TrayGameOverlayPreset");
+        _gameOverlayMetricsItem.Text = localization.GetString("TrayGameOverlayMetrics");
+        _gameOverlayAppearanceItem.Text = localization.GetString("TrayGameOverlayAppearance");
+        _gameOverlayConfigurationItem.Text = localization.GetString("TrayGameOverlayQuickSettings");
+        _gameOverlaySettingsItem.Text = localization.GetString("TrayGameOverlayAdvanced");
+        _gameOverlayFpsMetricItem.Text = localization.GetString("TrayGameOverlayMetricFps");
+        _gameOverlayCpuMetricItem.Text = localization.GetString("TrayGameOverlayMetricCpu");
+        _gameOverlayGpuMetricItem.Text = localization.GetString("TrayGameOverlayMetricGpu");
+        _gameOverlayMemoryMetricItem.Text = localization.GetString("TrayGameOverlayMetricMemory");
+        _gameOverlayNetworkMetricItem.Text = localization.GetString("TrayGameOverlayMetricNetwork");
+        _gameOverlayCompactItem.Text = localization.GetString("TrayGameOverlayPresetCompact");
+        _gameOverlayRivatunerItem.Text = localization.GetString("TrayGameOverlayPresetRivatuner");
+        _gameOverlayDetailedItem.Text = localization.GetString("TrayGameOverlayPresetDetailed");
+        _gameOverlayLeftItem.Text = localization.GetString("TrayGameOverlayPositionLeft");
+        _gameOverlayCenterItem.Text = localization.GetString("TrayGameOverlayPositionCenter");
+        _gameOverlayRightItem.Text = localization.GetString("TrayGameOverlayPositionRight");
         _appearanceItem.Text = localization.GetString("TrayAppearance");
+        _gameSafeModeItem.Text = localization.GetString("TrayGameSafeMode");
+        _gameSafeModeItem.ToolTipText = localization.GetString("TrayGameSafeModeHelp");
         _pinItem.Text = localization.GetString("TrayPin");
         _startupItem.Text = localization.GetString("TrayStartup");
         _exitItem.Text = localization.GetString("TrayExit");
@@ -129,10 +366,57 @@ public sealed class TrayIconService : IDisposable
         _panelItem.Text = LocalizationService.Current.GetString(
             _panelVisible ? "TrayHidePanel" : "TrayShowPanel");
 
+    private void SetGameOverlayItemText()
+    {
+        _gameOverlayItem.Enabled = _gameOverlayAvailable;
+        _gameOverlayPositionItem.Enabled = _gameOverlayAvailable;
+        _gameOverlayPresetItem.Enabled = _gameOverlayAvailable;
+        _gameOverlayMetricsItem.Enabled = _gameOverlayAvailable;
+        _gameOverlayAppearanceItem.Enabled = _gameOverlayAvailable;
+        _gameOverlayConfigurationItem.Enabled = _gameOverlayAvailable;
+        _gameOverlaySettingsItem.Enabled = _gameOverlayAvailable;
+        _gameOverlayTargetItem.Enabled = _gameOverlayAvailable;
+        string overlayText = LocalizationService.Current.GetString(
+            GetGameOverlayResourceKey(_gameOverlayVisible, _gameOverlayAvailable));
+        _gameOverlayItem.Text = $"{overlayText} (Ctrl+Shift+F10)";
+        _gameOverlayItem.ShortcutKeyDisplayString = string.Empty;
+    }
+
+    internal static string GetGameOverlayResourceKey(bool visible, bool available) =>
+        !available
+            ? "TrayGameOverlayUnavailableCompatibility"
+            : visible
+                ? "TrayHideGameOverlay"
+                : "TrayShowGameOverlay";
+
     private void OnCultureChanged(object? sender, EventArgs e) => ApplyLocalizedText();
+
+    private void OnContextMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        _contextMenu.Renderer = Forms.SystemInformation.HighContrast
+            ? new Forms.ToolStripSystemRenderer()
+            : new MacToolStripRenderer();
+        PrepareDropDownLayout(_contextMenu, Forms.Screen.FromPoint(Forms.Cursor.Position).WorkingArea);
+    }
+
+    private static void OnDropDownOpening(object? sender, EventArgs e)
+    {
+        if (sender is Forms.ToolStripDropDown dropDown)
+        {
+            PrepareDropDownLayout(dropDown, Forms.Screen.FromPoint(Forms.Cursor.Position).WorkingArea);
+        }
+    }
 
     private void OnNotifyIconMouseUp(object? sender, Forms.MouseEventArgs e)
     {
+        if (e.Button == Forms.MouseButtons.Right)
+        {
+            // Respect a high-contrast switch made while the process is running.
+            _contextMenu.Renderer = Forms.SystemInformation.HighContrast
+                ? new Forms.ToolStripSystemRenderer()
+                : new MacToolStripRenderer();
+        }
+
         if (e.Button == Forms.MouseButtons.Left)
         {
             ToggleDetailsRequested?.Invoke(this, EventArgs.Empty);
@@ -142,8 +426,59 @@ public sealed class TrayIconService : IDisposable
     private void OnPanelItemClick(object? sender, EventArgs e) =>
         ToggleDetailsRequested?.Invoke(this, EventArgs.Empty);
 
+    private void OnGameOverlayItemClick(object? sender, EventArgs e) =>
+        ToggleGameOverlayRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnGameOverlayTargetItemClick(object? sender, EventArgs e) =>
+        SelectGameOverlayTargetRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnGameOverlayPositionItemClick(object? sender, EventArgs e)
+    {
+        if (sender is Forms.ToolStripMenuItem item && item.Tag is double position)
+        {
+            SetGameOverlayPosition(position);
+            GameOverlayPositionChanged?.Invoke(position);
+        }
+    }
+
+    private void OnGameOverlayPresetItemClick(object? sender, EventArgs e)
+    {
+        if (sender is Forms.ToolStripMenuItem { Tag: string preset })
+        {
+            SetGameOverlayPreset(preset);
+            GameOverlayPresetChanged?.Invoke(preset);
+        }
+    }
+
+    private void OnGameOverlayMetricItemCheckedChanged(object? sender, EventArgs e)
+    {
+        if (!_syncingState)
+        {
+            GameOverlayMetricsChanged?.Invoke(new GameOverlayMetricVisibility(
+                _gameOverlayFpsMetricItem.Checked,
+                _gameOverlayCpuMetricItem.Checked,
+                _gameOverlayGpuMetricItem.Checked,
+                _gameOverlayMemoryMetricItem.Checked,
+                _gameOverlayNetworkMetricItem.Checked));
+        }
+    }
+
+    private void OnGameOverlayAppearanceItemClick(object? sender, EventArgs e) =>
+        GameOverlayAppearanceRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnGameOverlayConfigurationItemClick(object? sender, EventArgs e) =>
+        GameOverlayConfigurationRequested?.Invoke(this, EventArgs.Empty);
+
     private void OnAppearanceItemClick(object? sender, EventArgs e) =>
         AppearanceSettingsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnGameSafeModeCheckedChanged(object? sender, EventArgs e)
+    {
+        if (!_syncingState)
+        {
+            GameSafeModeChangeRequested?.Invoke(_gameSafeModeItem.Checked);
+        }
+    }
 
     private void OnPinCheckedChanged(object? sender, EventArgs e)
     {
@@ -183,6 +518,109 @@ public sealed class TrayIconService : IDisposable
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    internal static void ConfigureMenuItems(Forms.ToolStripItemCollection items)
+    {
+        foreach (Forms.ToolStripItem item in items)
+        {
+            if (item is Forms.ToolStripSeparator separator)
+            {
+                separator.AutoSize = false;
+                separator.Height = 8;
+                separator.Margin = new Forms.Padding(8, 3, 8, 3);
+                continue;
+            }
+
+            if (item is not Forms.ToolStripMenuItem menuItem)
+            {
+                continue;
+            }
+
+            menuItem.AutoSize = true;
+            menuItem.Padding = new Forms.Padding(10, 6, 10, 6);
+            menuItem.Margin = Forms.Padding.Empty;
+            if (menuItem.DropDown is Forms.ToolStripDropDownMenu dropDownMenu)
+            {
+                dropDownMenu.AutoSize = true;
+                dropDownMenu.ShowImageMargin = false;
+                dropDownMenu.ShowCheckMargin = true;
+                dropDownMenu.Padding = new Forms.Padding(4, 6, 4, 6);
+                dropDownMenu.Renderer = Forms.SystemInformation.HighContrast
+                    ? new Forms.ToolStripSystemRenderer()
+                    : new MacToolStripRenderer();
+                dropDownMenu.Opened -= OnSubMenuOpenedSnap;
+                dropDownMenu.Opened += OnSubMenuOpenedSnap;
+            }
+
+            ConfigureMenuItems(menuItem.DropDownItems);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    private static void OnSubMenuOpenedSnap(object? sender, EventArgs e)
+    {
+        if (sender is not Forms.ToolStripDropDown childDropDown || !childDropDown.IsHandleCreated)
+        {
+            return;
+        }
+
+        if (childDropDown.OwnerItem?.Owner is not Forms.ToolStrip parentStrip || !parentStrip.IsHandleCreated)
+        {
+            return;
+        }
+
+        bool openLeft = childDropDown.Left < parentStrip.Left;
+        int targetX = openLeft
+            ? parentStrip.Left - childDropDown.Width + 1
+            : parentStrip.Right - 1;
+
+        const uint flags = 0x0001 /* SWP_NOSIZE */ | 0x0004 /* SWP_NOZORDER */ | 0x0010 /* SWP_NOACTIVATE */;
+        SetWindowPos(childDropDown.Handle, nint.Zero, targetX, childDropDown.Top, 0, 0, flags);
+    }
+
+    internal static void PrepareDropDownLayout(
+        Forms.ToolStripDropDown dropDown,
+        Rectangle workingArea)
+    {
+        ArgumentNullException.ThrowIfNull(dropDown);
+
+        int maximumWidth = Math.Max(120, workingArea.Width - 16);
+        int maximumHeight = Math.Max(96, workingArea.Height - 16);
+        dropDown.AutoSize = true;
+        dropDown.MaximumSize = new Size(maximumWidth, maximumHeight);
+        dropDown.PerformLayout();
+    }
+
+    private Forms.ToolStripMenuItem CreateOverlayPositionItem(double position)
+    {
+        var item = new Forms.ToolStripMenuItem { Tag = position, CheckOnClick = false };
+        item.Click += OnGameOverlayPositionItemClick;
+        return item;
+    }
+
+    private Forms.ToolStripMenuItem CreateOverlayPresetItem(string preset)
+    {
+        var item = new Forms.ToolStripMenuItem { Tag = preset, CheckOnClick = false };
+        item.Click += OnGameOverlayPresetItemClick;
+        return item;
+    }
+
+    private Forms.ToolStripMenuItem CreateOverlayMetricItem(string metric, bool enabled)
+    {
+        var item = new Forms.ToolStripMenuItem { Tag = metric, CheckOnClick = true, Checked = enabled };
+        item.CheckedChanged += OnGameOverlayMetricItemCheckedChanged;
+        return item;
+    }
+
+    private void UseDefaultIcon()
+    {
+        Icon? oldThemed = _themedIcon;
+        _notifyIcon.Icon = _defaultIcon;
+        _themedIcon = null;
+        oldThemed?.Dispose();
+    }
 
     private static Icon CreateIcon()
     {

@@ -47,7 +47,7 @@ public partial class BandWindow : Window
     private const int WmMouseActivate = 0x0021;
     private const int WmShowWindow = 0x0018;
     private const int WmDestroy = 0x0002;
-    private const int WmLeftButtonUp = 0x0202;
+    private const int WmLeftButtonDown = 0x0201;
     private const int WmDpiChanged = 0x02E0;
     private const int WmNcDestroy = 0x0082;
     private const int MaNoActivate = 3;
@@ -58,6 +58,7 @@ public partial class BandWindow : Window
     private SolidColorBrush _separatorBrush = CreateBrush(ColorFrom("#66FFFFFF"));
     private SolidColorBrush _warningBrush = CreateBrush(ColorFrom("#FFB340"));
     private SolidColorBrush _criticalBrush = CreateBrush(ColorFrom("#FF6961"));
+    private ResolvedTheme? _activeTheme;
     private bool _positionTracking;
     private bool _highContrast;
     private bool _systemUsesLightTheme;
@@ -68,7 +69,9 @@ public partial class BandWindow : Window
     private readonly GpuCapabilityStabilizer _gpuCapability = new();
     private EffectiveBandLayout? _effectiveLayout;
     private TaskbarRegionSnapshot? _regionSnapshot;
-    private long _lastToggleTimestamp;
+    private readonly BandClickDebouncer _clickDebouncer = new(
+        TimeSpan.FromMilliseconds(350),
+        Stopwatch.Frequency);
     private int _toggleGeneration;
     private HwndSource? _source;
     private nint _attachedTaskbar;
@@ -115,6 +118,23 @@ public partial class BandWindow : Window
     public event EventHandler<BandNativeDestroyedEventArgs>? NativeDestroyed;
     public event EventHandler<double>? HorizontalPositionResolved;
 
+    internal static bool IsToggleMessage(int message) => message == WmLeftButtonDown;
+
+    public void ApplyTheme(ResolvedTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.InvokeAsync(() => ApplyTheme(theme));
+            return;
+        }
+
+        _activeTheme = theme;
+        BandRoot.SetResourceReference(Border.BackgroundProperty, "BandBackgroundBrush");
+        BandRoot.CornerRadius = new CornerRadius(theme.Definition.Band.CornerRadius);
+        ApplySystemTheme();
+    }
+
     public long Generation { get; }
 
     public nint NativeHandle => _nativeHandle;
@@ -127,7 +147,7 @@ public partial class BandWindow : Window
         ArgumentNullException.ThrowIfNull(appearance);
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(() => ApplyAppearance(appearance));
+            Dispatcher.InvokeAsync(() => ApplyAppearance(appearance));
             return;
         }
 
@@ -201,7 +221,7 @@ public partial class BandWindow : Window
         ArgumentNullException.ThrowIfNull(snapshot);
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(() => UpdateSnapshot(snapshot));
+            Dispatcher.InvokeAsync(() => UpdateSnapshot(snapshot));
             return;
         }
 
@@ -279,7 +299,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(StartPositionTracking);
+            Dispatcher.InvokeAsync(StartPositionTracking);
             return;
         }
 
@@ -302,7 +322,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(StopPositionTracking);
+            Dispatcher.InvokeAsync(StopPositionTracking);
             return;
         }
 
@@ -397,7 +417,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(RequestClose);
+            Dispatcher.InvokeAsync(RequestClose);
             return;
         }
 
@@ -411,7 +431,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(RequestHealthCheck);
+            Dispatcher.InvokeAsync(RequestHealthCheck);
             return;
         }
 
@@ -504,21 +524,19 @@ public partial class BandWindow : Window
             return nint.Zero;
         }
 
-        if (message != WmLeftButtonUp)
+        if (!IsToggleMessage(message))
         {
             return nint.Zero;
         }
 
         handled = true;
         long now = Stopwatch.GetTimestamp();
-        if (_lastToggleTimestamp != 0 &&
-            Stopwatch.GetElapsedTime(_lastToggleTimestamp, now) < TimeSpan.FromMilliseconds(350))
+        if (!_clickDebouncer.TryAccept(now))
         {
             BandDiagnostics.Log("band click suppressed by 350ms debounce");
             return nint.Zero;
         }
 
-        _lastToggleTimestamp = now;
         int generation = Interlocked.Increment(ref _toggleGeneration);
         BandDiagnostics.Log(
             $"band click accepted generation={Generation} hwnd=0x{windowHandle.ToInt64():X} " +
@@ -527,9 +545,8 @@ public partial class BandWindow : Window
         {
             try
             {
-                Dispatcher.BeginInvoke(
-                    DispatcherPriority.Input,
-                    new Action(() =>
+                Dispatcher.InvokeAsync(
+                    () =>
                     {
                         if (!_explicitClose &&
                             generation == Volatile.Read(ref _toggleGeneration) &&
@@ -540,7 +557,8 @@ public partial class BandWindow : Window
                                 $"hwnd=0x{windowHandle.ToInt64():X} clickSequence={generation}");
                             ToggleDetailsRequested?.Invoke(this, EventArgs.Empty);
                         }
-                    }));
+                    },
+                    DispatcherPriority.Input);
             }
             catch (InvalidOperationException)
             {
@@ -565,9 +583,8 @@ public partial class BandWindow : Window
         _dpiRepositionPending = true;
         try
         {
-            Dispatcher.BeginInvoke(
-                DispatcherPriority.Render,
-                new Action(() =>
+            Dispatcher.InvokeAsync(
+                () =>
                 {
                     _dpiRepositionPending = false;
                     if (!_explicitClose && !Dispatcher.HasShutdownStarted)
@@ -575,7 +592,8 @@ public partial class BandWindow : Window
                         _placementInvalidated = true;
                         Reposition();
                     }
-                }));
+                },
+                DispatcherPriority.Render);
         }
         catch (InvalidOperationException)
         {
@@ -591,7 +609,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.HasShutdownStarted)
         {
-            Dispatcher.BeginInvoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 TaskbarPositioner.Invalidate();
                 _placementInvalidated = true;
@@ -606,7 +624,7 @@ public partial class BandWindow : Window
     {
         if (!Dispatcher.HasShutdownStarted)
         {
-            Dispatcher.BeginInvoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
                 ApplySystemTheme();
                 TaskbarPositioner.Invalidate();
@@ -697,9 +715,9 @@ public partial class BandWindow : Window
             {
                 Show();
                 BandDiagnostics.Log($"band shown hwnd=0x{handle.ToInt64():X}");
-                Dispatcher.BeginInvoke(
-                    DispatcherPriority.ApplicationIdle,
-                    new Action(VerifyFirstShowContract));
+                Dispatcher.InvokeAsync(
+                    VerifyFirstShowContract,
+                    DispatcherPriority.ApplicationIdle);
             }
         }
 
@@ -1052,9 +1070,11 @@ public partial class BandWindow : Window
         }
 
         LogIntegritySnapshot("health", snapshot);
-        BandDiagnostics.Log(
+        BandDiagnostics.LogRateLimited(
+            $"band-health-invalid-{Generation}",
             $"band integrity invalid at health; attempting in-place repair " +
-            $"generation={Generation} hwnd=0x{handle.ToInt64():X}");
+            $"generation={Generation} hwnd=0x{handle.ToInt64():X}",
+            TimeSpan.FromSeconds(2));
         if (EnsureTaskbarChild(handle))
         {
             // A repaired parent/style contract is the exceptional health path
@@ -1281,33 +1301,51 @@ public partial class BandWindow : Window
         _highContrast = SystemParameters.HighContrast;
         _systemUsesLightTheme = ReadSystemUsesLightTheme();
 
+        MediaColor main;
+        MediaColor separator;
+        MediaColor warning;
+        MediaColor critical;
         if (_highContrast)
         {
             MediaColor systemColor = System.Windows.SystemColors.WindowTextColor;
-            SetThemeBrushes(
-                systemColor,
-                MediaColor.FromArgb(160, systemColor.R, systemColor.G, systemColor.B),
-                systemColor,
-                systemColor);
-            return;
+            main = systemColor;
+            separator = MediaColor.FromArgb(160, systemColor.R, systemColor.G, systemColor.B);
+            warning = systemColor;
+            critical = systemColor;
         }
-
-        if (_systemUsesLightTheme)
+        else if (_systemUsesLightTheme)
         {
-            SetThemeBrushes(
-                ColorFrom("#111111"),
-                ColorFrom("#44111111"),
-                ColorFrom("#9A4D00"),
-                ColorFrom("#B42318"));
+            main = ColorFrom("#111111");
+            separator = ColorFrom("#44111111");
+            warning = ColorFrom("#9A4D00");
+            critical = ColorFrom("#B42318");
         }
         else
         {
-            SetThemeBrushes(
-                Colors.White,
-                ColorFrom("#66FFFFFF"),
-                ColorFrom("#FFB340"),
-                ColorFrom("#FF6961"));
+            main = Colors.White;
+            separator = ColorFrom("#66FFFFFF");
+            warning = ColorFrom("#FFB340");
+            critical = ColorFrom("#FF6961");
         }
+
+        if (_activeTheme is { } theme)
+        {
+            ThemeBandStyle band = theme.Definition.Band;
+            main = string.IsNullOrWhiteSpace(band.TextColor) ? main : ColorFrom(band.TextColor);
+            separator = string.IsNullOrWhiteSpace(band.SeparatorColor)
+                ? separator
+                : ColorFrom(band.SeparatorColor);
+            if (!string.Equals(
+                    theme.Identity.Id,
+                    AppSettings.DefaultThemeId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                warning = ColorFrom(theme.Definition.Metrics.Warning);
+                critical = ColorFrom(theme.Definition.Metrics.Critical);
+            }
+        }
+
+        SetThemeBrushes(main, separator, warning, critical);
     }
 
     private void SetThemeBrushes(
@@ -1320,8 +1358,8 @@ public partial class BandWindow : Window
         _separatorBrush = CreateBrush(separator);
         _warningBrush = CreateBrush(warning);
         _criticalBrush = CreateBrush(critical);
-        Resources["MainTextBrush"] = _mainTextBrush;
-        Resources["SeparatorBrush"] = _separatorBrush;
+        Resources["BandTextBrush"] = _mainTextBrush;
+        Resources["BandSeparatorBrush"] = _separatorBrush;
     }
 
     private static bool ReadSystemUsesLightTheme()

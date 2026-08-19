@@ -57,4 +57,127 @@
   <data name="TrayPin" xml:space="preserve"><value>Keep panel on top</value></data>
   <data name="TrayShowPanel" xml:space="preserve"><value>Show panel</value></data>
   <data name="TrayStartup" xml:space="preserve"><value>Start with Windows</value></data>
+  <data name="AppearanceTheme" xml:space="preserve"><value>Theme</value></data>
+  <data name="AppearanceThemeImport" xml:space="preserve"><value>Import theme…</value></data>
+  <data name="AppearanceThemeDefault" xml:space="preserve"><value>Use default</value></data>
+  <data name="AppearanceSaveFailed" xml:space="preserve"><value>Could not save settings. The previous appearance was restored.</value></data>
+  <data name="ThemeMetadata" xml:space="preserve"><value>By {0} · Version {1}</value></data>
+  <data name="ThemePackageFilter" xml:space="preserve"><value>SysMonitor themes (*.smonitor-theme)|*.smonitor-theme</value></data>
+  <data name="ThemeImporting" xml:space="preserve"><value>Importing theme…</value></data>
+  <data name="ThemeImportInstalledNotApplied" xml:space="preserve"><value>Theme installed and selected for preview. Apply to activate it.</value></data>
+  <data name="ThemeImportFailed" xml:space="preserve"><value>Theme import failed: {0}</value></data>
+  <data name="ThemeImportReasonCancelled" xml:space="preserve"><value>The import was cancelled.</value></data>
+  <data name="ThemeImportReasonPackageNotFound" xml:space="preserve"><value>The selected package could not be found.</value></data>
+  <data name="ThemeImportReasonInvalidPackage" xml:space="preserve"><value>The file is not a valid SysMonitor theme package.</value></data>
+  <data name="ThemeImportReasonInvalidPath" xml:space="preserve"><value>The package contains an unsafe or unsupported path.</value></data>
+  <data name="ThemeImportReasonLimitExceeded" xml:space="preserve"><value>The package exceeds the allowed size or compression limits.</value></data>
+  <data name="ThemeImportReasonInvalidManifest" xml:space="preserve"><value>The theme manifest is invalid.</value></data>
+  <data name="ThemeImportReasonInvalidTheme" xml:space="preserve"><value>The theme settings are invalid.</value></data>
+  <data name="ThemeImportReasonInvalidAsset" xml:space="preserve"><value>A PNG or ICO asset is invalid.</value></data>
+  <data name="ThemeImportReasonIncompatibleVersion" xml:space="preserve"><value>This theme requires a newer SysMonitor version.</value></data>
+  <data name="ThemeImportReasonDuplicateId" xml:space="preserve"><value>A theme with the same ID is already installed.</value></data>
+  <data name="ThemeImportReasonIoFailure" xml:space="preserve"><value>The theme files could not be read or written.</value></data>
+  <data name="ThemeUnavailable" xml:space="preserve"><value>The selected theme is no longer available.</value></data>
+  <data name="MetricHistoryTooltip" xml:space="preserve"><value>Usage history for the last 60 seconds</value></data>
+  <data name="MetricHistoryAutomation" xml:space="preserve"><value>{0}, usage history for the last 60 seconds</value></data>
+  <data name="OverlayPresentFps" xml:space="preserve"><value>Present FPS</value></data>
+  <data name="OverlaySystemCpu" xml:space="preserve"><value>System CPU</value></data>
+  <data name="OverlaySystemMemory" xml:space="preserve"><value>System memory</value></data>
+  <data name="OverlaySystemGpu" xml:space="preserve"><value>System GPU</value></data>
+  <data name="OverlayCpuTemperature" xml:space="preserve"><value>CPU temp</value></data>
+  <data name="OverlayGpuTemperature" xml:space="preserve"><value>GPU temp</value></data>
+  <data name="OverlayCurrentFrequency" xml:space="preserve"><value>CPU / GPU clocks</value></data>
+  <data name="OverlayStateWaitingForTarget" xml:space="preserve"><value>Waiting for a foreground game</value></data>
+  <data name="OverlayStateStarting" xml:space="preserve"><value>Waiting for Present events</value></data>
+  <data name="OverlayStateUnavailable" xml:space="preserve"><value>FPS unavailable</value></data>
+  <data name="TrayShowGameOverlay" xml:space="preserve"><value>Show game overlay</value></data>
+  <data name="TrayHideGameOverlay" xml:space="preserve"><value>Hide game overlay</value></data>
+  <data name="TrayGameOverlayPosition" xml:space="preserve"><value>Frame-rate assistant position</value></data>
+  <data name="TrayGameOverlayPreset" xml:space="preserve"><value>HUD layout</value></data>
+  <data name="TrayGameOverlayPresetCompact" xml:space="preserve"><value>Compact</value></data>
+  <data name="TrayGameOverlayPresetRivatuner" xml:space="preserve"><value>RivaTuner style</value></data>
+  <data name="TrayGameOverlayPresetDetailed" xml:space="preserve"><value>Detailed</value></data>
+  <data name="TrayGameOverlayMetrics" xml:space="preserve"><value>Shown metrics</value></data>
+  <data name="TrayGameOverlayMetricFps" xml:space="preserve"><value>Frame rate</value></data>
+  <data name="TrayGameOverlayMetricCpu" xml:space="preserve"><value>CPU</value></data>
+  <data name="TrayGameOverlayMetricGpu" xml:space="preserve"><value>GPU</value></data>
+  <data name="TrayGameOverlayMetricMemory" xml:space="preserve"><value>Memory</value></data>
+  <data name="TrayGameOverlayMetricNetwork" xml:space="preserve"><value>Network</value></data>
+  <data name="TrayGameOverlayQuickSettings" xml:space="preserve"><value>HUD layout &amp; position…</value></data>
+  <data name="TrayGameOverlayAdvanced" xml:space="preserve"><value>Advanced HUD options</value></data>
+  <data name="TrayGameOverlayAppearance" xml:space="preserve"><value>HUD appearance…</value></data>
+  <data name="TrayGameOverlayTarget" xml:space="preserve"><value>Select monitored program…</value></data>
+  <data name="TrayGameOverlayPositionLeft" xml:space="preserve"><value>Top left</value></data>
+  <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>Top center</value></data>
+  <data name="TrayGameOverlayPositionRight" xml:space="preserve"><value>Top right</value></data>
+  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>Game overlay temporarily unavailable</value></data>
+  <data name="TrayGameSafeMode" xml:space="preserve"><value>Safety protection (Recommended)</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>Uses non-injection monitoring by default and keeps the dedicated CPU temperature reader available.</value></data>
+  <data name="TrayGameSafeModeDisableTitle" xml:space="preserve"><value>Turn off safety protection?</value></data>
+  <data name="TrayGameSafeModeDisableMessage" xml:space="preserve"><value>Turning this off can allow hooks through RTSS compatibility mode. Some games or anti-cheat systems may treat this as incompatible. SysMonitor does not guarantee certification, compatibility, or safety for any game or ACE.</value></data>
+  <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>Restart required</value></data>
+  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>Restart SysMonitor to apply safety protection. Non-injection monitoring remains the recommended default.</value></data>
+  <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 is already registered by another application.</value></data>
+  <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>Ctrl+Shift+F10 could not be registered (Win32 error {0}).</value></data>
+  <data name="HudSettingsTitle" xml:space="preserve"><value>HUD Settings</value></data>
+  <data name="HudMetricsTitle" xml:space="preserve"><value>Visible metrics and order</value></data>
+  <data name="HudMoveUp" xml:space="preserve"><value>Move up</value></data>
+  <data name="HudMoveDown" xml:space="preserve"><value>Move down</value></data>
+  <data name="HudOrderHelp" xml:space="preserve"><value>Select a metric to reorder it; clear its check box to hide it.</value></data>
+  <data name="HudSamplingLabel" xml:space="preserve"><value>Sampling rate</value></data>
+  <data name="HudSamplingLow" xml:space="preserve"><value>Low (2 seconds, lowest overhead)</value></data>
+  <data name="HudSamplingStandard" xml:space="preserve"><value>Standard (1 second, recommended)</value></data>
+  <data name="HudSamplingHigh" xml:space="preserve"><value>High (0.5 seconds, faster response)</value></data>
+  <data name="HudMetricGpu" xml:space="preserve"><value>GPU (usage, temperature, frequency)</value></data>
+  <data name="HudMetricCpu" xml:space="preserve"><value>CPU (usage, temperature, frequency)</value></data>
+  <data name="HudMetricFps" xml:space="preserve"><value>FPS (current frame rate)</value></data>
+  <data name="HudMetricMemory" xml:space="preserve"><value>Memory (usage, configured frequency)</value></data>
+  <data name="HudMetricNetwork" xml:space="preserve"><value>Network (download, upload)</value></data>
+  <data name="HudLegacyTitle" xml:space="preserve"><value>Legacy game FPS compatibility (RTSS)</value></data>
+  <data name="HudLegacyTargetLabel" xml:space="preserve"><value>Current or managed program</value></data>
+  <data name="HudLegacyCheckbox" xml:space="preserve"><value>Enable legacy DirectDraw capture for this program only</value></data>
+  <data name="HudLegacyWarning" xml:space="preserve"><value>This lets RTSS hook executables with the same filename. Do not enable it for anti-cheat games. Fully exit and relaunch the game after changing it.</value></data>
+  <data name="HudLegacyNoTarget" xml:space="preserve"><value>Select a monitored program explicitly from the tray menu first.</value></data>
+  <data name="HudLegacyRtssUnavailable" xml:space="preserve"><value>A configurable RTSS installation was not found, or its profile directory is not writable.</value></data>
+  <data name="HudLegacyEnabledManaged" xml:space="preserve"><value>Enabled by SysMonitor for this program; the original profile can be restored.</value></data>
+  <data name="HudLegacyEnabledExternal" xml:space="preserve"><value>RTSS is already enabled by an external profile. SysMonitor will not overwrite or disable it.</value></data>
+  <data name="HudLegacyDisabled" xml:space="preserve"><value>Safe mode: SysMonitor does not ask RTSS to hook this program.</value></data>
+  <data name="HudLegacyConflict" xml:space="preserve"><value>The profile changed externally. SysMonitor stopped writing to protect the existing settings.</value></data>
+  <data name="HudLegacySameNameConflict" xml:space="preserve"><value>A same-named executable from another path already owns this RTSS profile.</value></data>
+  <data name="HudLegacyConfirmTitle" xml:space="preserve"><value>Enable legacy game compatibility?</value></data>
+  <data name="HudLegacyConfirmMessage" xml:space="preserve"><value>RTSS will hook “{0}” and any executable with the same filename. Do not enable this for anti-cheat games. The game must be restarted. Continue?</value></data>
+  <data name="HudLegacyApplyFailedTitle" xml:space="preserve"><value>Compatibility was not changed</value></data>
+  <data name="HudLegacyApplyFailedMessage" xml:space="preserve"><value>The selected RTSS profile could not be updated safely. Its existing configuration was not overwritten.</value></data>
+  <data name="HudLegacyRestartTitle" xml:space="preserve"><value>Restart the game</value></data>
+  <data name="HudLegacyRestartEnabledMessage" xml:space="preserve"><value>Legacy compatibility is enabled for “{0}”. Fully exit and relaunch the game; RTSS does not need to restart.</value></data>
+  <data name="HudLegacyRestartDisabledMessage" xml:space="preserve"><value>The original RTSS profile for “{0}” was restored. Fully exit and relaunch the game; RTSS does not need to restart.</value></data>
+  <data name="HudApply" xml:space="preserve"><value>Save</value></data>
+  <data name="HudCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="HudLayoutTitle" xml:space="preserve"><value>Display style</value></data>
+  <data name="HudLayoutLabel" xml:space="preserve"><value>Select a style to preview it instantly. Horizontal shows CPU, GPU and FPS only.</value></data>
+  <data name="HudLayoutVertical" xml:space="preserve"><value>Vertical</value></data>
+  <data name="HudLayoutVerticalDescription" xml:space="preserve"><value>Complete CPU, GPU, FPS, memory and network view</value></data>
+  <data name="HudLayoutHorizontal" xml:space="preserve"><value>Horizontal</value></data>
+  <data name="HudLayoutHorizontalDescription" xml:space="preserve"><value>Arrange every selected metric in one row, including memory and network</value></data>
+  <data name="HudAdvancedTitle" xml:space="preserve"><value>Advanced settings (optional)</value></data>
+  <data name="HudPositionTitle" xml:space="preserve"><value>HUD position</value></data>
+  <data name="HudPositionHelp" xml:space="preserve"><value>Drag the sliders to preview the position instantly. Select Save to keep it; the number boxes provide one-pixel adjustment.</value></data>
+  <data name="HudPositionCurrentMonitor" xml:space="preserve"><value>Current monitor</value></data>
+  <data name="HudPositionBounds" xml:space="preserve"><value>Monitor bounds</value></data>
+  <data name="HudPositionCurrent" xml:space="preserve"><value>Selected coordinates</value></data>
+  <data name="HudPositionUseExact" xml:space="preserve"><value>Custom position (use sliders)</value></data>
+  <data name="HudPositionX" xml:space="preserve"><value>X</value></data>
+  <data name="HudPositionY" xml:space="preserve"><value>Y</value></data>
+  <data name="HudPositionReset" xml:space="preserve"><value>Reset</value></data>
+  <data name="HudPositionNoMonitor" xml:space="preserve"><value>No monitor context is available.</value></data>
+  <data name="HudPositionUnavailable" xml:space="preserve"><value>Unavailable</value></data>
+  <data name="HudPositionInvalidTitle" xml:space="preserve"><value>Invalid coordinates</value></data>
+  <data name="HudPositionInvalidMessage" xml:space="preserve"><value>Enter whole-number X and Y coordinates between -1,000,000 and 1,000,000. Decimals and blank values are not accepted.</value></data>
+  <data name="HudPositionStaleTitle" xml:space="preserve"><value>Monitor changed</value></data>
+  <data name="HudPositionStaleMessage" xml:space="preserve"><value>The selected monitor or its bounds changed before the position was applied. Review the current monitor coordinates and try again.</value></data>
+  <data name="HudPreviewNoMonitor" xml:space="preserve"><value>Preview unavailable until a monitor is selected.</value></data>
+  <data name="HudPreviewInvalid" xml:space="preserve"><value>Enter valid coordinates to preview this position.</value></data>
+  <data name="HudPreviewActive" xml:space="preserve"><value>Live preview active. Select Save to keep these changes.</value></data>
+  <data name="HudSettingsSaveFailedTitle" xml:space="preserve"><value>Settings were not saved</value></data>
+  <data name="HudSettingsSaveFailedMessage" xml:space="preserve"><value>SysMonitor could not write the settings file. Your previous HUD layout and position were restored. Check folder permissions or available disk space, then try again.</value></data>
 </root>

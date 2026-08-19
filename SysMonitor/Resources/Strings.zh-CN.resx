@@ -57,4 +57,127 @@
   <data name="TrayPin" xml:space="preserve"><value>面板置顶</value></data>
   <data name="TrayShowPanel" xml:space="preserve"><value>显示面板</value></data>
   <data name="TrayStartup" xml:space="preserve"><value>开机自启</value></data>
+  <data name="AppearanceTheme" xml:space="preserve"><value>主题</value></data>
+  <data name="AppearanceThemeImport" xml:space="preserve"><value>导入主题…</value></data>
+  <data name="AppearanceThemeDefault" xml:space="preserve"><value>恢复默认主题</value></data>
+  <data name="AppearanceSaveFailed" xml:space="preserve"><value>无法保存设置，已恢复之前的外观。</value></data>
+  <data name="ThemeMetadata" xml:space="preserve"><value>作者：{0} · 版本 {1}</value></data>
+  <data name="ThemePackageFilter" xml:space="preserve"><value>SysMonitor 主题 (*.smonitor-theme)|*.smonitor-theme</value></data>
+  <data name="ThemeImporting" xml:space="preserve"><value>正在导入主题…</value></data>
+  <data name="ThemeImportInstalledNotApplied" xml:space="preserve"><value>主题已安装并选中预览；点击“应用”后才会启用。</value></data>
+  <data name="ThemeImportFailed" xml:space="preserve"><value>主题导入失败：{0}</value></data>
+  <data name="ThemeImportReasonCancelled" xml:space="preserve"><value>导入已取消。</value></data>
+  <data name="ThemeImportReasonPackageNotFound" xml:space="preserve"><value>找不到所选主题包。</value></data>
+  <data name="ThemeImportReasonInvalidPackage" xml:space="preserve"><value>文件不是有效的 SysMonitor 主题包。</value></data>
+  <data name="ThemeImportReasonInvalidPath" xml:space="preserve"><value>主题包包含不安全或不支持的路径。</value></data>
+  <data name="ThemeImportReasonLimitExceeded" xml:space="preserve"><value>主题包超过大小或压缩率限制。</value></data>
+  <data name="ThemeImportReasonInvalidManifest" xml:space="preserve"><value>主题清单格式无效。</value></data>
+  <data name="ThemeImportReasonInvalidTheme" xml:space="preserve"><value>主题设置格式无效。</value></data>
+  <data name="ThemeImportReasonInvalidAsset" xml:space="preserve"><value>PNG 或 ICO 图片资源无效。</value></data>
+  <data name="ThemeImportReasonIncompatibleVersion" xml:space="preserve"><value>该主题需要更高版本的 SysMonitor。</value></data>
+  <data name="ThemeImportReasonDuplicateId" xml:space="preserve"><value>已安装相同 ID 的主题。</value></data>
+  <data name="ThemeImportReasonIoFailure" xml:space="preserve"><value>无法读取或写入主题文件。</value></data>
+  <data name="ThemeUnavailable" xml:space="preserve"><value>所选主题已不可用。</value></data>
+  <data name="MetricHistoryTooltip" xml:space="preserve"><value>最近 60 秒使用率历史</value></data>
+  <data name="MetricHistoryAutomation" xml:space="preserve"><value>{0}，最近 60 秒使用率历史</value></data>
+  <data name="OverlayPresentFps" xml:space="preserve"><value>呈现帧率</value></data>
+  <data name="OverlaySystemCpu" xml:space="preserve"><value>系统 CPU</value></data>
+  <data name="OverlaySystemMemory" xml:space="preserve"><value>系统内存</value></data>
+  <data name="OverlaySystemGpu" xml:space="preserve"><value>系统 GPU</value></data>
+  <data name="OverlayCpuTemperature" xml:space="preserve"><value>CPU 温度</value></data>
+  <data name="OverlayGpuTemperature" xml:space="preserve"><value>GPU 温度</value></data>
+  <data name="OverlayCurrentFrequency" xml:space="preserve"><value>CPU / GPU 频率</value></data>
+  <data name="OverlayStateWaitingForTarget" xml:space="preserve"><value>等待切换到前台游戏</value></data>
+  <data name="OverlayStateStarting" xml:space="preserve"><value>等待呈现事件</value></data>
+  <data name="OverlayStateUnavailable" xml:space="preserve"><value>帧率暂不可用</value></data>
+  <data name="TrayShowGameOverlay" xml:space="preserve"><value>游戏浮层 (HUD)</value></data>
+  <data name="TrayHideGameOverlay" xml:space="preserve"><value>游戏浮层 (HUD)</value></data>
+  <data name="TrayGameOverlayPosition" xml:space="preserve"><value>帧率助手位置</value></data>
+  <data name="TrayGameOverlayPreset" xml:space="preserve"><value>HUD 排版</value></data>
+  <data name="TrayGameOverlayPresetCompact" xml:space="preserve"><value>紧凑</value></data>
+  <data name="TrayGameOverlayPresetRivatuner" xml:space="preserve"><value>RivaTuner 风格</value></data>
+  <data name="TrayGameOverlayPresetDetailed" xml:space="preserve"><value>详细</value></data>
+  <data name="TrayGameOverlayMetrics" xml:space="preserve"><value>显示项目</value></data>
+  <data name="TrayGameOverlayMetricFps" xml:space="preserve"><value>帧率</value></data>
+  <data name="TrayGameOverlayMetricCpu" xml:space="preserve"><value>CPU</value></data>
+  <data name="TrayGameOverlayMetricGpu" xml:space="preserve"><value>GPU</value></data>
+  <data name="TrayGameOverlayMetricMemory" xml:space="preserve"><value>内存</value></data>
+  <data name="TrayGameOverlayMetricNetwork" xml:space="preserve"><value>网络</value></data>
+  <data name="TrayGameOverlayQuickSettings" xml:space="preserve"><value>游戏浮层设置与布局…</value></data>
+  <data name="TrayGameOverlayAdvanced" xml:space="preserve"><value>HUD 高级选项</value></data>
+  <data name="TrayGameOverlayAppearance" xml:space="preserve"><value>HUD 外观与配色…</value></data>
+  <data name="TrayGameOverlayTarget" xml:space="preserve"><value>选择监控程序…</value></data>
+  <data name="TrayGameOverlayPositionLeft" xml:space="preserve"><value>顶部左侧</value></data>
+  <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>顶部居中</value></data>
+  <data name="TrayGameOverlayPositionRight" xml:space="preserve"><value>顶部右侧</value></data>
+  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层暂不可用</value></data>
+  <data name="TrayGameSafeMode" xml:space="preserve"><value>安全保护（推荐）</value></data>
+  <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>默认使用非注入监控，并继续使用 CPU 专用温度读取器。</value></data>
+  <data name="TrayGameSafeModeDisableTitle" xml:space="preserve"><value>关闭安全保护？</value></data>
+  <data name="TrayGameSafeModeDisableMessage" xml:space="preserve"><value>关闭后，RTSS 兼容模式可使用 hook。某些游戏或反作弊系统可能将其视为不兼容。SysMonitor 不保证任何游戏或 ACE 的认证、兼容性或安全性。</value></data>
+  <data name="TrayGameSafeModeRestartTitle" xml:space="preserve"><value>需要重启</value></data>
+  <data name="TrayGameSafeModeRestartMessage" xml:space="preserve"><value>请重启 SysMonitor 以应用安全保护；推荐继续使用默认的非注入监控。</value></data>
+  <data name="GameOverlayHotkeyConflict" xml:space="preserve"><value>Ctrl+Shift+F10 已被其他应用注册。</value></data>
+  <data name="GameOverlayHotkeyFailure" xml:space="preserve"><value>无法注册 Ctrl+Shift+F10（Win32 错误 {0}）。</value></data>
+  <data name="HudSettingsTitle" xml:space="preserve"><value>HUD 设置</value></data>
+  <data name="HudMetricsTitle" xml:space="preserve"><value>显示项目与排列顺序</value></data>
+  <data name="HudMoveUp" xml:space="preserve"><value>上移</value></data>
+  <data name="HudMoveDown" xml:space="preserve"><value>下移</value></data>
+  <data name="HudOrderHelp" xml:space="preserve"><value>选中项目后调整顺序；取消勾选即可隐藏。</value></data>
+  <data name="HudSamplingLabel" xml:space="preserve"><value>采样频率</value></data>
+  <data name="HudSamplingLow" xml:space="preserve"><value>低（2 秒，最省资源）</value></data>
+  <data name="HudSamplingStandard" xml:space="preserve"><value>标准（1 秒，推荐）</value></data>
+  <data name="HudSamplingHigh" xml:space="preserve"><value>高（0.5 秒，响应更快）</value></data>
+  <data name="HudMetricGpu" xml:space="preserve"><value>GPU（使用率、温度、频率）</value></data>
+  <data name="HudMetricCpu" xml:space="preserve"><value>CPU（使用率、温度、频率）</value></data>
+  <data name="HudMetricFps" xml:space="preserve"><value>FPS（当前帧率）</value></data>
+  <data name="HudMetricMemory" xml:space="preserve"><value>内存（占用、配置频率）</value></data>
+  <data name="HudMetricNetwork" xml:space="preserve"><value>网络（下载、上传）</value></data>
+  <data name="HudLegacyTitle" xml:space="preserve"><value>旧游戏帧率兼容（RTSS）</value></data>
+  <data name="HudLegacyTargetLabel" xml:space="preserve"><value>当前程序或已管理程序</value></data>
+  <data name="HudLegacyCheckbox" xml:space="preserve"><value>仅为此程序启用旧版 DirectDraw 捕获</value></data>
+  <data name="HudLegacyWarning" xml:space="preserve"><value>该选项会让 RTSS 挂钩同名可执行文件。请勿用于反作弊游戏；更改后需要完全退出并重新启动游戏。</value></data>
+  <data name="HudLegacyNoTarget" xml:space="preserve"><value>请先从托盘菜单明确选择一个监控程序。</value></data>
+  <data name="HudLegacyRtssUnavailable" xml:space="preserve"><value>未找到可配置的 RTSS，或配置目录不可写。</value></data>
+  <data name="HudLegacyEnabledManaged" xml:space="preserve"><value>已由 SysMonitor 为此程序启用，可随时恢复原配置。</value></data>
+  <data name="HudLegacyEnabledExternal" xml:space="preserve"><value>RTSS 已在外部配置中启用；SysMonitor 不会覆盖或关闭它。</value></data>
+  <data name="HudLegacyDisabled" xml:space="preserve"><value>安全模式：SysMonitor 不会要求 RTSS 挂钩此程序。</value></data>
+  <data name="HudLegacyConflict" xml:space="preserve"><value>配置在外部发生变化。为保护原设置，SysMonitor 已停止写入。</value></data>
+  <data name="HudLegacySameNameConflict" xml:space="preserve"><value>另一个路径下的同名程序已使用这个 RTSS 配置，无法安全启用。</value></data>
+  <data name="HudLegacyConfirmTitle" xml:space="preserve"><value>启用旧游戏兼容模式？</value></data>
+  <data name="HudLegacyConfirmMessage" xml:space="preserve"><value>RTSS 将挂钩“{0}”及其他同名可执行文件。请勿对反作弊游戏启用。继续后需要重启游戏，是否确认？</value></data>
+  <data name="HudLegacyApplyFailedTitle" xml:space="preserve"><value>兼容模式未更改</value></data>
+  <data name="HudLegacyApplyFailedMessage" xml:space="preserve"><value>无法安全更新所选程序的 RTSS 配置。原配置未被覆盖。</value></data>
+  <data name="HudLegacyRestartTitle" xml:space="preserve"><value>请重启游戏</value></data>
+  <data name="HudLegacyRestartEnabledMessage" xml:space="preserve"><value>已为“{0}”启用旧游戏兼容模式。请完全退出并重新启动游戏；无需重启 RTSS。</value></data>
+  <data name="HudLegacyRestartDisabledMessage" xml:space="preserve"><value>已恢复“{0}”原来的 RTSS 配置。请完全退出并重新启动游戏；无需重启 RTSS。</value></data>
+  <data name="HudApply" xml:space="preserve"><value>保存</value></data>
+  <data name="HudCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="HudLayoutTitle" xml:space="preserve"><value>显示方式</value></data>
+  <data name="HudLayoutLabel" xml:space="preserve"><value>点击即可立即预览；横向模式只显示 CPU、GPU 和 FPS。</value></data>
+  <data name="HudLayoutVertical" xml:space="preserve"><value>垂直</value></data>
+  <data name="HudLayoutVerticalDescription" xml:space="preserve"><value>完整显示 CPU、GPU、FPS、内存和网络</value></data>
+  <data name="HudLayoutHorizontal" xml:space="preserve"><value>水平</value></data>
+  <data name="HudLayoutHorizontalDescription" xml:space="preserve"><value>把你勾选的项目横向排列，包括内存和网络</value></data>
+  <data name="HudAdvancedTitle" xml:space="preserve"><value>高级设置（一般无需修改）</value></data>
+  <data name="HudPositionTitle" xml:space="preserve"><value>悬浮窗位置</value></data>
+  <data name="HudPositionHelp" xml:space="preserve"><value>拖动滑块会立即预览位置；点击“保存”保留更改，右侧数字框可做 1 像素微调。</value></data>
+  <data name="HudPositionCurrentMonitor" xml:space="preserve"><value>当前显示器</value></data>
+  <data name="HudPositionBounds" xml:space="preserve"><value>显示器边界</value></data>
+  <data name="HudPositionCurrent" xml:space="preserve"><value>所选坐标</value></data>
+  <data name="HudPositionUseExact" xml:space="preserve"><value>自定义位置（拖动滑块）</value></data>
+  <data name="HudPositionX" xml:space="preserve"><value>X</value></data>
+  <data name="HudPositionY" xml:space="preserve"><value>Y</value></data>
+  <data name="HudPositionReset" xml:space="preserve"><value>重置</value></data>
+  <data name="HudPositionNoMonitor" xml:space="preserve"><value>没有可用的显示器上下文。</value></data>
+  <data name="HudPositionUnavailable" xml:space="preserve"><value>不可用</value></data>
+  <data name="HudPositionInvalidTitle" xml:space="preserve"><value>坐标无效</value></data>
+  <data name="HudPositionInvalidMessage" xml:space="preserve"><value>请输入 -1,000,000 到 1,000,000 之间的整数 X/Y 坐标，不接受小数或空值。</value></data>
+  <data name="HudPositionStaleTitle" xml:space="preserve"><value>显示器已更改</value></data>
+  <data name="HudPositionStaleMessage" xml:space="preserve"><value>应用位置前，所选显示器或其边界已发生变化。请检查当前显示器坐标后重试。</value></data>
+  <data name="HudPreviewNoMonitor" xml:space="preserve"><value>选择显示器后才能预览。</value></data>
+  <data name="HudPreviewInvalid" xml:space="preserve"><value>请输入有效坐标后才能预览此位置。</value></data>
+  <data name="HudPreviewActive" xml:space="preserve"><value>正在实时预览，点击“保存”即可保留更改。</value></data>
+  <data name="HudSettingsSaveFailedTitle" xml:space="preserve"><value>设置保存失败</value></data>
+  <data name="HudSettingsSaveFailedMessage" xml:space="preserve"><value>SysMonitor 无法写入设置文件，已经恢复原来的 HUD 排版和位置。请检查文件夹权限或磁盘空间后重试。</value></data>
 </root>

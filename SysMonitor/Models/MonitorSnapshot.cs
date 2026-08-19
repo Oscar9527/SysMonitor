@@ -9,7 +9,12 @@ public sealed record GpuSnapshot(
     double? TemperatureCelsius,
     long? MemoryUsedBytes,
     long? MemoryTotalBytes,
-    DateTimeOffset SampledAt);
+    DateTimeOffset SampledAt)
+{
+    public double? CoreClockMhz { get; init; }
+
+    public double? MemoryClockMhz { get; init; }
+}
 
 public sealed record MonitorSnapshot(
     long Sequence,
@@ -28,6 +33,18 @@ public sealed record MonitorSnapshot(
     ImmutableArray<DriveSnapshot> FixedDrives = default)
 {
     private ImmutableArray<DriveSnapshot> _fixedDrives = FixedDrives;
+
+    public long ProducerId { get; init; }
+
+    public long MonotonicTimestamp { get; init; }
+
+    public double? CpuFrequencyMhz { get; init; }
+
+    /// <summary>
+    /// Configured physical-memory clock speed. This is a DIMM configuration value,
+    /// rather than a high-frequency real-time sensor reading.
+    /// </summary>
+    public double? MemoryFrequencyMhz { get; init; }
 
     public ImmutableArray<DriveSnapshot> FixedDrives
     {
@@ -48,5 +65,9 @@ public sealed record MonitorSnapshot(
         0,
         0,
         "C:",
-        0);
+        0)
+    {
+        ProducerId = 0,
+        MonotonicTimestamp = System.Diagnostics.Stopwatch.GetTimestamp()
+    };
 }

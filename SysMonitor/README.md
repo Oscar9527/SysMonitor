@@ -1,6 +1,15 @@
-# SysMonitor 1.2
+# SysMonitor 1.5.0
 
-SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA/AMD/Intel GPU 使用率与可用温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板。
+## 游戏监控悬浮窗
+
+- `Ctrl+Shift+F10` 显示/隐藏，不抢占游戏焦点，鼠标输入穿透悬浮窗。
+- `Present FPS` 默认优先来自已运行 RTSS 的只读共享内存；缺失或过期约 1 秒后回退到随包 PresentMon 2.5.1 的 Windows ETW Present 事件。它不是游戏引擎内部 FPS，也不是 Displayed FPS。SysMonitor 自身不注入或 Hook，也不读取游戏进程内存；RTSS 可能使用自己的图形 API Hook。没有可信样本时 FPS 行会完全隐藏。旧版 DirectDraw 游戏可由用户在设置中按单个游戏明确启用 RTSS 兼容配置。
+- HUD 设置以两个明显选项即时预览垂直/横向显示。横向模式固定为 CPU 占用/温度、GPU 占用/温度和有效 FPS；X/Y 滑块拖动时实时移动 HUD，数字框用于精确微调，取消会恢复打开设置前的状态。不常用选项集中在默认收起的“高级设置”中。
+- CPU、内存和 GPU 百分比均标注为系统总体；温度和当前频率只在数据源真实提供时显示。
+- 默认游戏安全模式不构造 GPU 兼容传感器；CPU 温度始终由 SysMonitor 自带的 CPU 专用读取器独立采集，必要时按需启动独立管理员助手，不依赖 MSI Afterburner。完整兼容传感器仍是需要重启的可选模式，但游戏悬浮窗和快捷键始终可用，不受传感器模式影响。
+- 本功能不注入 DLL、不 Hook DirectX/Vulkan/OpenGL、不读写游戏进程内存，也不尝试绕过反作弊。ETW 能否被具体游戏或反作弊策略接受，以其实际规则为准。
+
+SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA/AMD/Intel GPU 使用率与可用温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板，并查看最近 60 秒的 CPU 与 GPU 使用率折线图。GPU 数据缺失时会以断线表示，不会误报为 0%。
 
 ## 系统要求
 

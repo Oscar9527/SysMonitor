@@ -31,7 +31,11 @@ internal sealed record GpuProviderSample(
     long? DedicatedMemoryUsedBytes,
     long? DedicatedMemoryTotalBytes,
     DateTimeOffset SampledAt,
-    long MonotonicTimestamp);
+    long MonotonicTimestamp)
+{
+    internal double? CoreClockMhz { get; init; }
+    internal double? MemoryClockMhz { get; init; }
+}
 
 internal sealed class GpuProviderCycle
 {

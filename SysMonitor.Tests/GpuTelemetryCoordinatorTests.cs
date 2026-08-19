@@ -135,6 +135,36 @@ public sealed class GpuTelemetryCoordinatorTests
         Assert.Equal(1, lhm.DisposeCount);
     }
 
+    [Fact]
+    public void SelectedFrequencyMetricsArePlumbedToSnapshot()
+    {
+        long now = 100 * Stopwatch.Frequency;
+        GpuProviderSample sample = Sample(
+            "frequency",
+            GpuVendor.Nvidia,
+            GpuTelemetrySource.NvidiaSmi,
+            50) with
+        {
+            CoreClockMhz = 2100,
+            MemoryClockMhz = 9500,
+        };
+        var coordinator = new GpuTelemetryCoordinator(
+            new FakeProvider(Cycle(GpuTelemetrySource.NvidiaSmi, now, sample)),
+            new FakeProvider(null));
+
+        var result = coordinator.Read(now);
+        Assert.Equal(2100, result!.CoreClockMhz);
+        Assert.Equal(9500, result.MemoryClockMhz);
+    }
+
+    [Fact]
+    public async Task SafeModeConstructorUsesInertCompatibilityProvider()
+    {
+        await using var coordinator = new GpuTelemetryCoordinator(enableLibreHardwareMonitor: false);
+        await coordinator.StartAsync(CancellationToken.None);
+        await coordinator.StopAsync();
+    }
+
     private static GpuProviderCycle Cycle(
         GpuTelemetrySource source,
         long timestamp,

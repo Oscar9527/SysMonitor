@@ -16,22 +16,21 @@
         SnapsToDevicePixels="True"
         UseLayoutRounding="True">
     <Window.Resources>
-        <SolidColorBrush x:Key="MainTextBrush" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="SeparatorBrush" Color="#55FFFFFF" />
         <Style x:Key="MetricLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource BandTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, -apple-system" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Opacity" Value="0.85" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextAlignment" Value="Center" />
             <Setter Property="ClipToBounds" Value="True" />
             <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
         </Style>
         <Style x:Key="MetricValue" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{DynamicResource MainTextBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource BandTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI, -apple-system" />
+            <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextAlignment" Value="Center" />
@@ -42,25 +41,29 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="ClipToBounds" Value="True" />
-            <Setter Property="Width" Value="62" />
-            <Setter Property="Margin" Value="5.5,0" />
+            <Setter Property="Width" Value="60" />
+            <Setter Property="Margin" Value="4,0" />
         </Style>
         <Style x:Key="MetricSeparator" TargetType="Border">
             <Setter Property="Width" Value="1" />
-            <Setter Property="Height" Value="22" />
-            <Setter Property="Background" Value="{DynamicResource SeparatorBrush}" />
+            <Setter Property="Height" Value="16" />
+            <Setter Property="Background" Value="{DynamicResource BandSeparatorBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Opacity" Value="0.5" />
         </Style>
     </Window.Resources>
 
-    <Border x:Name="BandRoot"
-            Background="Transparent"
-            BorderThickness="0">
+    <Grid x:Name="BandHitTarget"
+          Background="#01000000">
+        <Border x:Name="BandRoot"
+                Background="{DynamicResource BandBackgroundBrush}"
+                CornerRadius="{DynamicResource BandCornerRadius}"
+                BorderThickness="0">
         <StackPanel Orientation="Horizontal"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
             <StackPanel.RenderTransform>
-                <TranslateTransform Y="-1.5" />
+                <TranslateTransform Y="-1" />
             </StackPanel.RenderTransform>
             <Grid x:Name="CpuGroup" Style="{StaticResource MetricGroup}">
                 <Grid.RowDefinitions>
@@ -70,8 +73,9 @@
                 <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Style="{StaticResource MetricLabel}" Text="CPU" />
                     <TextBlock x:Name="CpuTemperatureText"
-                               Margin="4,0,0,0"
+                               Margin="3,0,0,0"
                                Style="{StaticResource MetricLabel}"
+                               Opacity="0.75"
                                Text="--°" />
                 </StackPanel>
                 <TextBlock x:Name="CpuValueText"
@@ -104,8 +108,9 @@
                 <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
                     <TextBlock Style="{StaticResource MetricLabel}" Text="GPU" />
                     <TextBlock x:Name="GpuTemperatureText"
-                               Margin="4,0,0,0"
+                               Margin="3,0,0,0"
                                Style="{StaticResource MetricLabel}"
+                               Opacity="0.75"
                                Text="--℃" />
                 </StackPanel>
                 <TextBlock x:Name="GpuValueText"
@@ -121,7 +126,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Style="{StaticResource MetricLabel}" Text="DOWN" />
+                <TextBlock Grid.Row="0" Style="{StaticResource MetricLabel}" Text="↓ DOWN" />
                 <TextBlock x:Name="DownloadValueText"
                            Grid.Row="1"
                            Style="{StaticResource MetricValue}"
@@ -135,7 +140,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Style="{StaticResource MetricLabel}" Text="UP" />
+                <TextBlock Grid.Row="0" Style="{StaticResource MetricLabel}" Text="↑ UP" />
                 <TextBlock x:Name="UploadValueText"
                            Grid.Row="1"
                            Style="{StaticResource MetricValue}"
@@ -158,6 +163,7 @@
                            Style="{StaticResource MetricValue}"
                            Text="0%" />
             </Grid>
-        </StackPanel>
-    </Border>
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>

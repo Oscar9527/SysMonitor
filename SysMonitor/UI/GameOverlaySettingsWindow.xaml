@@ -1,0 +1,252 @@
+<Window x:Class="SysMonitor.UI.GameOverlaySettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="游戏浮层设置与布局"
+        Width="560" Height="680" MinWidth="520" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="True"
+        Style="{DynamicResource AppWindowStyle}">
+  <Window.Resources>
+    <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="CloseBg" Background="{TemplateBinding Background}" CornerRadius="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="CloseBg" Property="Background" Value="#E81123" />
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="CloseBg" Property="Background" Value="#C4101E" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="MacSecondaryButtonStyle" TargetType="Button">
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="14,0" />
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppSeparatorBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppControlBrush}" /></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppSeparatorBrush}" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="MacPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource MacSecondaryButtonStyle}">
+      <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.88" /></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.76" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <!-- Outer container with 16px corner radius and smooth shadow -->
+  <Border Margin="14"
+          Background="{DynamicResource AppBackgroundBrush}"
+          BorderBrush="{DynamicResource AppSeparatorBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          ClipToBounds="True">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.16" />
+    </Border.Effect>
+
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="50"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="54"/>
+      </Grid.RowDefinitions>
+
+      <!-- Title Bar -->
+      <Grid Grid.Row="0" Background="{DynamicResource AppBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock x:Name="MetricsTitleText" Margin="18,0,10,0" VerticalAlignment="Center"
+                   FontSize="13.5" FontWeight="Bold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AppTextBrush}"/>
+        <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button x:Name="AppearanceButton" Margin="0,0,8,0" Padding="10,4" Height="28"
+                  Content="🎨 配色与皮肤..." Style="{StaticResource MacSecondaryButtonStyle}" Click="AppearanceButton_Click"/>
+          <Button Style="{StaticResource WindowCloseButtonStyle}" Click="Cancel_Click" ToolTip="关闭">
+            <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AppSecondaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <ScrollViewer Grid.Row="1" Margin="18,4,18,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <!-- Layout Card -->
+          <Border Margin="0,0,0,12" Padding="14" Style="{StaticResource AppGroupStyle}">
+            <StackPanel>
+              <TextBlock x:Name="LayoutTitleText" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}"/>
+              <TextBlock x:Name="LayoutLabelText" Margin="0,4,0,10" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <RadioButton x:Name="VerticalLayoutRadio" GroupName="HudLayout" Tag="vertical"
+                             IsChecked="True" Checked="LayoutMode_Checked"
+                             Margin="0,0,6,0" Padding="10,8" FontWeight="SemiBold">
+                  <StackPanel>
+                    <TextBlock x:Name="VerticalLayoutTitleText" FontSize="13"/>
+                    <TextBlock x:Name="VerticalLayoutDescriptionText" Margin="0,3,0,0"
+                               FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="HorizontalLayoutRadio" Grid.Column="1" GroupName="HudLayout" Tag="horizontal"
+                             Checked="LayoutMode_Checked" Margin="6,0,0,0" Padding="10,8" FontWeight="SemiBold">
+                  <StackPanel>
+                    <TextBlock x:Name="HorizontalLayoutTitleText" FontSize="13"/>
+                    <TextBlock x:Name="HorizontalLayoutDescriptionText" Margin="0,3,0,0"
+                               FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </RadioButton>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- Position Card -->
+          <Border Margin="0,0,0,12" Padding="14" Style="{StaticResource AppGroupStyle}">
+            <StackPanel>
+              <TextBlock x:Name="PositionTitleText" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}"/>
+              <TextBlock x:Name="PositionHelpText" Margin="0,4,0,10" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap"/>
+              <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="PositionMonitorLabelText" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="12"/>
+                <TextBlock x:Name="PositionMonitorText" Grid.Column="1" Foreground="{DynamicResource AppTextBrush}" FontSize="12" TextWrapping="Wrap"/>
+              </Grid>
+              <Grid Margin="0,0,0,4" Visibility="Collapsed">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="PositionBoundsLabelText" Foreground="{DynamicResource AppSecondaryTextBrush}"/>
+                <TextBlock x:Name="PositionBoundsText" Grid.Column="1" Foreground="{DynamicResource AppTextBrush}"/>
+              </Grid>
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="PositionCurrentLabelText" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="12"/>
+                <TextBlock x:Name="PositionCurrentText" Grid.Column="1" Foreground="{DynamicResource AppTextBrush}" FontSize="12" FontWeight="SemiBold"/>
+              </Grid>
+              <CheckBox x:Name="ExactPositionBox" Click="ExactPositionBox_Click" FontWeight="SemiBold" FontSize="12.5"/>
+              <Grid Margin="20,10,0,0">
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/><ColumnDefinition Width="70"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="PositionXLabelText" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                <Slider x:Name="PositionXSlider" Grid.Column="1" Margin="4,0,10,0"
+                        SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                        IsMoveToPointEnabled="True" ValueChanged="PositionSlider_ValueChanged"/>
+                <TextBox x:Name="PositionXBox" Grid.Column="2" Height="28" VerticalContentAlignment="Center"
+                         TextChanged="PositionCoordinateTextChanged"/>
+                <TextBlock x:Name="PositionYLabelText" Grid.Row="1" VerticalAlignment="Center" Margin="0,8,0,0" FontWeight="SemiBold"/>
+                <Slider x:Name="PositionYSlider" Grid.Row="1" Grid.Column="1" Margin="4,8,10,0"
+                        SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True"
+                        IsMoveToPointEnabled="True" ValueChanged="PositionSlider_ValueChanged"/>
+                <TextBox x:Name="PositionYBox" Grid.Row="1" Grid.Column="2" Height="28" Margin="0,8,0,0"
+                         VerticalContentAlignment="Center" TextChanged="PositionCoordinateTextChanged"/>
+              </Grid>
+              <Button x:Name="ResetPositionButton" Width="88" Height="28" Margin="20,10,0,0"
+                      HorizontalAlignment="Left" Style="{StaticResource MacSecondaryButtonStyle}" Click="ResetPosition_Click"/>
+              <TextBlock x:Name="PreviewStatusText" Margin="20,8,0,0" FontSize="11"
+                         Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Advanced / Legacy Expander Card -->
+          <Expander x:Name="AdvancedExpander" Margin="0,0,0,12" IsExpanded="False"
+                    Background="{DynamicResource AppSurfaceBrush}" BorderBrush="{DynamicResource AppSeparatorBrush}"
+                    BorderThickness="1">
+            <Expander.Header>
+              <TextBlock x:Name="AdvancedTitleText" FontSize="13.5" FontWeight="SemiBold" Margin="4,0"/>
+            </Expander.Header>
+            <StackPanel Margin="14,6,14,14">
+              <TextBlock x:Name="AdvancedMetricsTitleText" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}"/>
+              <Grid Margin="0,8,0,12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="96"/></Grid.ColumnDefinitions>
+                <ListBox x:Name="MetricList" MinHeight="160" BorderBrush="{DynamicResource AppSeparatorBrush}" Background="{DynamicResource AppControlBrush}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <CheckBox Content="{Binding Name}" IsChecked="{Binding Enabled, Mode=TwoWay}" Padding="8,5"/>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                  <Button x:Name="MoveUpButton" Height="32" Margin="0,0,0,6" Style="{StaticResource MacSecondaryButtonStyle}" Click="MoveUp_Click"/>
+                  <Button x:Name="MoveDownButton" Height="32" Style="{StaticResource MacSecondaryButtonStyle}" Click="MoveDown_Click"/>
+                  <TextBlock x:Name="OrderHelpText" Margin="0,12,0,0" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="11" TextWrapping="Wrap"/>
+                </StackPanel>
+              </Grid>
+              <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <TextBlock x:Name="SamplingLabelText" VerticalAlignment="Center" Foreground="{DynamicResource AppTextBrush}" FontSize="12"/>
+                <ComboBox x:Name="SamplingBox" Grid.Column="1" Height="32" SelectedValuePath="Tag"/>
+              </Grid>
+              <Separator Margin="0,0,0,12"/>
+              <TextBlock x:Name="LegacyTitleText" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}"/>
+              <TextBlock x:Name="LegacyTargetLabelText" Margin="0,8,0,4" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}"/>
+              <ComboBox x:Name="LegacyTargetBox" Height="32" DisplayMemberPath="DisplayName"
+                        SelectionChanged="LegacyTargetBox_SelectionChanged"/>
+              <CheckBox x:Name="LegacyCompatibilityBox" Margin="0,10,0,0" FontWeight="SemiBold" FontSize="12"/>
+              <TextBlock x:Name="LegacyStatusText" Margin="20,4,0,0" FontSize="11.5" Foreground="{DynamicResource AppAccentBrush}" TextWrapping="Wrap"/>
+              <TextBlock x:Name="LegacyWarningText" Margin="20,4,0,0" FontSize="11" Foreground="{DynamicResource WarningMetricBrush}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Expander>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Bottom Actions -->
+      <Grid Grid.Row="2" Margin="18,0,18,14">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <Button x:Name="CancelButton" Width="80" Margin="0,0,10,0" Style="{StaticResource MacSecondaryButtonStyle}" Click="Cancel_Click"/>
+          <Button x:Name="ApplyButton" Width="80" Style="{StaticResource MacPrimaryButtonStyle}" Click="Apply_Click"/>
+        </StackPanel>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

@@ -5,6 +5,7 @@ internal enum GpuSensorKind
     Load,
     Temperature,
     SmallData,
+    Clock,
 }
 
 internal readonly record struct GpuSensorReading(
@@ -16,7 +17,11 @@ internal readonly record struct GpuSensorSelection(
     double? UsagePercent,
     double? TemperatureCelsius,
     long? DedicatedMemoryUsedBytes,
-    long? DedicatedMemoryTotalBytes);
+    long? DedicatedMemoryTotalBytes)
+{
+    internal double? CoreClockMhz { get; init; }
+    internal double? MemoryClockMhz { get; init; }
+}
 
 internal static class GpuSensorSelector
 {
@@ -32,6 +37,8 @@ internal static class GpuSensorSelector
         double? memoryTotalMiB = null;
         double? memoryFreeMiB = null;
         double? d3dDedicatedUsedMiB = null;
+        double? coreClockMhz = null;
+        double? memoryClockMhz = null;
 
         foreach (GpuSensorReading reading in readings)
         {
@@ -45,7 +52,7 @@ internal static class GpuSensorSelector
             switch (reading.Kind)
             {
                 case GpuSensorKind.Load when vendor is GpuVendor.Nvidia or GpuVendor.Amd:
-                    if (name == "GPU CORE")
+                    if (name == "GPU CORE" || name == "GPU CORE LOAD")
                     {
                         usage = Math.Clamp(value.Value, 0d, 100d);
                     }
@@ -62,7 +69,7 @@ internal static class GpuSensorSelector
                     break;
 
                 case GpuSensorKind.Temperature:
-                    if (name == "GPU CORE" && value is >= 1d and <= 150d)
+                    if ((name == "GPU CORE" || name == "GPU CORE TEMPERATURE") && value is >= 1d and <= 150d)
                     {
                         temperature = value;
                     }
@@ -93,6 +100,23 @@ internal static class GpuSensorSelector
                     }
 
                     break;
+
+                case GpuSensorKind.Clock:
+                    if (value <= 0d)
+                    {
+                        break;
+                    }
+
+                    if (name == "GPU CORE" || name == "GPU CORE CLOCK")
+                    {
+                        coreClockMhz = value;
+                    }
+                    else if (name == "GPU MEMORY" || name == "GPU MEMORY CLOCK")
+                    {
+                        memoryClockMhz = value;
+                    }
+
+                    break;
             }
         }
 
@@ -112,7 +136,11 @@ internal static class GpuSensorSelector
             usage,
             temperature,
             MiBToBytes(memoryUsedMiB),
-            totalBytes);
+            totalBytes)
+        {
+            CoreClockMhz = coreClockMhz,
+            MemoryClockMhz = memoryClockMhz,
+        };
     }
 
     internal static long? MiBToBytes(double? value)

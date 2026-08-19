@@ -15,6 +15,9 @@ artifacts/
 # Temporary test harnesses
 work/AppearanceQa/
 
+# Local publish directories
+SysMonitor/publish*/
+
 # OS/editor files
 .DS_Store
 Thumbs.db

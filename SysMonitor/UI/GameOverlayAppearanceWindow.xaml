@@ -1,0 +1,248 @@
+<Window x:Class="SysMonitor.UI.GameOverlayAppearanceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="HUD 外观与配色"
+        Width="680"
+        Height="730"
+        MinWidth="630"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="True"
+        Style="{DynamicResource AppWindowStyle}">
+  <Window.Resources>
+    <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="CloseBg" Background="{TemplateBinding Background}" CornerRadius="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="CloseBg" Property="Background" Value="#E81123" />
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="CloseBg" Property="Background" Value="#C4101E" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="TrafficLightButtonStyle" TargetType="Button">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Center">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="MacSecondaryButtonStyle" TargetType="Button">
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="14,0" />
+      <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppSeparatorBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppControlBrush}" /></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppSeparatorBrush}" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="MacPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource MacSecondaryButtonStyle}">
+      <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Surface" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.88" /></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Opacity" Value="0.76" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="ColorSwatchButtonStyle" TargetType="Button">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Border" Background="{TemplateBinding Background}" CornerRadius="8" BorderBrush="#33000000" BorderThickness="1">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
+  <!-- Outer container with macOS 16px corner radius and smooth shadow -->
+  <Border Margin="14"
+          Background="{DynamicResource AppBackgroundBrush}"
+          BorderBrush="{DynamicResource AppSeparatorBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          ClipToBounds="True">
+    <Border.Effect>
+      <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.16" />
+    </Border.Effect>
+
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="50"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <!-- Title Bar -->
+      <Grid Grid.Row="0" Background="{DynamicResource AppBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Margin="18,0,0,0" VerticalAlignment="Center" Text="HUD 外观与配色 (MSI 纯色风格)"
+                   FontSize="13.5" FontWeight="Bold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AppTextBrush}"/>
+        <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Style="{StaticResource WindowCloseButtonStyle}" Click="Cancel_Click" ToolTip="关闭">
+            <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AppSecondaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="20,4,20,18">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="108"/><ColumnDefinition Width="*"/><ColumnDefinition Width="128"/></Grid.ColumnDefinitions>
+
+          <TextBlock VerticalAlignment="Center" Text="预设皮肤" FontWeight="SemiBold" FontSize="13"/>
+          <ComboBox x:Name="SkinBox" Grid.Column="1" Height="32" Margin="0,0,8,10" DisplayMemberPath="Name" SelectionChanged="SkinChanged"/>
+          <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="一键套用微星小飞机" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="11.5"/>
+
+          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="字体" FontWeight="SemiBold" FontSize="13"/>
+          <ComboBox x:Name="FontBox" Grid.Row="1" Grid.Column="1" Height="32" Margin="0,0,8,8" VerticalContentAlignment="Center" SelectionChanged="Changed"/>
+          <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" Text="Consolas (推荐)" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}"/>
+
+          <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="字号" FontWeight="SemiBold" FontSize="13"/>
+          <Slider x:Name="FontSizeSlider" Grid.Row="2" Grid.Column="1" Margin="0,0,8,8" Minimum="10" Maximum="28" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="Changed"/>
+          <Border Grid.Row="2" Grid.Column="2" Height="28" Width="60" HorizontalAlignment="Left" Background="{DynamicResource AppControlBrush}" CornerRadius="6">
+            <TextBlock x:Name="FontSizeText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"/>
+          </Border>
+
+          <!-- Color palette card -->
+          <Border Grid.Row="3" Grid.ColumnSpan="3" Margin="0,8,0,10" Padding="14" Style="{StaticResource AppGroupStyle}">
+            <StackPanel>
+              <TextBlock Text="监控项目整行高亮纯色 (MSI Afterburner 经典质感)" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4"/>
+              <TextBlock Text="微星小飞机正统 HUD 规范：每行标签与数值统一高饱和纯色，无杂色混淆，游戏中极度清晰醒目。" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="11.5" TextWrapping="Wrap"/>
+              <UniformGrid Columns="5" Margin="0,10,0,0">
+                <StackPanel Margin="3"><TextBlock Text="GPU" HorizontalAlignment="Center" FontWeight="SemiBold"/><Button x:Name="GpuColorButton" Tag="Gpu" Margin="0,4,0,0" Style="{StaticResource ColorSwatchButtonStyle}" Click="ColorWheel_Click"/><TextBlock x:Name="GpuColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+                <StackPanel Margin="3"><TextBlock Text="CPU" HorizontalAlignment="Center" FontWeight="SemiBold"/><Button x:Name="CpuColorButton" Tag="Cpu" Margin="0,4,0,0" Style="{StaticResource ColorSwatchButtonStyle}" Click="ColorWheel_Click"/><TextBlock x:Name="CpuColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+                <StackPanel Margin="3"><TextBlock Text="FPS" HorizontalAlignment="Center" FontWeight="SemiBold"/><Button x:Name="FpsColorButton" Tag="Fps" Margin="0,4,0,0" Style="{StaticResource ColorSwatchButtonStyle}" Click="ColorWheel_Click"/><TextBlock x:Name="FpsColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+                <StackPanel Margin="3"><TextBlock Text="内存" HorizontalAlignment="Center" FontWeight="SemiBold"/><Button x:Name="MemoryColorButton" Tag="Memory" Margin="0,4,0,0" Style="{StaticResource ColorSwatchButtonStyle}" Click="ColorWheel_Click"/><TextBlock x:Name="MemoryColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+                <StackPanel Margin="3"><TextBlock Text="网络" HorizontalAlignment="Center" FontWeight="SemiBold"/><Button x:Name="NetworkColorButton" Tag="Network" Margin="0,4,0,0" Style="{StaticResource ColorSwatchButtonStyle}" Click="ColorWheel_Click"/><TextBlock x:Name="NetworkColorText" HorizontalAlignment="Center" FontSize="10" Margin="0,3,0,0"/></StackPanel>
+              </UniformGrid>
+            </StackPanel>
+          </Border>
+
+          <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="描边强度" FontWeight="SemiBold" FontSize="13"/>
+          <Grid Grid.Row="4" Grid.Column="1" Margin="0,2,8,10">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
+            <Slider x:Name="OutlineSlider" Minimum="0.5" Maximum="4" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="Changed"/>
+            <Border Grid.Column="1" Height="28" Background="{DynamicResource AppControlBrush}" CornerRadius="6">
+              <TextBlock x:Name="OutlineText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"/>
+            </Border>
+          </Grid>
+          <Button Grid.Row="4" Grid.Column="2" Height="30" Content="描边颜色" Tag="Outline" Style="{StaticResource MacSecondaryButtonStyle}" Click="ColorWheel_Click"/>
+
+          <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="阴影清晰度" FontWeight="SemiBold" FontSize="13"/>
+          <Grid Grid.Row="5" Grid.Column="1" Margin="0,0,8,8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
+            <Slider x:Name="ShadowOpacitySlider" Minimum="0.35" Maximum="1" TickFrequency="0.05" ValueChanged="Changed"/>
+            <Border Grid.Column="1" Height="28" Background="{DynamicResource AppControlBrush}" CornerRadius="6">
+              <TextBlock x:Name="ShadowOpacityText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"/>
+            </Border>
+          </Grid>
+          <TextBlock Grid.Row="5" Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="11.5" Text="建议 95% (醒目)" HorizontalAlignment="Left"/>
+
+          <TextBlock Grid.Row="6" VerticalAlignment="Center" Text="阴影偏移" FontWeight="SemiBold" FontSize="13"/>
+          <Grid Grid.Row="6" Grid.Column="1" Margin="0,0,8,8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
+            <Slider x:Name="ShadowDepthSlider" Minimum="0" Maximum="6" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="Changed"/>
+            <Border Grid.Column="1" Height="28" Background="{DynamicResource AppControlBrush}" CornerRadius="6">
+              <TextBlock x:Name="ShadowDepthText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"/>
+            </Border>
+          </Grid>
+          <TextBlock Grid.Row="6" Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="11.5" Text="0 为四周立体描边" HorizontalAlignment="Left"/>
+
+          <!-- Realtime live preview card -->
+          <Border Grid.Row="7" Grid.ColumnSpan="3" Margin="0,10,0,14" Padding="16" Background="#1E1E22" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1">
+            <StackPanel>
+              <TextBlock Text="HUD 实时效果预览 (游戏画面背景模拟)" FontWeight="SemiBold" FontSize="12.5" Foreground="#AAAAAA" Margin="0,0,0,10"/>
+              <Border x:Name="PreviewSurface" Padding="6" Background="Transparent" BorderBrush="Transparent" BorderThickness="0">
+                <WrapPanel x:Name="PreviewPanel">
+                  <TextBlock x:Name="PreviewGpu" Text="GPU 42%  61°C" Margin="0,0,14,4" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="PreviewCpu" Text="CPU 18%  54°C" Margin="0,0,14,4" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="PreviewFps" Text="FPS 144" Margin="0,0,14,4" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="PreviewMemory" Text="RAM 48%  3200 MHz" Margin="0,0,14,4" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="PreviewNetwork" Text="NET ↓ 1.2M ↑ 90K" Margin="0,0,14,4" FontWeight="SemiBold"/>
+                </WrapPanel>
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <!-- Bottom Action Buttons -->
+          <StackPanel Grid.Row="8" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+            <Button Content="取消" Width="80" Margin="0,0,10,0" Style="{StaticResource MacSecondaryButtonStyle}" Click="Cancel_Click"/>
+            <Button Content="保存并应用" Width="100" Style="{StaticResource MacPrimaryButtonStyle}" Click="Apply_Click"/>
+          </StackPanel>
+        </Grid>
+      </ScrollViewer>
+    </Grid>
+  </Border>
+</Window>

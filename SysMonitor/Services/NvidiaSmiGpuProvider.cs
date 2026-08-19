@@ -15,7 +15,9 @@ internal readonly record struct NvidiaSmiRow(
     double? UsagePercent,
     double? TemperatureCelsius,
     long? MemoryUsedBytes,
-    long? MemoryTotalBytes);
+    long? MemoryTotalBytes,
+    double? CoreClockMhz,
+    double? MemoryClockMhz);
 
 internal static class NvidiaSmiCsv
 {
@@ -23,7 +25,7 @@ internal static class NvidiaSmiCsv
     {
         row = default;
         List<string> fields = Parse(line);
-        if (fields.Count != 9)
+        if (fields.Count != 11)
         {
             return false;
         }
@@ -70,7 +72,9 @@ internal static class NvidiaSmiCsv
             usage,
             temperature,
             GpuSensorSelector.MiBToBytes(ParseMetric(fields[7])),
-            GpuSensorSelector.MiBToBytes(ParseMetric(fields[8])));
+            GpuSensorSelector.MiBToBytes(ParseMetric(fields[8])),
+            PositiveMetric(fields[9]),
+            PositiveMetric(fields[10]));
         return true;
     }
 
@@ -123,6 +127,12 @@ internal static class NvidiaSmiCsv
                double.IsFinite(parsed)
             ? parsed
             : null;
+    }
+
+    private static double? PositiveMetric(string value)
+    {
+        double? metric = ParseMetric(value);
+        return metric is > 0d ? metric : null;
     }
 
     private static string? ParseIdentity(string value)
@@ -206,7 +216,11 @@ internal sealed class NvidiaSmiCycleAccumulator
                 row.MemoryUsedBytes,
                 row.MemoryTotalBytes,
                 row.SampledAt,
-                _monotonicTimestamp))
+                _monotonicTimestamp)
+            {
+                CoreClockMhz = row.CoreClockMhz,
+                MemoryClockMhz = row.MemoryClockMhz,
+            })
             .ToArray();
         return new GpuProviderCycle(
             GpuTelemetrySource.NvidiaSmi,
@@ -227,6 +241,9 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
     private static readonly TimeSpan OutputTimeout = TimeSpan.FromSeconds(4);
     private static readonly int[] RetrySeconds = { 1, 2, 4, 8, 15, 30 };
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    // Ensures the driver telemetry process cannot survive an unexpected
+    // SysMonitor termination and accumulate in the background.
+    private readonly ChildProcessJob? _childProcessJob = TryCreateChildProcessJob();
     private CancellationTokenSource? _cancellation;
     private Task? _worker;
     private Process? _process;
@@ -318,6 +335,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
         }
 
         await StopAsync().ConfigureAwait(false);
+        _childProcessJob?.Dispose();
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -330,6 +348,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             try
             {
                 process = StartProcess();
+                TryAssignToJob(process);
                 _process = process;
                 published = await ReadSessionAsync(process, cancellationToken).ConfigureAwait(false);
             }
@@ -451,11 +470,31 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-        startInfo.ArgumentList.Add("--query-gpu=timestamp,index,uuid,pci.bus_id,name,utilization.gpu,temperature.gpu,memory.used,memory.total");
+        startInfo.ArgumentList.Add("--query-gpu=timestamp,index,uuid,pci.bus_id,name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.current.graphics,clocks.current.memory");
         startInfo.ArgumentList.Add("--format=csv,noheader,nounits");
         startInfo.ArgumentList.Add("--loop=1");
         return Process.Start(startInfo) ??
                throw new InvalidOperationException("Unable to start nvidia-smi.");
+    }
+
+    private static ChildProcessJob? TryCreateChildProcessJob()
+    {
+        try { return new ChildProcessJob(); }
+        catch { return null; }
+    }
+
+    private void TryAssignToJob(Process process)
+    {
+        try { _childProcessJob?.Assign(process); }
+        catch (Exception exception)
+        {
+            // The collector remains usable when a host policy prevents job
+            // assignment; normal graceful shutdown still terminates it.
+            BandDiagnostics.LogRateLimited(
+                "gpu-nvidia-smi-job",
+                $"gpu source=nvidia-smi job assignment failed type={exception.GetType().Name}",
+                TimeSpan.FromMinutes(5));
+        }
     }
 
     private static async Task DrainStderrAsync(StreamReader reader)

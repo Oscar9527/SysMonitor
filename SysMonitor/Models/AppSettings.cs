@@ -2,9 +2,36 @@ namespace SysMonitor.Models;
 
 public sealed class AppSettings
 {
+    public const string DefaultThemeId = "builtin.default";
+
     public string UiCulture { get; set; } = "system";
 
     public bool BandVisible { get; set; } = true;
+
+    /// <summary>
+    /// Keeps compatibility hardware sensors disabled. Older settings files do not contain this
+    /// property, so the initializer intentionally migrates them to the safe default.
+    /// </summary>
+    public bool GameSafeMode { get; set; } = true;
+
+    /// <summary>Horizontal placement of the game overlay on the target monitor.</summary>
+    public double GameOverlayHorizontalPositionPercent { get; set; } = 50d;
+
+    public string GameOverlayPreset { get; set; } = "rivatuner";
+
+    /// <summary>HUD flow direction: vertical or horizontal.</summary>
+    public string GameOverlayLayoutMode { get; set; } = "vertical";
+
+    /// <summary>Exact physical-pixel coordinates remembered independently per monitor.</summary>
+    public List<GameOverlayMonitorPositionSettings>? GameOverlayMonitorPositions { get; set; } = [];
+
+    public GameOverlayMetricVisibilitySettings? GameOverlayMetrics { get; set; } = new();
+
+    /// <summary>Visual settings for the independent game HUD.</summary>
+    public GameOverlayAppearanceSettings? GameOverlayAppearance { get; set; } = new();
+
+    /// <summary>HUD sampling cadence: low, standard, or high.</summary>
+    public string GameOverlaySampling { get; set; } = "standard";
 
     public string BandFontFamily { get; set; } = "Segoe UI Variable Text";
 
@@ -18,12 +45,154 @@ public sealed class AppSettings
 
     public BandMetricVisibilitySettings? BandMetricVisibility { get; set; } = new();
 
+    public string ActiveThemeId { get; set; } = DefaultThemeId;
+
     public bool PanelTopmost { get; set; }
 
     public double? PanelLeft { get; set; }
 
     public double? PanelTop { get; set; }
 }
+
+public sealed class GameOverlayMonitorPositionSettings
+{
+    public string StableMonitorId { get; set; } = string.Empty;
+    public string GdiDeviceName { get; set; } = string.Empty;
+    public bool IsFallbackIdentity { get; set; }
+    public int Left { get; set; }
+    public int Top { get; set; }
+    public int Right { get; set; }
+    public int Bottom { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+public sealed class GameOverlayMetricVisibilitySettings
+{
+    public bool? FrameRate { get; set; } = true;
+    public bool? Cpu { get; set; } = true;
+    public bool? Gpu { get; set; } = true;
+    public bool? Memory { get; set; } = true;
+    public bool? Network { get; set; }
+    public List<string>? Order { get; set; }
+
+    public GameOverlayMetricVisibility ToEffective() => new(
+        FrameRate ?? true,
+        Cpu ?? true,
+        Gpu ?? true,
+        Memory ?? true,
+        Network ?? false)
+        { Order = GameOverlayMetricOrder.Normalize(Order) };
+
+    public static GameOverlayMetricVisibilitySettings FromEffective(GameOverlayMetricVisibility value) => new()
+    {
+        FrameRate = value.FrameRate,
+        Cpu = value.Cpu,
+        Gpu = value.Gpu,
+        Memory = value.Memory,
+        Network = value.Network,
+        Order = value.Order.ToList()
+    };
+}
+
+public sealed record GameOverlayMetricVisibility(
+    bool FrameRate = true,
+    bool Cpu = true,
+    bool Gpu = true,
+    bool Memory = true,
+    bool Network = false)
+{
+    public IReadOnlyList<string> Order { get; init; } = GameOverlayMetricOrder.Default;
+}
+
+public static class GameOverlayMetricOrder
+{
+    public static IReadOnlyList<string> Default { get; } = new[] { "gpu", "cpu", "fps", "memory", "network" };
+
+    public static IReadOnlyList<string> Normalize(IEnumerable<string>? values)
+    {
+        var result = new List<string>();
+        foreach (string id in values ?? Array.Empty<string>())
+        {
+            string normalized = id.Trim().ToLowerInvariant();
+            if (Default.Contains(normalized, StringComparer.Ordinal) && !result.Contains(normalized, StringComparer.Ordinal))
+                result.Add(normalized);
+        }
+        foreach (string id in Default)
+            if (!result.Contains(id, StringComparer.Ordinal)) result.Add(id);
+        // Reuse the canonical default instance. This keeps settings written by
+        // older versions behaviorally and structurally identical after load.
+        return result.SequenceEqual(Default, StringComparer.Ordinal) ? Default : result;
+    }
+}
+
+public sealed class GameOverlayAppearanceSettings
+{
+    public string FontFamily { get; set; } = "Consolas";
+    public double FontSize { get; set; } = 16d;
+    public string LabelColor { get; set; } = "#FFFF8C00";
+    public string ValueColor { get; set; } = "#FFFF8C00";
+    public string OutlineColor { get; set; } = "#FF000000";
+    public double OutlineThickness { get; set; } = 1.5d;
+    public string ShadowColor { get; set; } = "#CC000000";
+    public double ShadowOpacity { get; set; } = 0.95d;
+    public double ShadowDepth { get; set; } = 1d;
+    public string GpuColor { get; set; } = "#FFFF8C00";
+    public string CpuColor { get; set; } = "#FF00E5FF";
+    public string FpsColor { get; set; } = "#FF00E676";
+    public string MemoryColor { get; set; } = "#FFFFD600";
+    public string NetworkColor { get; set; } = "#FFE040FB";
+
+    public GameOverlayAppearance ToEffective() => new(
+        FontFamily,
+        FontSize,
+        LabelColor,
+        ValueColor,
+        OutlineColor,
+        OutlineThickness,
+        ShadowColor,
+        ShadowOpacity,
+        ShadowDepth,
+        GpuColor,
+        CpuColor,
+        FpsColor,
+        MemoryColor,
+        NetworkColor);
+
+    public static GameOverlayAppearanceSettings FromEffective(GameOverlayAppearance value) => new()
+    {
+        FontFamily = value.FontFamily,
+        FontSize = value.FontSize,
+        LabelColor = value.LabelColor,
+        ValueColor = value.ValueColor,
+        OutlineColor = value.OutlineColor,
+        OutlineThickness = value.OutlineThickness,
+        ShadowColor = value.ShadowColor,
+        ShadowOpacity = value.ShadowOpacity,
+        ShadowDepth = value.ShadowDepth,
+        GpuColor = value.GpuColor,
+        CpuColor = value.CpuColor,
+        FpsColor = value.FpsColor,
+        MemoryColor = value.MemoryColor,
+        NetworkColor = value.NetworkColor
+    };
+}
+
+public sealed record GameOverlayAppearance(
+    string FontFamily = "Consolas",
+    double FontSize = 16d,
+    string LabelColor = "#FFFF8C00",
+    string ValueColor = "#FFFF8C00",
+    string OutlineColor = "#FF000000",
+    double OutlineThickness = 1.5d,
+    string ShadowColor = "#CC000000",
+    double ShadowOpacity = 0.95d,
+    double ShadowDepth = 1d,
+    string GpuColor = "#FFFF8C00",
+    string CpuColor = "#FF00E5FF",
+    string FpsColor = "#FF00E676",
+    string MemoryColor = "#FFFFD600",
+    string NetworkColor = "#FFE040FB");
 
 public sealed class BandMetricVisibilitySettings
 {
