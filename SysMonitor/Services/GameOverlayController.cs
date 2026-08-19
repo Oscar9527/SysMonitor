@@ -248,21 +248,16 @@ public sealed class GameOverlayController : IAsyncDisposable
         {
             try
             {
-                await Task.Delay(500, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(250, cancellationToken).ConfigureAwait(false);
                 if (!IsCurrent(generation, visible: true) || cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
 
-                ForegroundTarget? currentTarget = CurrentTarget;
-                if (currentTarget is not null && TaskbarPositioner.IsWindowHandleAlive(currentTarget.WindowHandle))
-                {
-                    continue;
-                }
-
                 ForegroundWindowCandidate? candidate = _targetTracker.CaptureCandidate();
                 if (candidate is not null && _targetTracker.IsQualifiedCandidate(candidate))
                 {
+                    ForegroundTarget? currentTarget = CurrentTarget;
                     if (currentTarget is null ||
                         candidate.WindowHandle != currentTarget.WindowHandle ||
                         candidate.ProcessId != currentTarget.ProcessId)

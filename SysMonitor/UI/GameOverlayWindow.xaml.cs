@@ -53,7 +53,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private nint _lastAppliedInsertAfter;
     private uint _lastAppliedFlags;
     private bool _placementApplied;
-    private bool _targetMinimized;
     private bool? _lastFrameRateVisible;
     private GameOverlayMetricVisibility _metrics = new();
     private GameOverlayAppearance _appearance = new();
@@ -89,14 +88,9 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     public void SetTarget(ForegroundTarget? target)
     {
         _targetWindow = target?.WindowHandle ?? nint.Zero;
-        _targetMinimized = false;
         _placementApplied = false;
         InvalidateMonitorCache();
         _windowTracker.SetTarget(target);
-        if (_source is not null)
-        {
-            UpdateOwnerRelationship(_source.Handle, _targetWindow);
-        }
         PositionWithoutActivation();
     }
 
@@ -484,16 +478,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     public void ShowWithoutActivation()
     {
-        if (_targetMinimized)
-        {
-            if (IsVisible)
-            {
-                Hide();
-            }
-
-            return;
-        }
-
         if (!IsVisible) Show();
         _placementApplied = false;
         PositionWithoutActivation();
@@ -718,7 +702,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private void OnTrackedTargetInvalidated(object? sender, EventArgs e)
     {
         _targetWindow = nint.Zero;
-        _targetMinimized = false;
         InvalidateMonitorCache();
         _placementApplied = false;
         PositionWithoutActivation();
@@ -727,14 +710,12 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private void OnTrackedTargetMinimized(object? sender, EventArgs e)
     {
-        _targetMinimized = true;
         _placementApplied = false;
         PositionWithoutActivation();
     }
 
     private void OnTrackedTargetRestored(object? sender, EventArgs e)
     {
-        _targetMinimized = false;
         _placementApplied = false;
         PositionWithoutActivation();
     }
@@ -812,13 +793,12 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _lastPlacement = placement;
         _lastPlacementMonitorId = monitorIdentity?.StableMonitorId;
         nint overlay = _source.Handle;
-        bool targetTopmost = target != nint.Zero && IsWindow(target) && IsTopmost(target);
-        UpdateOwnerRelationship(overlay, target);
+        SynchronizeTopmostTier(overlay, true);
         OverlayZOrderDecision zOrder = ResolveZOrder(
             overlay,
             target,
             nint.Zero,
-            targetTopmost);
+            true);
         uint flags = SwpNoActivate | SwpShowWindow;
         if (zOrder.PreserveZOrder)
         {
@@ -950,31 +930,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         nint targetPredecessor,
         bool targetTopmost)
     {
-        if (target != nint.Zero)
-        {
-            return new OverlayZOrderDecision(targetTopmost, targetTopmost ? HwndTopmost : HwndNoTopmost, true);
-        }
         return new OverlayZOrderDecision(true, HwndTopmost, false);
-    }
-
-    private static void UpdateOwnerRelationship(nint overlay, nint target)
-    {
-        if (overlay == nint.Zero)
-        {
-            return;
-        }
-
-        if (target != nint.Zero && IsWindow(target))
-        {
-            bool targetTopmost = IsTopmost(target);
-            _ = SetWindowLongPtr(overlay, GwlHwndParent, target);
-            SynchronizeTopmostTier(overlay, targetTopmost);
-        }
-        else
-        {
-            _ = SetWindowLongPtr(overlay, GwlHwndParent, nint.Zero);
-            SynchronizeTopmostTier(overlay, true);
-        }
     }
 
     private static bool IsTopmost(nint windowHandle) =>
@@ -983,22 +939,11 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static void SynchronizeTopmostTier(nint overlay, bool topmost)
     {
         bool currentlyTopmost = IsTopmost(overlay);
-        if (topmost && !currentlyTopmost)
+        if (!currentlyTopmost)
         {
             _ = SetWindowPos(
                 overlay,
                 HwndTopmost,
-                0,
-                0,
-                0,
-                0,
-                SwpNoMove | SwpNoSize | SwpNoActivate | SwpShowWindow);
-        }
-        else if (!topmost && currentlyTopmost)
-        {
-            _ = SetWindowPos(
-                overlay,
-                HwndNoTopmost,
                 0,
                 0,
                 0,
