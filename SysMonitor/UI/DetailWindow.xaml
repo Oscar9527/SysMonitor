@@ -274,10 +274,10 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock x:Name="StorageLabelText" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" />
                             </StackPanel>
-                            <Grid Grid.Row="1" MinHeight="64" Margin="0,4,0,0">
+                            <Grid Grid.Row="1" MinHeight="64" Margin="0,6,0,0">
                                 <TextBlock x:Name="NoDrivesText" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" />
-                                <WrapPanel x:Name="DriveRowsPanel" HorizontalAlignment="Left" Orientation="Horizontal" />
+                                <UniformGrid x:Name="DriveRowsPanel" Columns="2" HorizontalAlignment="Stretch" Margin="-4,0,-4,0" />
                             </Grid>
                         </Grid>
                     </Border>

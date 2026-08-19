@@ -282,6 +282,7 @@ public partial class DetailWindow : Window
 
         NoDrivesText.Visibility = drives.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         DriveRowsPanel.Visibility = drives.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        DriveRowsPanel.Columns = drives.Length <= 1 ? 1 : 2;
         foreach (DriveSnapshot drive in drives)
         {
             if (!_driveRows.TryGetValue(drive.Name, out DriveRowElements? row))
@@ -322,10 +323,10 @@ public partial class DetailWindow : Window
     {
         var container = new Border
         {
-            Width = 186,
-            Height = 92,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+            Height = 88,
             Margin = new Thickness(4),
-            Padding = new Thickness(10, 8, 10, 8),
+            Padding = new Thickness(12, 8, 12, 8),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Focusable = true,
@@ -341,7 +342,7 @@ public partial class DetailWindow : Window
 
         var name = new TextBlock
         {
-            Margin = new Thickness(0, 0, 12, 0),
+            Margin = new Thickness(0, 0, 8, 0),
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -355,9 +356,9 @@ public partial class DetailWindow : Window
 
         var details = new TextBlock
         {
-            Margin = new Thickness(0, 2, 12, 4),
-            FontSize = 10.5,
-            TextWrapping = System.Windows.TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 4),
+            FontSize = 11,
+            TextTrimming = TextTrimming.CharacterEllipsis,
         };
         details.SetResourceReference(ForegroundProperty, "AppSecondaryTextBrush");
         Grid.SetRow(details, 1);
@@ -365,6 +366,7 @@ public partial class DetailWindow : Window
 
         var progress = new ProgressBar
         {
+            Height = 4,
             Minimum = 0,
             Maximum = 100,
         };
