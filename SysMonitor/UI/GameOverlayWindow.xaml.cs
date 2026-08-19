@@ -764,7 +764,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             TryFindExactPosition(identity, _monitorPositions, out exactPosition);
 
         OverlayPixelRect placementArea;
-        if (!hasExactPosition && target != nint.Zero && !IsIconic(target) && TryGetGamePlacementArea(target, out OverlayPixelRect gameArea))
+        if (!hasExactPosition && target != nint.Zero && !IsIconic(target) && IsWindowVisible(target) && TryGetGamePlacementArea(target, out OverlayPixelRect gameArea))
         {
             // Anchored to the drawing surface / visual frame of the game window
             placementArea = gameArea;
@@ -773,7 +773,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         {
             placementArea = ToOverlayRect(exactIdentity.Bounds);
         }
-        else if (!TryGetWorkArea(target != nint.Zero && !IsIconic(target) ? target : nint.Zero, out placementArea))
+        else if (!TryGetWorkArea(target != nint.Zero && !IsIconic(target) && IsWindowVisible(target) ? target : nint.Zero, out placementArea))
         {
             return;
         }
@@ -837,10 +837,11 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private OverlayPixelRect CalculateLegacyPlacementForContext(OverlayMonitorIdentity identity)
     {
-        OverlayPixelRect area = _targetWindow != nint.Zero && !IsIconic(_targetWindow) &&
+        bool isTargetAlive = _targetWindow != nint.Zero && !IsIconic(_targetWindow) && IsWindowVisible(_targetWindow);
+        OverlayPixelRect area = isTargetAlive &&
             TryGetGamePlacementArea(_targetWindow, out OverlayPixelRect gameArea)
                 ? gameArea
-                : TryGetWorkArea(_targetWindow != nint.Zero && !IsIconic(_targetWindow) ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
+                : TryGetWorkArea(isTargetAlive ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
                     ? workArea
                     : ToOverlayRect(identity.Bounds);
         return CalculatePlacement(
@@ -859,7 +860,8 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         out OverlayMonitorIdentity identity)
     {
         identity = default;
-        nint handle = _targetWindow != nint.Zero && !IsIconic(_targetWindow) ? _targetWindow : _source?.Handle ?? nint.Zero;
+        bool isTargetAlive = _targetWindow != nint.Zero && !IsIconic(_targetWindow) && IsWindowVisible(_targetWindow);
+        nint handle = isTargetAlive ? _targetWindow : _source?.Handle ?? nint.Zero;
         if (!forceRefresh && _hasCachedMonitorIdentity && _cachedIdentityWindow == handle)
         {
             identity = _cachedMonitorIdentity;
@@ -959,13 +961,14 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static bool TryGetGamePlacementArea(nint windowHandle, out OverlayPixelRect area)
     {
         area = default;
-        if (windowHandle == nint.Zero || !IsWindow(windowHandle) || IsIconic(windowHandle))
+        if (windowHandle == nint.Zero || !IsWindow(windowHandle) || IsIconic(windowHandle) || !IsWindowVisible(windowHandle))
         {
             return false;
         }
 
         // 1. Try Client Area (for windowed games)
         if (TryGetClientAreaOnScreen(windowHandle, out OverlayPixelRect clientArea) &&
+            clientArea.Left >= -1000 && clientArea.Top >= -1000 &&
             clientArea.Width >= 50 && clientArea.Height >= 50)
         {
             area = clientArea;
@@ -979,7 +982,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             {
                 int width = frame.Right - frame.Left;
                 int height = frame.Bottom - frame.Top;
-                if (width >= 50 && height >= 50)
+                if (frame.Left >= -1000 && frame.Top >= -1000 && width >= 50 && height >= 50)
                 {
                     area = new OverlayPixelRect(frame.Left, frame.Top, frame.Right, frame.Bottom);
                     return true;
@@ -995,7 +998,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         {
             int width = winRect.Right - winRect.Left;
             int height = winRect.Bottom - winRect.Top;
-            if (width >= 50 && height >= 50)
+            if (winRect.Left >= -1000 && winRect.Top >= -1000 && width >= 50 && height >= 50)
             {
                 area = new OverlayPixelRect(winRect.Left, winRect.Top, winRect.Right, winRect.Bottom);
                 return true;
@@ -1014,7 +1017,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         }
 
         var origin = new NativePoint { X = client.Left, Y = client.Top };
-        if (!ClientToScreen(windowHandle, ref origin))
+        if (!ClientToScreen(windowHandle, ref origin) || origin.X < -1000 || origin.Y < -1000)
         {
             return false;
         }
@@ -1037,6 +1040,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public NativeRect MonitorArea; public NativeRect WorkArea; public uint Flags; }
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindow(nint windowHandle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsIconic(nint windowHandle);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindowVisible(nint windowHandle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetClientRect(nint windowHandle, out NativeRect rectangle);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetWindowRect(nint windowHandle, out NativeRect rectangle);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint hwnd, int dwAttribute, out NativeRect pvAttribute, int cbAttribute);

@@ -53,6 +53,7 @@ public static class ForegroundTargetPolicy
 {
     private static readonly HashSet<string> ExcludedProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
+        // System & Shell
         "explorer",
         "dwm",
         "ShellExperienceHost",
@@ -70,10 +71,84 @@ public static class ForegroundTargetPolicy
         "conhost",
         "WindowsTerminal",
         "Antigravity",
+        "SysMonitor",
+
+        // Web Browsers (never track as game targets)
+        "chrome",
+        "msedge",
+        "firefox",
+        "opera",
+        "opera_gx",
+        "brave",
+        "qqbrowser",
+        "360chrome",
+        "360se",
+        "sogouexplorer",
+        "liebao",
+        "maxthon",
+        "vivaldi",
+        "arc",
+        "waterfox",
+        "torbrowser",
+        "browser",
+
+        // IDEs & Dev Tools
         "Code",
         "devenv",
         "idea64",
-        "cursor"
+        "cursor",
+        "pycharm64",
+        "webstorm64",
+        "rider64",
+        "studio64",
+        "git-bash",
+
+        // Office, Text & PDF
+        "notepad",
+        "notepad++",
+        "wordpad",
+        "WINWORD",
+        "EXCEL",
+        "POWERPNT",
+        "wps",
+        "wpp",
+        "et",
+        "AcroRd32",
+        "Acrobat",
+        "FoxitPDFEditor",
+        "FoxitReader",
+
+        // Chat & Communication
+        "WeChat",
+        "WeChatAppEx",
+        "Weixin",
+        "QQ",
+        "DingTalk",
+        "Feishu",
+        "Lark",
+        "Slack",
+        "Teams",
+        "Telegram",
+        "Discord",
+
+        // Media & Utilities
+        "vlc",
+        "potplayer",
+        "potplayermini64",
+        "mpc-hc",
+        "mpc-hc64",
+        "foobar2000",
+        "cloudmusic",
+        "QQMusic",
+        "Kugou",
+        "Spotify",
+        "Everything",
+        "Bandizip",
+        "WinRAR",
+        "7zFM",
+        "7zG",
+        "Snipaste",
+        "PixPin"
     };
 
     private static readonly HashSet<string> ExcludedClasses = new(StringComparer.OrdinalIgnoreCase)
