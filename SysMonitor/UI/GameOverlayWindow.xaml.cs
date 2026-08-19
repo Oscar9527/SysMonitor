@@ -746,8 +746,12 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         nint target = _targetWindow;
         if (target != nint.Zero && !IsWindow(target))
         {
+            // The HWND became transiently invalid (fullscreen toggle, DWM
+            // composition switch). Clear the local anchor so positioning
+            // falls back to monitor-based placement, but do NOT fire
+            // TargetInvalidated — the controller's 250ms poll will detect
+            // true process exit and handle re-acquisition.
             _targetWindow = nint.Zero;
-            TargetInvalidated?.Invoke(this, EventArgs.Empty);
             target = nint.Zero;
         }
 

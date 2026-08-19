@@ -405,9 +405,6 @@ public sealed class GameOverlayWindowTracker : IDisposable
                 _moveTimer.Start();
                 RequestPositionRefresh();
                 break;
-            case IdentityValidationResult.Mismatch:
-                HandleInvalidation();
-                break;
             default:
                 DisableFastTracking();
                 break;
@@ -421,29 +418,14 @@ public sealed class GameOverlayWindowTracker : IDisposable
             return;
         }
 
-        switch (ValidateTargetIdentity(identity))
-        {
-            case IdentityValidationResult.Valid:
-                _moving = false;
-                _moveTimer.Stop();
-                _minimized = true;
-                _state = GameOverlayTrackingState.Minimized;
-                TargetMinimized?.Invoke(this, EventArgs.Empty);
-                break;
-            case IdentityValidationResult.Mismatch:
-                HandleInvalidation();
-                break;
-            default:
-                // We know the event was for the bound HWND, so hide safely,
-                // and keep the hook alive so a later restore/foreground event
-                // can retry generation validation.
-                _moving = false;
-                _moveTimer.Stop();
-                _minimized = true;
-                _state = GameOverlayTrackingState.Minimized;
-                TargetMinimized?.Invoke(this, EventArgs.Empty);
-                break;
-        }
+        // Always treat minimize as minimize, never as invalidation.
+        // Even if identity validation fails transiently, the window
+        // event was for our bound HWND so we know it was minimized.
+        _moving = false;
+        _moveTimer.Stop();
+        _minimized = true;
+        _state = GameOverlayTrackingState.Minimized;
+        TargetMinimized?.Invoke(this, EventArgs.Empty);
     }
 
     private void HandleMinimizeEnd()
@@ -468,11 +450,15 @@ public sealed class GameOverlayWindowTracker : IDisposable
                 TargetRestored?.Invoke(this, EventArgs.Empty);
                 RequestPositionRefresh();
                 break;
-            case IdentityValidationResult.Mismatch:
-                HandleInvalidation();
-                break;
             default:
+                // Restore even on transient failure — the window event was
+                // for our bound HWND. The controller poll will clean up if
+                // the process truly exited.
+                _minimized = false;
+                _state = GameOverlayTrackingState.FastTrackingUnavailable;
                 DisableFastTracking();
+                TargetRestored?.Invoke(this, EventArgs.Empty);
+                RequestPositionRefresh();
                 break;
         }
     }
@@ -499,9 +485,6 @@ public sealed class GameOverlayWindowTracker : IDisposable
                     : GameOverlayTrackingState.FastTrackingUnavailable;
                 RequestPositionRefresh();
                 break;
-            case IdentityValidationResult.Mismatch:
-                HandleInvalidation();
-                break;
             default:
                 DisableFastTracking();
                 break;
@@ -519,9 +502,6 @@ public sealed class GameOverlayWindowTracker : IDisposable
         {
             case IdentityValidationResult.Valid:
                 RequestPositionRefresh();
-                break;
-            case IdentityValidationResult.Mismatch:
-                HandleInvalidation();
                 break;
             default:
                 DisableFastTracking();
@@ -547,6 +527,10 @@ public sealed class GameOverlayWindowTracker : IDisposable
             return;
         }
 
+        // Revalidate is triggered by EventSystemForeground which fires for
+        // ANY window gaining focus (Win key, Alt+Tab, clicking desktop, etc.).
+        // The game process is still alive — never invalidate the target here.
+        // Only refresh position or downgrade to slow-poll on transient failure.
         switch (ValidateTargetIdentity(identity))
         {
             case IdentityValidationResult.Valid:
@@ -557,11 +541,13 @@ public sealed class GameOverlayWindowTracker : IDisposable
 
                 RequestPositionRefresh();
                 break;
-            case IdentityValidationResult.Mismatch:
-                HandleInvalidation();
-                break;
             default:
+                // Mismatch or Unavailable: the target HWND might be transiently
+                // inaccessible (anti-cheat, fullscreen transition, UAC prompt).
+                // Fall back to slow polling; the 250ms controller loop will
+                // re-acquire the target if the process truly exited.
                 DisableFastTracking();
+                RequestPositionRefresh();
                 break;
         }
     }
@@ -577,9 +563,6 @@ public sealed class GameOverlayWindowTracker : IDisposable
         {
             case IdentityValidationResult.Valid:
                 RequestPositionRefresh();
-                break;
-            case IdentityValidationResult.Mismatch:
-                HandleInvalidation();
                 break;
             default:
                 DisableFastTracking();
