@@ -675,7 +675,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         {
             if (!process.HasExited)
             {
-                process.Kill(entireProcessTree: false);
+                process.Kill(entireProcessTree: true);
             }
         }
         catch

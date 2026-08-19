@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Threading;
 using System.IO;
 using System.Windows;
@@ -100,6 +101,7 @@ public partial class App : System.Windows.Application
             finally
             {
                 Shutdown();
+                Environment.Exit(0);
             }
 
             return;
@@ -123,6 +125,7 @@ public partial class App : System.Windows.Application
             _singleInstanceMutex.Dispose();
             _singleInstanceMutex = null;
             Shutdown();
+            Environment.Exit(0);
             return;
         }
 
@@ -1822,7 +1825,45 @@ public partial class App : System.Windows.Application
 
         _singleInstanceMutex?.Dispose();
         _singleInstanceMutex = null;
+        KillLingeringProcesses();
         Shutdown();
+        Environment.Exit(0);
+    }
+
+    private static void KillLingeringProcesses()
+    {
+        try
+        {
+            int currentPid = Environment.ProcessId;
+            foreach (Process proc in Process.GetProcesses())
+            {
+                try
+                {
+                    string name = proc.ProcessName;
+                    if (string.Equals(name, "PresentMon-2.5.1-x64", StringComparison.OrdinalIgnoreCase) ||
+                        name.StartsWith("PresentMon", StringComparison.OrdinalIgnoreCase))
+                    {
+                        proc.Kill(entireProcessTree: true);
+                    }
+                    else if ((string.Equals(name, "SysMonitor", StringComparison.OrdinalIgnoreCase) ||
+                              name.StartsWith("SysMonitor-", StringComparison.OrdinalIgnoreCase)) &&
+                             proc.Id != currentPid)
+                    {
+                        proc.Kill(entireProcessTree: true);
+                    }
+                }
+                catch
+                {
+                }
+                finally
+                {
+                    proc.Dispose();
+                }
+            }
+        }
+        catch
+        {
+        }
     }
 
     private async void OnDispatcherUnhandledException(
