@@ -254,10 +254,15 @@ public sealed class GameOverlayController : IAsyncDisposable
                     break;
                 }
 
+                ForegroundTarget? currentTarget = CurrentTarget;
+                if (currentTarget is not null && TaskbarPositioner.IsWindowHandleAlive(currentTarget.WindowHandle))
+                {
+                    continue;
+                }
+
                 ForegroundWindowCandidate? candidate = _targetTracker.CaptureCandidate();
                 if (candidate is not null && _targetTracker.IsQualifiedCandidate(candidate))
                 {
-                    ForegroundTarget? currentTarget = CurrentTarget;
                     if (currentTarget is null ||
                         candidate.WindowHandle != currentTarget.WindowHandle ||
                         candidate.ProcessId != currentTarget.ProcessId)

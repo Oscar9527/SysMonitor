@@ -22,7 +22,7 @@ public sealed class GameOverlayNativeTests
     }
 
     [Fact]
-    public void ZOrder_AlwaysMaintainsTopmostTierToPreventWindowSwitchLoss()
+    public void ZOrder_SynchronizesWithTargetWindowTierAndOwnedRelationship()
     {
         OverlayZOrderDecision decisionNoTarget = GameOverlayWindow.ResolveZOrder(
             new nint(10), nint.Zero, nint.Zero, targetTopmost: false);
@@ -32,13 +32,15 @@ public sealed class GameOverlayNativeTests
 
         OverlayZOrderDecision decisionWithTarget = GameOverlayWindow.ResolveZOrder(
             new nint(10), new nint(20), new nint(30), targetTopmost: false);
-        Assert.True(decisionWithTarget.Topmost);
-        Assert.Equal(new nint(-1), decisionWithTarget.InsertAfter);
+        Assert.False(decisionWithTarget.Topmost);
+        Assert.Equal(new nint(-2), decisionWithTarget.InsertAfter);
+        Assert.True(decisionWithTarget.PreserveZOrder);
 
         OverlayZOrderDecision decisionTopmostTarget = GameOverlayWindow.ResolveZOrder(
             new nint(10), new nint(20), nint.Zero, targetTopmost: true);
         Assert.True(decisionTopmostTarget.Topmost);
         Assert.Equal(new nint(-1), decisionTopmostTarget.InsertAfter);
+        Assert.True(decisionTopmostTarget.PreserveZOrder);
     }
 
     [Fact]
@@ -341,5 +343,25 @@ public sealed class GameOverlayNativeTests
             frameRateVisible: false);
 
         Assert.Equal(["memory"], visible);
+    }
+
+    [Fact]
+    public void MetricOrder_DefaultPlacesCpuGpuMemoryFpsInOrder()
+    {
+        Assert.Equal(["cpu", "gpu", "memory", "fps", "network"], GameOverlayMetricOrder.Default);
+
+        var metrics = new GameOverlayMetricVisibility();
+        IReadOnlyList<string> visible = GameOverlayWindow.BuildVisibleMetricOrder(metrics, frameRateVisible: true);
+        Assert.Equal(["cpu", "gpu", "memory", "fps"], visible);
+    }
+
+    [Fact]
+    public void MetricOrder_LegacyDefaultsAutoUpgradeToCpuGpuMemFps()
+    {
+        IReadOnlyList<string> upgraded1 = GameOverlayMetricOrder.Normalize(["gpu", "cpu", "fps", "memory", "network"]);
+        Assert.Equal(["cpu", "gpu", "memory", "fps", "network"], upgraded1);
+
+        IReadOnlyList<string> upgraded2 = GameOverlayMetricOrder.Normalize(["fps", "gpu", "cpu", "memory", "network"]);
+        Assert.Equal(["cpu", "gpu", "memory", "fps", "network"], upgraded2);
     }
 }

@@ -107,21 +107,36 @@ public sealed record GameOverlayMetricVisibility(
 
 public static class GameOverlayMetricOrder
 {
-    public static IReadOnlyList<string> Default { get; } = new[] { "gpu", "cpu", "fps", "memory", "network" };
+    private static readonly string[] s_legacyOrder1 = ["gpu", "cpu", "fps", "memory", "network"];
+    private static readonly string[] s_legacyOrder2 = ["fps", "gpu", "cpu", "memory", "network"];
+
+    public static IReadOnlyList<string> Default { get; } = ["cpu", "gpu", "memory", "fps", "network"];
 
     public static IReadOnlyList<string> Normalize(IEnumerable<string>? values)
     {
-        var result = new List<string>();
-        foreach (string id in values ?? Array.Empty<string>())
+        List<string> rawList = values?.Select(v => v?.Trim().ToLowerInvariant()).Where(v => !string.IsNullOrEmpty(v)).Select(v => v!).ToList() ?? [];
+        if (rawList.Count == 0 ||
+            rawList.SequenceEqual(s_legacyOrder1, StringComparer.Ordinal) ||
+            rawList.SequenceEqual(s_legacyOrder2, StringComparer.Ordinal))
         {
-            string normalized = id.Trim().ToLowerInvariant();
-            if (Default.Contains(normalized, StringComparer.Ordinal) && !result.Contains(normalized, StringComparer.Ordinal))
-                result.Add(normalized);
+            return Default;
+        }
+
+        var result = new List<string>();
+        foreach (string id in rawList)
+        {
+            if (Default.Contains(id, StringComparer.Ordinal) && !result.Contains(id, StringComparer.Ordinal))
+            {
+                result.Add(id);
+            }
         }
         foreach (string id in Default)
-            if (!result.Contains(id, StringComparer.Ordinal)) result.Add(id);
-        // Reuse the canonical default instance. This keeps settings written by
-        // older versions behaviorally and structurally identical after load.
+        {
+            if (!result.Contains(id, StringComparer.Ordinal))
+            {
+                result.Add(id);
+            }
+        }
         return result.SequenceEqual(Default, StringComparer.Ordinal) ? Default : result;
     }
 }

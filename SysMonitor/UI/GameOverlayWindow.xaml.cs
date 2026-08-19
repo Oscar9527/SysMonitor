@@ -16,6 +16,7 @@ namespace SysMonitor.UI;
 public partial class GameOverlayWindow : Window, IGameOverlayView
 {
     private const int GwlExStyle = -20;
+    private const int GwlHwndParent = -8;
     private const int WmMouseActivate = 0x0021;
     private const int WmNcHitTest = 0x0084;
     private const int WmDpiChanged = 0x02E0;
@@ -91,6 +92,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _placementApplied = false;
         InvalidateMonitorCache();
         _windowTracker.SetTarget(target);
+        if (_source is not null)
+        {
+            UpdateOwnerRelationship(_source.Handle, _targetWindow);
+        }
         PositionWithoutActivation();
     }
 
@@ -790,12 +795,13 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         _lastPlacement = placement;
         _lastPlacementMonitorId = monitorIdentity?.StableMonitorId;
         nint overlay = _source.Handle;
-        SynchronizeTopmostTier(overlay, true);
+        bool targetTopmost = target != nint.Zero && IsWindow(target) && IsTopmost(target);
+        UpdateOwnerRelationship(overlay, target);
         OverlayZOrderDecision zOrder = ResolveZOrder(
             overlay,
             target,
             nint.Zero,
-            true);
+            targetTopmost);
         uint flags = SwpNoActivate | SwpShowWindow;
         if (zOrder.PreserveZOrder)
         {
@@ -927,7 +933,31 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         nint targetPredecessor,
         bool targetTopmost)
     {
+        if (target != nint.Zero)
+        {
+            return new OverlayZOrderDecision(targetTopmost, targetTopmost ? HwndTopmost : HwndNoTopmost, true);
+        }
         return new OverlayZOrderDecision(true, HwndTopmost, false);
+    }
+
+    private static void UpdateOwnerRelationship(nint overlay, nint target)
+    {
+        if (overlay == nint.Zero)
+        {
+            return;
+        }
+
+        if (target != nint.Zero && IsWindow(target))
+        {
+            bool targetTopmost = IsTopmost(target);
+            _ = SetWindowLongPtr(overlay, GwlHwndParent, target);
+            SynchronizeTopmostTier(overlay, targetTopmost);
+        }
+        else
+        {
+            _ = SetWindowLongPtr(overlay, GwlHwndParent, nint.Zero);
+            SynchronizeTopmostTier(overlay, true);
+        }
     }
 
     private static bool IsTopmost(nint windowHandle) =>
@@ -936,11 +966,22 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private static void SynchronizeTopmostTier(nint overlay, bool topmost)
     {
         bool currentlyTopmost = IsTopmost(overlay);
-        if (!currentlyTopmost)
+        if (topmost && !currentlyTopmost)
         {
             _ = SetWindowPos(
                 overlay,
                 HwndTopmost,
+                0,
+                0,
+                0,
+                0,
+                SwpNoMove | SwpNoSize | SwpNoActivate | SwpShowWindow);
+        }
+        else if (!topmost && currentlyTopmost)
+        {
+            _ = SetWindowPos(
+                overlay,
+                HwndNoTopmost,
                 0,
                 0,
                 0,
