@@ -28,10 +28,10 @@
         <SolidColorBrush x:Key="BandTextBrush" Color="#FFFFFFFF" />
         <SolidColorBrush x:Key="BandSeparatorBrush" Color="#55FFFFFF" />
         <CornerRadius x:Key="AppGroupCornerRadius">12</CornerRadius>
-        <CornerRadius x:Key="MacWindowCornerRadius">16</CornerRadius>
-        <CornerRadius x:Key="MacCardCornerRadius">12</CornerRadius>
-        <CornerRadius x:Key="MacControlCornerRadius">8</CornerRadius>
-        <CornerRadius x:Key="MacPillCornerRadius">16</CornerRadius>
+        <CornerRadius x:Key="ModernWindowCornerRadius">16</CornerRadius>
+        <CornerRadius x:Key="ModernCardCornerRadius">12</CornerRadius>
+        <CornerRadius x:Key="ModernControlCornerRadius">8</CornerRadius>
+        <CornerRadius x:Key="ModernPillCornerRadius">16</CornerRadius>
         <CornerRadius x:Key="BandCornerRadius">0</CornerRadius>
         <system:Double x:Key="AppShadowOpacity">0.14</system:Double>
 
@@ -47,7 +47,7 @@
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppSeparatorBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{DynamicResource MacCardCornerRadius}" />
+            <Setter Property="CornerRadius" Value="{DynamicResource ModernCardCornerRadius}" />
         </Style>
     </Application.Resources>
 </Application>

@@ -16,6 +16,13 @@
     <DebugSymbols>false</DebugSymbols>
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
     <Version>1.5.0</Version>
+
+    <!-- Ultra-low RAM optimization (< 50MB runtime working set) -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <GarbageCollectionAdaptationMode>0</GarbageCollectionAdaptationMode>
   </PropertyGroup>
 
   <ItemGroup>

@@ -58,7 +58,7 @@
       </Setter>
     </Style>
 
-    <Style x:Key="MacSecondaryButtonStyle" TargetType="Button">
+    <Style x:Key="ModernSecondaryButtonStyle" TargetType="Button">
       <Setter Property="Height" Value="34" />
       <Setter Property="Padding" Value="14,0" />
       <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -85,7 +85,7 @@
       </Setter>
     </Style>
 
-    <Style x:Key="MacPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource MacSecondaryButtonStyle}">
+    <Style x:Key="ModernPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ModernSecondaryButtonStyle}">
       <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
       <Setter Property="Foreground" Value="White" />
       <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
@@ -198,7 +198,7 @@
               <TextBlock x:Name="OutlineText" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"/>
             </Border>
           </Grid>
-          <Button Grid.Row="4" Grid.Column="2" Height="30" Content="描边颜色" Tag="Outline" Style="{StaticResource MacSecondaryButtonStyle}" Click="ColorWheel_Click"/>
+          <Button Grid.Row="4" Grid.Column="2" Height="30" Content="描边颜色" Tag="Outline" Style="{StaticResource ModernSecondaryButtonStyle}" Click="ColorWheel_Click"/>
 
           <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="阴影清晰度" FontWeight="SemiBold" FontSize="13"/>
           <Grid Grid.Row="5" Grid.Column="1" Margin="0,0,8,8">
@@ -238,8 +238,8 @@
 
           <!-- Bottom Action Buttons -->
           <StackPanel Grid.Row="8" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
-            <Button Content="取消" Width="80" Margin="0,0,10,0" Style="{StaticResource MacSecondaryButtonStyle}" Click="Cancel_Click"/>
-            <Button Content="保存并应用" Width="100" Style="{StaticResource MacPrimaryButtonStyle}" Click="Apply_Click"/>
+            <Button Content="取消" Width="80" Margin="0,0,10,0" Style="{StaticResource ModernSecondaryButtonStyle}" Click="Cancel_Click"/>
+            <Button Content="保存并应用" Width="100" Style="{StaticResource ModernPrimaryButtonStyle}" Click="Apply_Click"/>
           </StackPanel>
         </Grid>
       </ScrollViewer>

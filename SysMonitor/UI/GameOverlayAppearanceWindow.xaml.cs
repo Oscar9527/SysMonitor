@@ -24,7 +24,7 @@ public partial class GameOverlayAppearanceWindow : Window
         new("赛博电竞 (青绿炫彩)", new GameOverlayAppearance(FontFamily: "Consolas", FontSize: 14, LabelColor: "#FF4CC9F0", ValueColor: "#FF4CC9F0", GpuColor: "#FF4CC9F0", CpuColor: "#FF70B5FF", FpsColor: "#FF7BDCB5", MemoryColor: "#FFA9DEF9", NetworkColor: "#FF6FD3E1", OutlineColor: "#FF000000", OutlineThickness: 1.5, ShadowOpacity: 0.95, ShadowDepth: 1.0)),
         new("极简纯黑 (高对比度)", new GameOverlayAppearance(FontFamily: "Segoe UI", FontSize: 13, LabelColor: "#FFB0BEC5", ValueColor: "#FFB0BEC5", GpuColor: "#FFB0BEC5", CpuColor: "#FFB0BEC5", FpsColor: "#FF81C784", MemoryColor: "#FFB0BEC5", NetworkColor: "#FFB0BEC5", OutlineColor: "#FF000000", OutlineThickness: 1.2, ShadowOpacity: 0.85, ShadowDepth: 1.0)),
         new("暖阳琥珀 (复古温润)", new GameOverlayAppearance(FontFamily: "Segoe UI", FontSize: 13, LabelColor: "#FFFFA94D", ValueColor: "#FFFFA94D", GpuColor: "#FFFFA94D", CpuColor: "#FFFFD166", FpsColor: "#FF95D5B2", MemoryColor: "#FFFF8E72", NetworkColor: "#FFE4B1FF", OutlineColor: "#FF000000", OutlineThickness: 1.5, ShadowOpacity: 0.90, ShadowDepth: 1.0)),
-        new("经典多彩 (macOS风)", new GameOverlayAppearance(FontFamily: "Segoe UI", FontSize: 13, LabelColor: "#FF7E57C2", ValueColor: "#FF7E57C2", GpuColor: "#FF7E57C2", CpuColor: "#FF1976D2", FpsColor: "#FF1B9A5A", MemoryColor: "#FFD97706", NetworkColor: "#FF0097A7", OutlineColor: "#FF000000", OutlineThickness: 1.2, ShadowOpacity: 0.85, ShadowDepth: 1.0))
+        new("经典多彩 (炫彩蓝紫)", new GameOverlayAppearance(FontFamily: "Segoe UI", FontSize: 13, LabelColor: "#FF7E57C2", ValueColor: "#FF7E57C2", GpuColor: "#FF7E57C2", CpuColor: "#FF1976D2", FpsColor: "#FF1B9A5A", MemoryColor: "#FFD97706", NetworkColor: "#FF0097A7", OutlineColor: "#FF000000", OutlineThickness: 1.2, ShadowOpacity: 0.85, ShadowDepth: 1.0))
     ];
 
     public event Action<GameOverlayAppearance>? PreviewChanged;
@@ -153,9 +153,9 @@ public partial class GameOverlayAppearanceWindow : Window
         }
     }
 
-    private void Apply_Click(object sender, RoutedEventArgs e) { _applied = Read(); Applied?.Invoke(_applied); Hide(); }
+    private void Apply_Click(object sender, RoutedEventArgs e) { _applied = Read(); Applied?.Invoke(_applied); Hide(); MemoryOptimizer.TrimWorkingSet(); }
     private void Cancel_Click(object sender, RoutedEventArgs e) => CancelAndHide();
-    private void CancelAndHide() { PreviewChanged?.Invoke(_applied); Hide(); }
+    private void CancelAndHide() { PreviewChanged?.Invoke(_applied); Hide(); MemoryOptimizer.TrimWorkingSet(); }
 
     private sealed record OverlaySkin(string Name, GameOverlayAppearance Appearance);
 }

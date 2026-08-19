@@ -53,7 +53,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private uint _lastAppliedFlags;
     private bool _placementApplied;
     private bool _targetMinimized;
-    private bool _restoreAfterTargetMinimize;
     private bool? _lastFrameRateVisible;
     private GameOverlayMetricVisibility _metrics = new();
     private GameOverlayAppearance _appearance = new();
@@ -89,7 +88,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     {
         _targetWindow = target?.WindowHandle ?? nint.Zero;
         _targetMinimized = false;
-        _restoreAfterTargetMinimize = false;
         _placementApplied = false;
         InvalidateMonitorCache();
         _windowTracker.SetTarget(target);
@@ -480,7 +478,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     public void ShowWithoutActivation()
     {
-        _restoreAfterTargetMinimize = true;
         if (_targetMinimized)
         {
             if (IsVisible)
@@ -499,7 +496,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     public void HideOverlay()
     {
-        _restoreAfterTargetMinimize = false;
         _positionTimer.Stop();
         _placementApplied = false;
         Hide();
@@ -701,7 +697,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     {
         _targetWindow = nint.Zero;
         _targetMinimized = false;
-        _restoreAfterTargetMinimize = false;
         InvalidateMonitorCache();
         _placementApplied = false;
         PositionWithoutActivation();

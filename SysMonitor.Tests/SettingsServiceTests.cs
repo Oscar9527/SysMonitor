@@ -1,3 +1,5 @@
+#pragma warning disable CS0618
+
 using System.Text.Json;
 using SysMonitor.Models;
 using SysMonitor.Services;

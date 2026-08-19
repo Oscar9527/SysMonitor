@@ -232,6 +232,8 @@ public partial class App : System.Windows.Application
             _monitorService.SnapshotUpdated += OnSnapshotUpdated;
             await _monitorService.StartAsync();
             RegisterControlEventCallbacks();
+            MemoryOptimizer.Initialize();
+            _ = Task.Delay(2500).ContinueWith(_ => MemoryOptimizer.TrimWorkingSet(force: true));
 
             if (e.Args.Any(argument =>
                     string.Equals(argument, "--show-panel", StringComparison.OrdinalIgnoreCase)))
@@ -476,6 +478,7 @@ public partial class App : System.Windows.Application
                 SavePanelPosition();
                 detail.Hide();
                 _trayIcon?.SetPanelVisible(false);
+                MemoryOptimizer.TrimWorkingSet();
                 return;
             }
 

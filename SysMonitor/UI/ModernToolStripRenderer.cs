@@ -1,4 +1,4 @@
-using DrawingColor = System.Drawing.Color;
+﻿using DrawingColor = System.Drawing.Color;
 using DrawingPen = System.Drawing.Pen;
 using DrawingPoint = System.Drawing.Point;
 using System.Drawing;
@@ -11,20 +11,20 @@ using MediaColor = System.Windows.Media.Color;
 namespace SysMonitor.UI;
 
 /// <summary>
-/// macOS Sonoma-inspired renderer for the WinForms tray menu. Provides
-/// flat fills, rounded selection pill highlights, anti-aliased icons,
-/// and subtle hairline separators matching macOS design standards.
+/// Modern Windows Fluent-inspired renderer for the WinForms tray menu. Provides
+/// flat fills, subtle rounded selection highlights, anti-aliased icons,
+/// and clean separators matching modern Windows desktop standards.
 /// </summary>
-internal sealed class MacToolStripRenderer : Forms.ToolStripProfessionalRenderer
+internal sealed class ModernToolStripRenderer : Forms.ToolStripProfessionalRenderer
 {
     private readonly bool _dark;
 
-    public MacToolStripRenderer()
+    public ModernToolStripRenderer()
         : this(IsDarkTheme())
     {
     }
 
-    private MacToolStripRenderer(bool dark)
+    private ModernToolStripRenderer(bool dark)
         : base(new Forms.ProfessionalColorTable())
     {
         _dark = dark;
@@ -54,13 +54,12 @@ internal sealed class MacToolStripRenderer : Forms.ToolStripProfessionalRenderer
             return;
         }
 
-        // macOS Sonoma uses a rounded capsule highlight with 4px horizontal margin.
         Rectangle bounds = new(DrawingPoint.Empty, e.Item.Size);
         int insetX = 4;
         int insetY = 1;
         RectangleF highlightRect = new(insetX, insetY, bounds.Width - (insetX * 2), bounds.Height - (insetY * 2));
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = CreateRoundedRectangle(highlightRect, 5);
+        using var path = CreateRoundedRectangle(highlightRect, 4);
         using var brush = new SolidBrush(HoverColor);
         e.Graphics.FillPath(brush, path);
     }
@@ -132,38 +131,38 @@ internal sealed class MacToolStripRenderer : Forms.ToolStripProfessionalRenderer
         e.Graphics.FillRectangle(brush, e.AffectedBounds);
     }
 
-    // ── macOS Sonoma Theme Palette ──────────────────────────────────────
+    // ── Windows Fluent Theme Palette ──────────────────────────────────────
 
     private DrawingColor BackgroundColor => _dark
-        ? DrawingColor.FromArgb(255, 36, 36, 38)     // #242426 macOS Dark
-        : DrawingColor.FromArgb(255, 255, 255, 255); // #FFFFFF macOS Light
+        ? DrawingColor.FromArgb(255, 32, 32, 36)     // Windows Dark Surface
+        : DrawingColor.FromArgb(255, 255, 255, 255); // Windows Light Surface
 
     private DrawingColor HoverColor => _dark
-        ? DrawingColor.FromArgb(255, 10, 132, 255)   // #0A84FF macOS Accent Dark
-        : DrawingColor.FromArgb(255, 0, 122, 255);    // #007AFF macOS Accent Light
+        ? DrawingColor.FromArgb(255, 0, 120, 215)   // Fluent Accent Dark
+        : DrawingColor.FromArgb(255, 0, 103, 192);   // Fluent Accent Light
 
     private DrawingColor AccentColor => _dark
-        ? DrawingColor.FromArgb(255, 10, 132, 255)
-        : DrawingColor.FromArgb(255, 0, 122, 255);
+        ? DrawingColor.FromArgb(255, 0, 120, 215)
+        : DrawingColor.FromArgb(255, 0, 103, 192);
 
     private DrawingColor ForegroundColor => _dark
-        ? DrawingColor.FromArgb(255, 245, 245, 247)  // #F5F5F7
-        : DrawingColor.FromArgb(255, 29, 29, 31);     // #1D1D1F
+        ? DrawingColor.FromArgb(255, 243, 243, 243)
+        : DrawingColor.FromArgb(255, 26, 26, 26);
 
     private DrawingColor SecondaryColor => _dark
-        ? DrawingColor.FromArgb(255, 152, 152, 157)  // #98989D
-        : DrawingColor.FromArgb(255, 110, 110, 115);  // #6E6E73
+        ? DrawingColor.FromArgb(255, 160, 160, 165)
+        : DrawingColor.FromArgb(255, 110, 110, 115);
 
     private DrawingColor DisabledColor => _dark
-        ? DrawingColor.FromArgb(255, 80, 80, 84)
+        ? DrawingColor.FromArgb(255, 85, 85, 90)
         : DrawingColor.FromArgb(255, 180, 180, 185);
 
     private DrawingColor BorderColor => _dark
-        ? DrawingColor.FromArgb(255, 60, 60, 64)     // #3C3C40
-        : DrawingColor.FromArgb(255, 218, 220, 224);  // #DADCE0
+        ? DrawingColor.FromArgb(255, 55, 55, 60)
+        : DrawingColor.FromArgb(255, 218, 220, 224);
 
     private DrawingColor SeparatorColor => _dark
-        ? DrawingColor.FromArgb(255, 55, 55, 60)
+        ? DrawingColor.FromArgb(255, 50, 50, 55)
         : DrawingColor.FromArgb(255, 230, 232, 236);
 
     // ── Helpers ──────────────────────────────────────────────────────────

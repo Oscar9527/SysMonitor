@@ -128,7 +128,7 @@ public sealed class TrayIconService : IDisposable
             ShowCheckMargin = true,
             Renderer = Forms.SystemInformation.HighContrast
                 ? new Forms.ToolStripSystemRenderer()
-                : new MacToolStripRenderer()
+                : new ModernToolStripRenderer()
         };
         _contextMenu.Items.AddRange(
         [
@@ -395,7 +395,7 @@ public sealed class TrayIconService : IDisposable
     {
         _contextMenu.Renderer = Forms.SystemInformation.HighContrast
             ? new Forms.ToolStripSystemRenderer()
-            : new MacToolStripRenderer();
+            : new ModernToolStripRenderer();
         PrepareDropDownLayout(_contextMenu, Forms.Screen.FromPoint(Forms.Cursor.Position).WorkingArea);
     }
 
@@ -414,7 +414,7 @@ public sealed class TrayIconService : IDisposable
             // Respect a high-contrast switch made while the process is running.
             _contextMenu.Renderer = Forms.SystemInformation.HighContrast
                 ? new Forms.ToolStripSystemRenderer()
-                : new MacToolStripRenderer();
+                : new ModernToolStripRenderer();
         }
 
         if (e.Button == Forms.MouseButtons.Left)
@@ -547,7 +547,7 @@ public sealed class TrayIconService : IDisposable
                 dropDownMenu.Padding = new Forms.Padding(4, 6, 4, 6);
                 dropDownMenu.Renderer = Forms.SystemInformation.HighContrast
                     ? new Forms.ToolStripSystemRenderer()
-                    : new MacToolStripRenderer();
+                    : new ModernToolStripRenderer();
                 dropDownMenu.Opened -= OnSubMenuOpenedSnap;
                 dropDownMenu.Opened += OnSubMenuOpenedSnap;
             }

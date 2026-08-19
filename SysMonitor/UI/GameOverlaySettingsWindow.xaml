@@ -37,7 +37,7 @@
       </Setter>
     </Style>
 
-    <Style x:Key="MacSecondaryButtonStyle" TargetType="Button">
+    <Style x:Key="ModernSecondaryButtonStyle" TargetType="Button">
       <Setter Property="Height" Value="34" />
       <Setter Property="Padding" Value="14,0" />
       <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -64,7 +64,7 @@
       </Setter>
     </Style>
 
-    <Style x:Key="MacPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource MacSecondaryButtonStyle}">
+    <Style x:Key="ModernPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ModernSecondaryButtonStyle}">
       <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
       <Setter Property="Foreground" Value="White" />
       <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
@@ -114,7 +114,7 @@
                    FontSize="13.5" FontWeight="Bold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AppTextBrush}"/>
         <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
           <Button x:Name="AppearanceButton" Margin="0,0,8,0" Padding="10,4" Height="28"
-                  Content="🎨 配色与皮肤..." Style="{StaticResource MacSecondaryButtonStyle}" Click="AppearanceButton_Click"/>
+                  Content="🎨 配色与皮肤..." Style="{StaticResource ModernSecondaryButtonStyle}" Click="AppearanceButton_Click"/>
           <Button Style="{StaticResource WindowCloseButtonStyle}" Click="Cancel_Click" ToolTip="关闭">
             <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AppSecondaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Button>
@@ -209,7 +209,7 @@
                          VerticalContentAlignment="Center" TextChanged="PositionCoordinateTextChanged"/>
               </Grid>
               <Button x:Name="ResetPositionButton" Width="88" Height="28" Margin="20,10,0,0"
-                      HorizontalAlignment="Left" Style="{StaticResource MacSecondaryButtonStyle}" Click="ResetPosition_Click"/>
+                      HorizontalAlignment="Left" Style="{StaticResource ModernSecondaryButtonStyle}" Click="ResetPosition_Click"/>
               <TextBlock x:Name="PreviewStatusText" Margin="20,8,0,0" FontSize="11"
                          Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap"/>
             </StackPanel>
@@ -234,8 +234,8 @@
                   </ListBox.ItemTemplate>
                 </ListBox>
                 <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                  <Button x:Name="MoveUpButton" Height="32" Margin="0,0,0,6" Style="{StaticResource MacSecondaryButtonStyle}" Click="MoveUp_Click"/>
-                  <Button x:Name="MoveDownButton" Height="32" Style="{StaticResource MacSecondaryButtonStyle}" Click="MoveDown_Click"/>
+                  <Button x:Name="MoveUpButton" Height="32" Margin="0,0,0,6" Style="{StaticResource ModernSecondaryButtonStyle}" Click="MoveUp_Click"/>
+                  <Button x:Name="MoveDownButton" Height="32" Style="{StaticResource ModernSecondaryButtonStyle}" Click="MoveDown_Click"/>
                   <TextBlock x:Name="OrderHelpText" Margin="0,12,0,0" Foreground="{DynamicResource AppSecondaryTextBrush}" FontSize="11" TextWrapping="Wrap"/>
                 </StackPanel>
               </Grid>
@@ -260,8 +260,8 @@
       <!-- Bottom Actions -->
       <Grid Grid.Row="2" Margin="18,0,18,14">
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-          <Button x:Name="CancelButton" Width="80" Margin="0,0,10,0" Style="{StaticResource MacSecondaryButtonStyle}" Click="Cancel_Click"/>
-          <Button x:Name="ApplyButton" Width="80" Style="{StaticResource MacPrimaryButtonStyle}" Click="Apply_Click"/>
+          <Button x:Name="CancelButton" Width="80" Margin="0,0,10,0" Style="{StaticResource ModernSecondaryButtonStyle}" Click="Cancel_Click"/>
+          <Button x:Name="ApplyButton" Width="80" Style="{StaticResource ModernPrimaryButtonStyle}" Click="Apply_Click"/>
         </StackPanel>
       </Grid>
     </Grid>

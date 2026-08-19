@@ -584,6 +584,7 @@ public partial class AppearanceSettingsWindow : Window
         CancelThemeImport();
         RestoreLastAppliedPreview();
         Hide();
+        MemoryOptimizer.TrimWorkingSet();
     }
 
     private void CancelThemeImport()
@@ -697,6 +698,7 @@ public partial class AppearanceSettingsWindow : Window
         CancelThemeImport();
         RestoreLastAppliedPreview();
         Hide();
+        MemoryOptimizer.TrimWorkingSet();
     }
 
     private void AppearanceSettingsWindow_Closed(object? sender, EventArgs e)
