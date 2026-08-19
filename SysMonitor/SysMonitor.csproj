@@ -11,11 +11,12 @@
     <RootNamespace>SysMonitor</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\sysmonitor.ico</ApplicationIcon>
-    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>embedded</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
-    <Version>1.5.0</Version>
+    <Version>1.0.1</Version>
 
     <!-- Ultra-low RAM optimization (< 50MB runtime working set) -->
     <ServerGarbageCollection>false</ServerGarbageCollection>

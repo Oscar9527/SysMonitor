@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using ThreadingTimer = System.Threading.Timer;
 
@@ -44,17 +44,11 @@ internal static class MemoryOptimizer
         s_lastTrimTimestamp = now;
         try
         {
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-            GC.WaitForPendingFinalizers();
-            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.Collect(2, GCCollectionMode.Optimized, blocking: false, compacting: true);
 
             if (OperatingSystem.IsWindows())
             {
-                nint handle = Process.GetCurrentProcess().Handle;
-                if (handle != nint.Zero)
-                {
-                    _ = SetProcessWorkingSetSize(handle, -1, -1);
-                }
+                _ = SetProcessWorkingSetSize(GetCurrentProcess(), -1, -1);
             }
         }
         catch
@@ -62,6 +56,9 @@ internal static class MemoryOptimizer
             // Non-fatal optimization failure
         }
     }
+
+    [DllImport("kernel32.dll")]
+    private static extern nint GetCurrentProcess();
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
