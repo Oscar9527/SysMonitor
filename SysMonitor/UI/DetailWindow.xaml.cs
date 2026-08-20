@@ -324,11 +324,11 @@ public partial class DetailWindow : Window
         var container = new Border
         {
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Height = 88,
-            Margin = new Thickness(4),
-            Padding = new Thickness(12, 8, 12, 8),
+            Height = 52,
+            Margin = new Thickness(3),
+            Padding = new Thickness(10, 5, 10, 5),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(8),
             Focusable = true,
         };
         container.SetResourceReference(BackgroundProperty, "AppControlBrush");
@@ -338,26 +338,26 @@ public partial class DetailWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(4) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(3.5) });
 
         var name = new TextBlock
         {
-            Margin = new Thickness(0, 0, 8, 0),
-            FontSize = 12,
+            Margin = new Thickness(0, 0, 6, 0),
+            FontSize = 11.5,
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         var value = new TextBlock
         {
-            FontSize = 12,
+            FontSize = 11.5,
             FontWeight = FontWeights.SemiBold,
         };
         Grid.SetColumn(value, 1);
 
         var details = new TextBlock
         {
-            Margin = new Thickness(0, 4, 0, 4),
-            FontSize = 11,
+            Margin = new Thickness(0, 2, 0, 2),
+            FontSize = 10,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         details.SetResourceReference(ForegroundProperty, "AppSecondaryTextBrush");
@@ -366,7 +366,7 @@ public partial class DetailWindow : Window
 
         var progress = new ProgressBar
         {
-            Height = 4,
+            Height = 3.5,
             Minimum = 0,
             Maximum = 100,
         };
@@ -406,7 +406,6 @@ public partial class DetailWindow : Window
         double deviceToDipY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1d;
         double availableHeight = Math.Max(1d, workingArea.Height * deviceToDipY - 16d);
         MaxHeight = availableHeight;
-        Height = Math.Min(760d, availableHeight);
     }
 
     protected override void OnDeactivated(EventArgs e)

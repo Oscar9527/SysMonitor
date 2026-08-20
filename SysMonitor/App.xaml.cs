@@ -1916,9 +1916,13 @@ public partial class App : System.Windows.Application
 
     private void PositionDetailAboveBand(DetailWindow detail, BandWindow? clickBand)
     {
+        detail.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        double detailWidth = detail.ActualWidth > 0 ? detail.ActualWidth : (double.IsFinite(detail.Width) && detail.Width > 0 ? detail.Width : 580);
+        double detailHeight = detail.ActualHeight > 0 ? detail.ActualHeight : (detail.DesiredSize.Height > 0 ? detail.DesiredSize.Height : (double.IsFinite(detail.Height) && detail.Height > 0 ? detail.Height : 380));
+
         Rect workArea = SystemParameters.WorkArea;
         double targetLeft;
-        double targetTop = Math.Max(workArea.Top + 10, workArea.Bottom - detail.Height - 12);
+        double targetTop = Math.Max(workArea.Top + 10, workArea.Bottom - detailHeight - 12);
 
         nint bandHandle = clickBand?.NativeHandle ?? _bandHandle;
         if (bandHandle != nint.Zero && TaskbarPositioner.IsWindowHandleAlive(bandHandle) &&
@@ -1950,10 +1954,10 @@ public partial class App : System.Windows.Application
             }
 
             double bandCenterDip = ((bandRect.Left + bandRect.Right) / 2.0) / dpiScale;
-            targetLeft = bandCenterDip - (detail.Width / 2.0);
-            if (targetLeft + detail.Width > workArea.Right - 14)
+            targetLeft = bandCenterDip - (detailWidth / 2.0);
+            if (targetLeft + detailWidth > workArea.Right - 14)
             {
-                targetLeft = workArea.Right - detail.Width - 14;
+                targetLeft = workArea.Right - detailWidth - 14;
             }
 
             if (targetLeft < workArea.Left + 14)
@@ -1962,9 +1966,9 @@ public partial class App : System.Windows.Application
             }
 
             double bandTopDip = bandRect.Top / dpiScale;
-            if (bandTopDip > workArea.Top + detail.Height + 20)
+            if (bandTopDip > workArea.Top + detailHeight + 20)
             {
-                targetTop = bandTopDip - detail.Height - 8;
+                targetTop = bandTopDip - detailHeight - 8;
             }
             else
             {
@@ -1973,12 +1977,12 @@ public partial class App : System.Windows.Application
         }
         else
         {
-            targetLeft = Math.Max(workArea.Left + 16, workArea.Right - detail.Width - 16);
-            targetTop = Math.Max(workArea.Top + 16, workArea.Bottom - detail.Height - 12);
+            targetLeft = Math.Max(workArea.Left + 16, workArea.Right - detailWidth - 16);
+            targetTop = Math.Max(workArea.Top + 16, workArea.Bottom - detailHeight - 12);
         }
 
-        detail.Left = Math.Clamp(targetLeft, workArea.Left, Math.Max(workArea.Left, workArea.Right - detail.Width));
-        detail.Top = Math.Clamp(targetTop, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - detail.Height));
+        detail.Left = Math.Clamp(targetLeft, workArea.Left, Math.Max(workArea.Left, workArea.Right - detailWidth));
+        detail.Top = Math.Clamp(targetTop, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - detailHeight));
     }
 
     [StructLayout(LayoutKind.Sequential)]

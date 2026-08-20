@@ -3,9 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:SysMonitor.UI"
         Title="SysMonitor"
-        Width="480"
-        Height="760"
-        MinWidth="450"
+        Width="580"
+        SizeToContent="Height"
+        MinWidth="520"
+        MaxWidth="680"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -67,12 +68,12 @@
         </Style>
 
         <Style x:Key="CardStyle" TargetType="Border" BasedOn="{StaticResource AppGroupStyle}">
-            <Setter Property="Padding" Value="15" />
+            <Setter Property="Padding" Value="12,10,12,8" />
             <Setter Property="CornerRadius" Value="12" />
         </Style>
 
         <Style x:Key="MetricProgressStyle" TargetType="ProgressBar">
-            <Setter Property="Height" Value="5" />
+            <Setter Property="Height" Value="4" />
             <Setter Property="Minimum" Value="0" />
             <Setter Property="Maximum" Value="100" />
             <Setter Property="Background" Value="{DynamicResource MetricTrackBrush}" />
@@ -80,10 +81,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="2.5" SnapsToDevicePixels="True">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="2" SnapsToDevicePixels="True">
                             <Grid x:Name="PART_Track">
                                 <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
-                                        Background="{TemplateBinding Foreground}" CornerRadius="2.5" />
+                                        Background="{TemplateBinding Foreground}" CornerRadius="2" />
                             </Grid>
                         </Border>
                     </ControlTemplate>
@@ -92,77 +93,33 @@
         </Style>
 
         <Style x:Key="MetricLabelStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13.5" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
         </Style>
 
         <Style x:Key="MetricValueStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontSize" Value="20" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-        </Style>
-
-        <Style x:Key="ModernScrollViewerStyle" TargetType="ScrollViewer">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollViewer">
-                        <Grid>
-                            <ScrollContentPresenter CanContentScroll="{TemplateBinding CanContentScroll}" />
-                            <ScrollBar x:Name="PART_VerticalScrollBar"
-                                       HorizontalAlignment="Right"
-                                       Width="6"
-                                       Margin="0,4,4,4"
-                                       Orientation="Vertical"
-                                       Cursor="Arrow"
-                                       Maximum="{TemplateBinding ScrollableHeight}"
-                                       Minimum="0"
-                                       Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                       ViewportSize="{TemplateBinding ViewportHeight}"
-                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}">
-                                <ScrollBar.Template>
-                                    <ControlTemplate TargetType="ScrollBar">
-                                        <Grid Background="Transparent">
-                                            <Track x:Name="PART_Track" IsDirectionReversed="True">
-                                                <Track.Thumb>
-                                                    <Thumb>
-                                                        <Thumb.Template>
-                                                            <ControlTemplate TargetType="Thumb">
-                                                                <Border Background="{DynamicResource AppSecondaryTextBrush}"
-                                                                        Opacity="0.4"
-                                                                        CornerRadius="3" />
-                                                            </ControlTemplate>
-                                                        </Thumb.Template>
-                                                    </Thumb>
-                                                </Track.Thumb>
-                                            </Track>
-                                        </Grid>
-                                    </ControlTemplate>
-                                </ScrollBar.Template>
-                            </ScrollBar>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
     </Window.Resources>
 
     <!-- Outer container providing smooth 16px corner radius and soft shadow -->
     <Border x:Name="RootBorder"
-            Margin="14"
+            Margin="12"
             Background="{DynamicResource AppBackgroundBrush}"
             BorderBrush="{DynamicResource AppSeparatorBrush}"
             BorderThickness="1"
             CornerRadius="16">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="28" ShadowDepth="6" Direction="270" Color="#000000" Opacity="0.18" />
+            <DropShadowEffect BlurRadius="24" ShadowDepth="5" Direction="270" Color="#000000" Opacity="0.18" />
         </Border.Effect>
 
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="50" />
+                <RowDefinition Height="42" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -175,10 +132,10 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Left Brand & Status -->
-                <StackPanel Grid.Column="0" Margin="16,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock VerticalAlignment="Center" FontSize="14" FontWeight="Bold"
+                <StackPanel Grid.Column="0" Margin="14,0,0,0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock VerticalAlignment="Center" FontSize="13.5" FontWeight="Bold"
                                Foreground="{DynamicResource AppTextBrush}" Text="SysMonitor" />
-                    <Border Margin="10,0,0,0" Padding="8,3" Background="{DynamicResource CpuMetricSoftBrush}" CornerRadius="10">
+                    <Border Margin="9,0,0,0" Padding="7,2" Background="{DynamicResource CpuMetricSoftBrush}" CornerRadius="9">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Ellipse x:Name="StatusDot" Width="6" Height="6" Margin="0,0,5,0" Fill="{DynamicResource GpuMetricBrush}" />
                             <TextBlock Text="实时监控" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AppSecondaryTextBrush}" />
@@ -187,7 +144,7 @@
                 </StackPanel>
 
                 <!-- Right Window Control Buttons (Pin, Minimize, Close) -->
-                <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Margin="0,0,10,0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="PinButton" Style="{StaticResource WindowControlButtonStyle}" Click="PinButton_Click" ToolTip="面板置顶">
                         <TextBlock x:Name="PinIcon" Text="📌" FontSize="12" Foreground="{DynamicResource AppSecondaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Button>
@@ -200,25 +157,42 @@
                 </StackPanel>
             </Grid>
 
-            <ScrollViewer Grid.Row="1"
-                          Style="{StaticResource ModernScrollViewerStyle}"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          PanningMode="VerticalFirst">
-                <StackPanel Margin="16,4,16,16">
+            <!-- Main Content Container: 1-Page Dashboard Grid without Scrollbars -->
+            <Grid Grid.Row="1" Margin="12,0,12,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Row 1: CPU & GPU side-by-side with dynamic sparklines -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
                     <!-- CPU Card -->
-                    <Border Height="130" Margin="0,0,0,10" Style="{StaticResource CardStyle}">
+                    <Border Grid.Column="0" Height="106" Style="{StaticResource CardStyle}">
                         <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="36" /></Grid.RowDefinitions>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Border Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top" Background="{DynamicResource CpuMetricSoftBrush}" CornerRadius="9">
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource CpuMetricBrush}" Text="CPU" />
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="28" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="26" Height="26" Margin="0,0,8,0" VerticalAlignment="Top" Background="{DynamicResource CpuMetricSoftBrush}" CornerRadius="7">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource CpuMetricBrush}" Text="CPU" />
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Top">
                                     <TextBlock x:Name="ProcessorLabelText" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="CpuDetailsText" Margin="0,4,8,0" FontSize="11.5"
-                                               Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="CpuDetailsText" Margin="0,2,4,0" FontSize="10.5"
+                                               Foreground="{DynamicResource AppSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <TextBlock x:Name="CpuValueText" Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource MetricValueStyle}" />
                             </Grid>
@@ -230,41 +204,28 @@
                         </Grid>
                     </Border>
 
-                    <!-- Memory Card -->
-                    <Border Height="110" Margin="0,0,0,10" Style="{StaticResource CardStyle}">
-                        <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="6" /></Grid.RowDefinitions>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Border Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top" Background="{DynamicResource MemoryMetricSoftBrush}" CornerRadius="9">
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource MemoryMetricBrush}" Text="MEM" />
-                                </Border>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Top">
-                                    <TextBlock x:Name="MemoryLabelText" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="MemoryDetailsText" Margin="0,4,8,0" FontSize="11.5"
-                                               Foreground="{DynamicResource AppSecondaryTextBrush}" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <TextBlock x:Name="MemoryValueText" Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource MetricValueStyle}" />
-                            </Grid>
-                            <ProgressBar x:Name="MemoryProgress" Grid.Row="1" Style="{StaticResource MetricProgressStyle}" />
-                        </Grid>
-                    </Border>
-
                     <!-- GPU Card -->
-                    <Border x:Name="GpuCard" Height="130" Margin="0,0,0,10" Style="{StaticResource CardStyle}">
+                    <Border x:Name="GpuCard" Grid.Column="2" Height="106" Style="{StaticResource CardStyle}">
                         <Grid>
-                            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="36" /></Grid.RowDefinitions>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Border Width="32" Height="32" Margin="0,0,12,0" VerticalAlignment="Top" Background="{DynamicResource GpuMetricSoftBrush}" CornerRadius="9">
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10.5" FontWeight="Bold" Foreground="{DynamicResource GpuMetricBrush}" Text="GPU" />
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="28" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="26" Height="26" Margin="0,0,8,0" VerticalAlignment="Top" Background="{DynamicResource GpuMetricSoftBrush}" CornerRadius="7">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource GpuMetricBrush}" Text="GPU" />
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Top">
                                     <TextBlock x:Name="GraphicsLabelText" Style="{StaticResource MetricLabelStyle}" />
-                                    <TextBlock x:Name="GpuNameText" Margin="0,3,8,0" FontSize="11.5"
+                                    <TextBlock x:Name="GpuNameText" Margin="0,1,4,0" FontSize="10.5"
                                                Foreground="{DynamicResource AppSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock x:Name="GpuDetailsText" Margin="0,2,8,0" FontSize="10.5"
-                                               Foreground="{DynamicResource AppTertiaryTextBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="GpuDetailsText" Margin="0,1,4,0" FontSize="9.5"
+                                               Foreground="{DynamicResource AppTertiaryTextBrush}" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <TextBlock x:Name="GpuValueText" Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource MetricValueStyle}" />
                             </Grid>
@@ -275,59 +236,104 @@
                                                     SnapsToDevicePixels="True" />
                         </Grid>
                     </Border>
+                </Grid>
 
-                    <!-- Network Card (Split Download/Upload) -->
-                    <Grid Height="90" Margin="0,0,0,10">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="10" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                <!-- Row 2: Memory & Network side-by-side -->
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Memory Card -->
+                    <Border Grid.Column="0" Height="78" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="5" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="26" Height="26" Margin="0,0,8,0" VerticalAlignment="Top" Background="{DynamicResource MemoryMetricSoftBrush}" CornerRadius="7">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource MemoryMetricBrush}" Text="MEM" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Top">
+                                    <TextBlock x:Name="MemoryLabelText" Style="{StaticResource MetricLabelStyle}" />
+                                    <TextBlock x:Name="MemoryDetailsText" Margin="0,2,4,0" FontSize="10.5"
+                                               Foreground="{DynamicResource AppSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock x:Name="MemoryValueText" Grid.Column="2" VerticalAlignment="Top" Style="{StaticResource MetricValueStyle}" />
+                            </Grid>
+                            <ProgressBar x:Name="MemoryProgress" Grid.Row="1" Style="{StaticResource MetricProgressStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Network Card (Split Download / Upload) -->
+                    <Grid Grid.Column="2" Height="78">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="6" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="10,8,8,6">
                             <Grid>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
                                 <StackPanel Orientation="Horizontal">
-                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource CpuMetricSoftBrush}" CornerRadius="6">
-                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource CpuMetricBrush}" Text="↓" />
+                                    <Border Width="16" Height="16" Margin="0,0,5,0" Background="{DynamicResource CpuMetricSoftBrush}" CornerRadius="5">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource CpuMetricBrush}" Text="↓" />
                                     </Border>
-                                    <TextBlock x:Name="DownloadLabelText" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                    <TextBlock x:Name="DownloadLabelText" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold"
                                                Foreground="{DynamicResource AppSecondaryTextBrush}" />
                                 </StackPanel>
-                                <TextBlock x:Name="DownloadValueText" Grid.Row="1" VerticalAlignment="Bottom" FontSize="20"
+                                <TextBlock x:Name="DownloadValueText" Grid.Row="1" VerticalAlignment="Bottom" FontSize="15"
                                            FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </Border>
-                        <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="10,8,8,6">
                             <Grid>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
                                 <StackPanel Orientation="Horizontal">
-                                    <Border Width="20" Height="20" Margin="0,0,8,0" Background="{DynamicResource GpuMetricSoftBrush}" CornerRadius="6">
-                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource GpuMetricBrush}" Text="↑" />
+                                    <Border Width="16" Height="16" Margin="0,0,5,0" Background="{DynamicResource GpuMetricSoftBrush}" CornerRadius="5">
+                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource GpuMetricBrush}" Text="↑" />
                                     </Border>
-                                    <TextBlock x:Name="UploadLabelText" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                                    <TextBlock x:Name="UploadLabelText" VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold"
                                                Foreground="{DynamicResource AppSecondaryTextBrush}" />
                                 </StackPanel>
-                                <TextBlock x:Name="UploadValueText" Grid.Row="1" VerticalAlignment="Bottom" FontSize="20"
+                                <TextBlock x:Name="UploadValueText" Grid.Row="1" VerticalAlignment="Bottom" FontSize="15"
                                            FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </Border>
                     </Grid>
+                </Grid>
 
-                    <!-- Storage Card -->
-                    <Border x:Name="StorageCard" MinHeight="112" Style="{StaticResource CardStyle}" Padding="14">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="26" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="StorageLabelText" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" />
-                            </StackPanel>
-                            <Grid Grid.Row="1" MinHeight="64" Margin="0,6,0,0">
-                                <TextBlock x:Name="NoDrivesText" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" />
-                                <UniformGrid x:Name="DriveRowsPanel" Columns="2" HorizontalAlignment="Stretch" Margin="-4,0,-4,0" />
-                            </Grid>
+                <!-- Row 3: Storage Card (Full Width) -->
+                <Border x:Name="StorageCard" Grid.Row="2" Style="{StaticResource CardStyle}" Padding="12,8,12,8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="22" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="StorageLabelText" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AppTextBrush}" />
+                        <Grid Grid.Row="1" Margin="0,4,0,0">
+                            <TextBlock x:Name="NoDrivesText" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                            <UniformGrid x:Name="DriveRowsPanel" Columns="2" HorizontalAlignment="Stretch" Margin="-3,0,-3,0" />
                         </Grid>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
     </Border>
 </Window>
+
