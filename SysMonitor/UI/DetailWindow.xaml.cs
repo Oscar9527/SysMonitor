@@ -36,6 +36,7 @@ public partial class DetailWindow : Window
     private Brush _unpinnedForegroundBrush = Brushes.DimGray;
 
     private MonitorSnapshot _latestSnapshot = MonitorSnapshot.Empty;
+    private readonly SettingsService _settingsService = new();
     private readonly Dictionary<string, DriveRowElements> _driveRows =
         new(StringComparer.OrdinalIgnoreCase);
     private ImmutableArray<string> _driveOrder = ImmutableArray<string>.Empty;
@@ -45,14 +46,31 @@ public partial class DetailWindow : Window
     public DetailWindow()
     {
         InitializeComponent();
+        AppSettings settings = _settingsService.Snapshot.Settings;
+        if (settings.PanelWidth is double w && double.IsFinite(w) && w >= 360 &&
+            settings.PanelHeight is double h && double.IsFinite(h) && h >= 360)
+        {
+            Width = w;
+            Height = h;
+            SizeToContent = SizeToContent.Manual;
+        }
+        else
+        {
+            Width = 480;
+            SizeToContent = SizeToContent.Height;
+        }
+
         RefreshThemeBrushes();
         Closing += DetailWindow_Closing;
         Closed += DetailWindow_Closed;
+        SizeChanged += DetailWindow_SizeChanged;
         LocalizationService.Current.CultureChanged += OnCultureChanged;
         RefreshLocalizedText();
         UpdateSnapshot(MonitorSnapshot.Empty);
         SetPinned(false);
     }
+
+
 
     public bool IsPinned => _isPinned;
 
@@ -324,9 +342,9 @@ public partial class DetailWindow : Window
         var container = new Border
         {
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Height = 52,
+            Height = 56,
             Margin = new Thickness(3),
-            Padding = new Thickness(10, 5, 10, 5),
+            Padding = new Thickness(12, 6, 12, 6),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Focusable = true,
@@ -338,18 +356,18 @@ public partial class DetailWindow : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(3.5) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(4) });
 
         var name = new TextBlock
         {
             Margin = new Thickness(0, 0, 6, 0),
-            FontSize = 11.5,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         var value = new TextBlock
         {
-            FontSize = 11.5,
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
         };
         Grid.SetColumn(value, 1);
@@ -357,7 +375,7 @@ public partial class DetailWindow : Window
         var details = new TextBlock
         {
             Margin = new Thickness(0, 2, 0, 2),
-            FontSize = 10,
+            FontSize = 11,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         details.SetResourceReference(ForegroundProperty, "AppSecondaryTextBrush");
@@ -366,7 +384,7 @@ public partial class DetailWindow : Window
 
         var progress = new ProgressBar
         {
-            Height = 3.5,
+            Height = 4,
             Minimum = 0,
             Maximum = 100,
         };
@@ -406,6 +424,92 @@ public partial class DetailWindow : Window
         double deviceToDipY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1d;
         double availableHeight = Math.Max(1d, workingArea.Height * deviceToDipY - 16d);
         MaxHeight = availableHeight;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern nint SendMessage(nint hWnd, int msg, nint wParam, nint lParam);
+
+    private const int WM_SYSCOMMAND = 0x0112;
+    private const int SC_SIZE = 0xF000;
+    private const int WMSZ_LEFT = 1;
+    private const int WMSZ_RIGHT = 2;
+    private const int WMSZ_TOP = 3;
+    private const int WMSZ_TOPLEFT = 4;
+    private const int WMSZ_TOPRIGHT = 5;
+    private const int WMSZ_BOTTOM = 6;
+    private const int WMSZ_BOTTOMLEFT = 7;
+    private const int WMSZ_BOTTOMRIGHT = 8;
+    private const double ResizeMarginDip = 12.0;
+
+    private int GetResizeDirection(System.Windows.Point p)
+    {
+        double w = ActualWidth;
+        double h = ActualHeight;
+        if (w <= 0 || h <= 0) return 0;
+
+        bool left = p.X <= (12 + ResizeMarginDip);
+        bool right = p.X >= (w - 12 - ResizeMarginDip);
+        bool top = p.Y <= (12 + ResizeMarginDip);
+        bool bottom = p.Y >= (h - 12 - ResizeMarginDip);
+
+        if (top && left) return WMSZ_TOPLEFT;
+        if (top && right) return WMSZ_TOPRIGHT;
+        if (bottom && left) return WMSZ_BOTTOMLEFT;
+        if (bottom && right) return WMSZ_BOTTOMRIGHT;
+        if (left) return WMSZ_LEFT;
+        if (right) return WMSZ_RIGHT;
+        if (top) return WMSZ_TOP;
+        if (bottom) return WMSZ_BOTTOM;
+        return 0;
+    }
+
+    private void Window_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed) return;
+        System.Windows.Point p = e.GetPosition(this);
+        int dir = GetResizeDirection(p);
+        Cursor = dir switch
+        {
+            WMSZ_LEFT or WMSZ_RIGHT => System.Windows.Input.Cursors.SizeWE,
+            WMSZ_TOP or WMSZ_BOTTOM => System.Windows.Input.Cursors.SizeNS,
+            WMSZ_TOPLEFT or WMSZ_BOTTOMRIGHT => System.Windows.Input.Cursors.SizeNWSE,
+            WMSZ_TOPRIGHT or WMSZ_BOTTOMLEFT => System.Windows.Input.Cursors.SizeNESW,
+            _ => System.Windows.Input.Cursors.Arrow
+        };
+    }
+
+    private void Window_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        System.Windows.Point p = e.GetPosition(this);
+        int dir = GetResizeDirection(p);
+        if (dir != 0)
+        {
+            nint handle = new WindowInteropHelper(this).Handle;
+            if (handle != nint.Zero)
+            {
+                e.Handled = true;
+                ReleaseCapture();
+                SendMessage(handle, WM_SYSCOMMAND, (nint)(SC_SIZE + dir), 0);
+            }
+        }
+    }
+
+    private void DetailWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        if (e.NewSize.Width >= 360 && e.NewSize.Height >= 360)
+        {
+            double w = Math.Round(e.NewSize.Width, MidpointRounding.AwayFromZero);
+            double h = Math.Round(e.NewSize.Height, MidpointRounding.AwayFromZero);
+            _settingsService.TryPatch(settings =>
+            {
+                settings.PanelWidth = w;
+                settings.PanelHeight = h;
+            });
+        }
     }
 
     protected override void OnDeactivated(EventArgs e)

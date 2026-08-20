@@ -538,6 +538,12 @@ public sealed class SettingsService
         settings.PanelTop = settings.PanelTop is double top && double.IsFinite(top)
             ? Math.Clamp(Math.Round(top, MidpointRounding.AwayFromZero), -32000, 32000)
             : null;
+        settings.PanelWidth = settings.PanelWidth is double width && double.IsFinite(width)
+            ? Math.Clamp(Math.Round(width, MidpointRounding.AwayFromZero), 360, 1600)
+            : null;
+        settings.PanelHeight = settings.PanelHeight is double height && double.IsFinite(height)
+            ? Math.Clamp(Math.Round(height, MidpointRounding.AwayFromZero), 360, 2000)
+            : null;
         settings.BandFontFamily = string.IsNullOrWhiteSpace(settings.BandFontFamily)
             ? "Segoe UI Variable Text"
             : settings.BandFontFamily.Trim();

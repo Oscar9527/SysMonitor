@@ -1917,8 +1917,8 @@ public partial class App : System.Windows.Application
     private void PositionDetailAboveBand(DetailWindow detail, BandWindow? clickBand)
     {
         detail.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        double detailWidth = detail.ActualWidth > 0 ? detail.ActualWidth : (double.IsFinite(detail.Width) && detail.Width > 0 ? detail.Width : 580);
-        double detailHeight = detail.ActualHeight > 0 ? detail.ActualHeight : (detail.DesiredSize.Height > 0 ? detail.DesiredSize.Height : (double.IsFinite(detail.Height) && detail.Height > 0 ? detail.Height : 380));
+        double detailWidth = detail.ActualWidth > 0 ? detail.ActualWidth : (double.IsFinite(detail.Width) && detail.Width > 0 ? detail.Width : 480);
+        double detailHeight = detail.ActualHeight > 0 ? detail.ActualHeight : (detail.DesiredSize.Height > 0 ? detail.DesiredSize.Height : (double.IsFinite(detail.Height) && detail.Height > 0 ? detail.Height : 620));
 
         Rect workArea = SystemParameters.WorkArea;
         double targetLeft;

@@ -52,7 +52,12 @@ public sealed class AppSettings
     public double? PanelLeft { get; set; }
 
     public double? PanelTop { get; set; }
+
+    public double? PanelWidth { get; set; }
+
+    public double? PanelHeight { get; set; }
 }
+
 
 public sealed class GameOverlayMonitorPositionSettings
 {
