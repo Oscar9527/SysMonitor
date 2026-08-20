@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:SysMonitor.UI"
         Title="SysMonitor"
         Width="480"
-        Height="736"
+        Height="760"
         MinWidth="450"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
@@ -115,8 +115,10 @@
                                        HorizontalAlignment="Right"
                                        Width="6"
                                        Margin="0,4,4,4"
-                                       Minimum="{TemplateBinding ScrollableHeight}"
+                                       Orientation="Vertical"
+                                       Cursor="Arrow"
                                        Maximum="{TemplateBinding ScrollableHeight}"
+                                       Minimum="0"
                                        Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
                                        ViewportSize="{TemplateBinding ViewportHeight}"
                                        Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}">
@@ -129,7 +131,7 @@
                                                         <Thumb.Template>
                                                             <ControlTemplate TargetType="Thumb">
                                                                 <Border Background="{DynamicResource AppSecondaryTextBrush}"
-                                                                        Opacity="0.35"
+                                                                        Opacity="0.4"
                                                                         CornerRadius="3" />
                                                             </ControlTemplate>
                                                         </Thumb.Template>
