@@ -71,20 +71,20 @@
 
 ## 📥 下载与运行
 
-前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.1) 下载最新正式版：
+前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.2) 下载最新正式版：
 
 | 发行版本 | 文件名 | 说明 |
 | --- | --- | --- |
-| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.1-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.1/SysMonitor-v1.0.1-Standalone.exe) | 内置完整 .NET 运行时，即开即用，无需安装任何前置依赖 |
-| **轻量单文件版** | [`SysMonitor-v1.0.1-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.1/SysMonitor-v1.0.1-Light.exe) | 体积仅约 8.9MB，需要系统中已安装 Microsoft .NET 8 桌面运行时 |
+| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.2-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.2/SysMonitor-v1.0.2-Standalone.exe) | 内置完整 .NET 运行时，即开即用，无需安装任何前置依赖 |
+| **轻量单文件版** | [`SysMonitor-v1.0.2-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.2/SysMonitor-v1.0.2-Light.exe) | 体积仅约 5.5MB，需要系统中已安装 Microsoft .NET 8 桌面运行时 |
 
 ---
 
 ## ⚙️ 快速使用
 
-1. 下载 `SysMonitor-v1.0.1-Standalone.exe` 后直接双击运行（无需管理员权限）；
+1. 下载 `SysMonitor-v1.0.2-Standalone.exe` 后直接双击运行（无需管理员权限）；
 2. 任务栏右侧将自动出现性能监控条，并在系统托盘生成图标；
-3. **点击监控条**：即可在上方弹出圆角详情面板；
+3. **点击监控条**：即可在正上方弹出圆角详情面板；
 4. **游戏浮层**：在游戏内随时按下 `Ctrl+Shift+F10` 即可开启/隐藏实时游戏监控；
 5. **右键托盘图标**：可打开外观设置、HUD 详细配置、切换安全保护模式或退出程序。
 
