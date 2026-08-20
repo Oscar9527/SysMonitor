@@ -160,17 +160,6 @@
             <DropShadowEffect BlurRadius="28" ShadowDepth="6" Direction="270" Color="#000000" Opacity="0.18" />
         </Border.Effect>
 
-        <Border.OpacityMask>
-            <VisualBrush>
-                <VisualBrush.Visual>
-                    <Border Background="Black"
-                            CornerRadius="16"
-                            Width="{Binding ActualWidth, ElementName=RootBorder}"
-                            Height="{Binding ActualHeight, ElementName=RootBorder}" />
-                </VisualBrush.Visual>
-            </VisualBrush>
-        </Border.OpacityMask>
-
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="50" />

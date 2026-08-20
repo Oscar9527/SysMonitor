@@ -29,6 +29,17 @@ internal static class MemoryOptimizer
         TrimWorkingSet();
     }
 
+    public static void Shutdown()
+    {
+        try
+        {
+            s_periodicTrimTimer.Dispose();
+        }
+        catch
+        {
+        }
+    }
+
     /// <summary>
     /// Executes compaction and trims unreferenced pages from the OS process working set.
     /// Rate-limited to prevent excessive CPU consumption.
@@ -36,15 +47,16 @@ internal static class MemoryOptimizer
     public static void TrimWorkingSet(bool force = false)
     {
         long now = Stopwatch.GetTimestamp();
-        if (!force && Stopwatch.GetElapsedTime(s_lastTrimTimestamp, now) < TimeSpan.FromSeconds(3))
+        long last = Interlocked.Read(ref s_lastTrimTimestamp);
+        if (!force && Stopwatch.GetElapsedTime(last, now) < TimeSpan.FromSeconds(3))
         {
             return;
         }
 
-        s_lastTrimTimestamp = now;
+        Interlocked.Exchange(ref s_lastTrimTimestamp, now);
         try
         {
-            GC.Collect(2, GCCollectionMode.Optimized, blocking: false, compacting: true);
+            GC.Collect(2, GCCollectionMode.Optimized, blocking: true, compacting: false);
 
             if (OperatingSystem.IsWindows())
             {

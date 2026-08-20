@@ -768,7 +768,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         {
             placementArea = ToOverlayRect(exactIdentity.Bounds);
         }
-        else if (!TryGetWorkArea(target != nint.Zero && !IsIconic(target) && IsWindowVisible(target) ? target : nint.Zero, out placementArea))
+        else if (!TryGetWorkArea(target != nint.Zero && !IsIconic(target) && IsWindowVisible(target) ? target : (_source?.Handle ?? nint.Zero), out placementArea))
         {
             return;
         }
@@ -791,7 +791,11 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
                 horizontalPositionPercent: _horizontalPositionPercent);
         _lastPlacement = placement;
         _lastPlacementMonitorId = monitorIdentity?.StableMonitorId;
-        nint overlay = _source.Handle;
+        nint overlay = _source?.Handle ?? new WindowInteropHelper(this).Handle;
+        if (overlay == nint.Zero)
+        {
+            return;
+        }
         SynchronizeTopmostTier(overlay, true);
         OverlayZOrderDecision zOrder = ResolveZOrder(
             overlay,
@@ -960,7 +964,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
         // 1. Try Client Area (for windowed games)
         if (TryGetClientAreaOnScreen(windowHandle, out OverlayPixelRect clientArea) &&
-            clientArea.Left >= -1000 && clientArea.Top >= -1000 &&
+            clientArea.Left >= -32000 && clientArea.Top >= -32000 &&
             clientArea.Width >= 50 && clientArea.Height >= 50)
         {
             area = clientArea;
@@ -974,7 +978,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             {
                 int width = frame.Right - frame.Left;
                 int height = frame.Bottom - frame.Top;
-                if (frame.Left >= -1000 && frame.Top >= -1000 && width >= 50 && height >= 50)
+                if (frame.Left >= -32000 && frame.Top >= -32000 && width >= 50 && height >= 50)
                 {
                     area = new OverlayPixelRect(frame.Left, frame.Top, frame.Right, frame.Bottom);
                     return true;
@@ -990,7 +994,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         {
             int width = winRect.Right - winRect.Left;
             int height = winRect.Bottom - winRect.Top;
-            if (winRect.Left >= -1000 && winRect.Top >= -1000 && width >= 50 && height >= 50)
+            if (winRect.Left >= -32000 && winRect.Top >= -32000 && width >= 50 && height >= 50)
             {
                 area = new OverlayPixelRect(winRect.Left, winRect.Top, winRect.Right, winRect.Bottom);
                 return true;
@@ -1009,7 +1013,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         }
 
         var origin = new NativePoint { X = client.Left, Y = client.Top };
-        if (!ClientToScreen(windowHandle, ref origin) || origin.X < -1000 || origin.Y < -1000)
+        if (!ClientToScreen(windowHandle, ref origin) || origin.X < -32000 || origin.Y < -32000)
         {
             return false;
         }

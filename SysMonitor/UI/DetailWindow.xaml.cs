@@ -406,7 +406,17 @@ public partial class DetailWindow : Window
         double deviceToDipY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1d;
         double availableHeight = Math.Max(1d, workingArea.Height * deviceToDipY - 16d);
         MaxHeight = availableHeight;
-        Height = Math.Min(700d, availableHeight);
+        Height = Math.Min(760d, availableHeight);
+    }
+
+    protected override void OnDeactivated(EventArgs e)
+    {
+        base.OnDeactivated(e);
+        if (!_isPinned && IsVisible && !_allowClose && WindowState == WindowState.Normal)
+        {
+            HideRequested?.Invoke(this, EventArgs.Empty);
+            Hide();
+        }
     }
 
     internal static string BuildCpuDetails(int logicalProcessorCount, double? temperature)

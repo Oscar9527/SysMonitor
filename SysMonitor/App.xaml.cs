@@ -120,11 +120,20 @@ public partial class App : System.Windows.Application
             }
         }
 
-        _singleInstanceMutex = new Mutex(true, MutexName, out bool isFirstInstance);
+        bool isFirstInstance;
+        try
+        {
+            _singleInstanceMutex = new Mutex(true, MutexName, out isFirstInstance);
+        }
+        catch (AbandonedMutexException)
+        {
+            isFirstInstance = true;
+        }
+
         if (!isFirstInstance)
         {
             SignalExistingInstance();
-            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex?.Dispose();
             _singleInstanceMutex = null;
             Shutdown();
             Environment.Exit(0);
@@ -415,6 +424,15 @@ public partial class App : System.Windows.Application
         band.ToggleDetailsRequested -= OnToggleDetailsRequested;
         band.NativeDestroyed -= OnBandNativeDestroyed;
         band.HorizontalPositionResolved -= OnBandHorizontalPositionResolved;
+        try
+        {
+            band.StopPositionTracking();
+            band.RequestClose();
+        }
+        catch (Exception exception)
+        {
+            LogException("Band detach cleanup failed", exception);
+        }
     }
 
     private void StopBandRecreateTimer()
@@ -1557,7 +1575,8 @@ public partial class App : System.Windows.Application
 
     private void SavePanelPosition()
     {
-        if (_detailWindow is { WindowState: WindowState.Normal })
+        if (_detailWindow is { WindowState: WindowState.Normal } &&
+            double.IsFinite(_detailWindow.Left) && double.IsFinite(_detailWindow.Top))
         {
             _settings.PanelLeft = _detailWindow.Left;
             _settings.PanelTop = _detailWindow.Top;
@@ -1587,9 +1606,6 @@ public partial class App : System.Windows.Application
     {
         if (!TryPatchSettings(patch))
         {
-            // A transient disk/permission failure must never terminate the
-            // tray application. Restore the last confirmed snapshot and let
-            // the next user action retry the atomic write.
             _settings = _settingsService.GetConfirmedSnapshot();
             BandDiagnostics.LogRateLimited(
                 "settings-save-failed",
@@ -1606,239 +1622,228 @@ public partial class App : System.Windows.Application
         }
 
         _isExiting = true;
-        DisposeControlEvents();
-        StopBandRecreateTimer();
+        DispatcherUnhandledException -= OnDispatcherUnhandledException;
+
         try
         {
+            DisposeControlEvents();
+            StopBandRecreateTimer();
             SavePanelPosition();
-        }
-        catch (Exception exception)
-        {
-            LogException("Saving settings during exit failed", exception);
-        }
 
-        if (_gameOverlayHotkey is not null)
-        {
-            _gameOverlayHotkey.Pressed -= OnGameOverlayHotkeyPressed;
-            _gameOverlayHotkey.Dispose();
-            _gameOverlayHotkey = null;
-        }
-
-        if (_gameOverlayController is not null)
-        {
-            _gameOverlayController.StateChanged -= OnGameOverlayStateChanged;
-            try
+            if (_monitorService is not null)
             {
-                await _gameOverlayController.DisposeAsync();
-            }
-            catch (Exception exception)
-            {
-                LogException("Game overlay shutdown failed", exception);
-            }
-            finally
-            {
-                _gameOverlayController = null;
-            }
-        }
-
-        if (_gameOverlayFrameProvider is not null)
-        {
-            try
-            {
-                await _gameOverlayFrameProvider.DisposeAsync();
-            }
-            catch (Exception exception)
-            {
-                LogException("Frame-rate provider shutdown failed", exception);
-            }
-            finally
-            {
-                _gameOverlayFrameProvider = null;
-            }
-        }
-
-        if (_gameOverlayWindow is not null)
-        {
-            try
-            {
-                _gameOverlayWindow.Close();
-            }
-            catch (Exception exception)
-            {
-                LogException("Game overlay window close failed", exception);
-            }
-            finally
-            {
-                _gameOverlayWindow = null;
-            }
-        }
-
-        if (_gameOverlayAppearanceWindow is not null)
-        {
-            try
-            {
-                _gameOverlayAppearanceWindow.PreviewChanged -= OnGameOverlayAppearancePreviewChanged;
-                _gameOverlayAppearanceWindow.Applied -= OnGameOverlayAppearanceApplied;
-                _gameOverlayAppearanceWindow.Close();
-            }
-            catch (Exception exception)
-            {
-                LogException("Game overlay appearance window close failed", exception);
-            }
-            finally
-            {
-                _gameOverlayAppearanceWindow = null;
-            }
-        }
-
-        if (_gameOverlaySettingsWindow is not null)
-        {
-            try
-            {
-                RestoreGameOverlayPreviewBaseline();
-                _gameOverlaySettingsWindow.ApplyRequested = null;
-                _gameOverlaySettingsWindow.PreviewRequested = null;
-                _gameOverlaySettingsWindow.PreviewSessionFinished = null;
-                _gameOverlaySettingsWindow.CloseForExit();
-            }
-            catch (Exception exception)
-            {
-                LogException("Game overlay settings window close failed", exception);
-            }
-            finally
-            {
-                _gameOverlaySettingsWindow = null;
-            }
-        }
-
-        if (_monitorService is not null)
-        {
-            _monitorService.SnapshotUpdated -= OnSnapshotUpdated;
-            try
-            {
+                _monitorService.SnapshotUpdated -= OnSnapshotUpdated;
                 await _monitorService.DisposeAsync();
             }
-            catch (Exception exception)
-            {
-                LogException("Monitor service shutdown failed", exception);
-            }
-            finally
-            {
-                _monitorService = null;
-            }
-        }
 
-        if (_bandWindow is not null)
-        {
+            if (_gameOverlayHotkey is not null)
+            {
+                _gameOverlayHotkey.Pressed -= OnGameOverlayHotkeyPressed;
+                _gameOverlayHotkey.Dispose();
+                _gameOverlayHotkey = null;
+            }
+
+            if (_gameOverlayController is not null)
+            {
+                _gameOverlayController.StateChanged -= OnGameOverlayStateChanged;
+                try
+                {
+                    await _gameOverlayController.DisposeAsync();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Game overlay shutdown failed", exception);
+                }
+                finally
+                {
+                    _gameOverlayController = null;
+                }
+            }
+
+            if (_gameOverlayFrameProvider is not null)
+            {
+                try
+                {
+                    await _gameOverlayFrameProvider.DisposeAsync();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Frame-rate provider shutdown failed", exception);
+                }
+                finally
+                {
+                    _gameOverlayFrameProvider = null;
+                }
+            }
+
+            if (_gameOverlayWindow is not null)
+            {
+                try
+                {
+                    _gameOverlayWindow.Close();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Game overlay window shutdown failed", exception);
+                }
+                finally
+                {
+                    _gameOverlayWindow = null;
+                }
+            }
+
+            if (_gameOverlayAppearanceWindow is not null)
+            {
+                try
+                {
+                    _gameOverlayAppearanceWindow.PreviewChanged -= OnGameOverlayAppearancePreviewChanged;
+                    _gameOverlayAppearanceWindow.Applied -= OnGameOverlayAppearanceApplied;
+                    _gameOverlayAppearanceWindow.Close();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Game overlay appearance window shutdown failed", exception);
+                }
+                finally
+                {
+                    _gameOverlayAppearanceWindow = null;
+                }
+            }
+
+            if (_gameOverlaySettingsWindow is not null)
+            {
+                try
+                {
+                    RestoreGameOverlayPreviewBaseline();
+                    _gameOverlaySettingsWindow.ApplyRequested = null;
+                    _gameOverlaySettingsWindow.PreviewRequested = null;
+                    _gameOverlaySettingsWindow.PreviewSessionFinished = null;
+                    _gameOverlaySettingsWindow.CloseForExit();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Game overlay settings window close failed", exception);
+                }
+                finally
+                {
+                    _gameOverlaySettingsWindow = null;
+                }
+            }
+
+            if (_bandWindow is not null)
+            {
+                try
+                {
+                    _bandWindow.ToggleDetailsRequested -= OnToggleDetailsRequested;
+                    _bandWindow.NativeDestroyed -= OnBandNativeDestroyed;
+                    _bandWindow.HorizontalPositionResolved -= OnBandHorizontalPositionResolved;
+                    _bandWindow.StopPositionTracking();
+                    _bandWindow.RequestClose();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Band window shutdown failed", exception);
+                }
+                finally
+                {
+                    _bandWindow = null;
+                    _bandHandle = nint.Zero;
+                }
+            }
+
+            if (_detailWindow is not null)
+            {
+                try
+                {
+                    _detailWindow.PinChanged -= OnDetailPinChanged;
+                    _detailWindow.HideRequested -= OnDetailHideRequested;
+                    _detailWindow.LocationChanged -= OnDetailLocationChanged;
+                    _detailWindow.ForceClose();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Detail window shutdown failed", exception);
+                }
+                finally
+                {
+                    _detailWindow = null;
+                }
+            }
+
+            if (_appearanceSettingsWindow is not null)
+            {
+                try
+                {
+                    _appearanceSettingsWindow.AppearanceThemeApplied -= OnAppearanceThemeApplied;
+                    _appearanceSettingsWindow.AppearancePreviewChanged -= OnAppearancePreviewChanged;
+                    _appearanceSettingsWindow.ThemePreviewRequested -= OnThemePreviewRequested;
+                    _appearanceSettingsWindow.ThemeImported -= OnThemeImported;
+                    _appearanceSettingsWindow.ThemeImportRequested = null;
+                    _appearanceSettingsWindow.UiCultureChanged -= OnUiCultureChanged;
+                    _appearanceSettingsWindow.ForceClose();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Appearance window shutdown failed", exception);
+                }
+                finally
+                {
+                    _appearanceSettingsWindow = null;
+                }
+            }
+
+            if (_trayIcon is not null)
+            {
+                try
+                {
+                    _trayIcon.ToggleDetailsRequested -= OnToggleDetailsRequested;
+                    _trayIcon.ToggleGameOverlayRequested -= OnToggleGameOverlayRequested;
+                    _trayIcon.SelectGameOverlayTargetRequested -= OnSelectGameOverlayTargetRequested;
+                    _trayIcon.GameOverlayPositionChanged -= OnGameOverlayPositionChanged;
+                    _trayIcon.GameOverlayPresetChanged -= OnGameOverlayPresetChanged;
+                    _trayIcon.GameOverlayMetricsChanged -= OnGameOverlayMetricsChanged;
+                    _trayIcon.GameOverlayAppearanceRequested -= OnGameOverlayAppearanceRequested;
+                    _trayIcon.GameOverlayConfigurationRequested -= OnGameOverlayConfigurationRequested;
+                    _trayIcon.AppearanceSettingsRequested -= OnAppearanceSettingsRequested;
+                    _trayIcon.GameSafeModeChangeRequested -= OnGameSafeModeChangeRequested;
+                    _trayIcon.PinToggled -= OnTrayPinToggled;
+                    _trayIcon.StartupToggled -= OnTrayStartupToggled;
+                    _trayIcon.ExitRequested -= OnExitRequested;
+                    _trayIcon.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    LogException("Tray icon shutdown failed", exception);
+                }
+                finally
+                {
+                    _trayIcon = null;
+                }
+            }
+
+            MemoryOptimizer.Shutdown();
+
             try
             {
-                _bandWindow.ToggleDetailsRequested -= OnToggleDetailsRequested;
-                _bandWindow.NativeDestroyed -= OnBandNativeDestroyed;
-                _bandWindow.HorizontalPositionResolved -= OnBandHorizontalPositionResolved;
-                _bandWindow.StopPositionTracking();
-                _bandWindow.RequestClose();
+                _singleInstanceMutex?.ReleaseMutex();
             }
-            catch (Exception exception)
+            catch
             {
-                LogException("Band window shutdown failed", exception);
             }
-            finally
-            {
-                _bandWindow = null;
-                _bandHandle = nint.Zero;
-            }
-        }
 
-        if (_detailWindow is not null)
-        {
-            try
-            {
-                _detailWindow.PinChanged -= OnDetailPinChanged;
-                _detailWindow.HideRequested -= OnDetailHideRequested;
-                _detailWindow.LocationChanged -= OnDetailLocationChanged;
-                _detailWindow.ForceClose();
-            }
-            catch (Exception exception)
-            {
-                LogException("Detail window shutdown failed", exception);
-            }
-            finally
-            {
-                _detailWindow = null;
-            }
+            _singleInstanceMutex?.Dispose();
+            _singleInstanceMutex = null;
         }
-
-        if (_appearanceSettingsWindow is not null)
+        catch (Exception ex)
         {
-            try
-            {
-                _appearanceSettingsWindow.AppearanceThemeApplied -= OnAppearanceThemeApplied;
-                _appearanceSettingsWindow.AppearancePreviewChanged -= OnAppearancePreviewChanged;
-                _appearanceSettingsWindow.ThemePreviewRequested -= OnThemePreviewRequested;
-                _appearanceSettingsWindow.ThemeImported -= OnThemeImported;
-                _appearanceSettingsWindow.ThemeImportRequested = null;
-                _appearanceSettingsWindow.UiCultureChanged -= OnUiCultureChanged;
-                _appearanceSettingsWindow.ForceClose();
-            }
-            catch (Exception exception)
-            {
-                LogException("Appearance window shutdown failed", exception);
-            }
-            finally
-            {
-                _appearanceSettingsWindow = null;
-            }
+            LogException("Error during ExitAsync", ex);
         }
-
-        if (_trayIcon is not null)
+        finally
         {
-            try
-            {
-                _trayIcon.ToggleDetailsRequested -= OnToggleDetailsRequested;
-                _trayIcon.ToggleGameOverlayRequested -= OnToggleGameOverlayRequested;
-                _trayIcon.SelectGameOverlayTargetRequested -= OnSelectGameOverlayTargetRequested;
-                _trayIcon.GameOverlayPositionChanged -= OnGameOverlayPositionChanged;
-                _trayIcon.GameOverlayPresetChanged -= OnGameOverlayPresetChanged;
-                _trayIcon.GameOverlayMetricsChanged -= OnGameOverlayMetricsChanged;
-                _trayIcon.GameOverlayAppearanceRequested -= OnGameOverlayAppearanceRequested;
-                _trayIcon.GameOverlayConfigurationRequested -= OnGameOverlayConfigurationRequested;
-                _trayIcon.AppearanceSettingsRequested -= OnAppearanceSettingsRequested;
-                _trayIcon.GameSafeModeChangeRequested -= OnGameSafeModeChangeRequested;
-                _trayIcon.PinToggled -= OnTrayPinToggled;
-                _trayIcon.StartupToggled -= OnTrayStartupToggled;
-                _trayIcon.ExitRequested -= OnExitRequested;
-                _trayIcon.Dispose();
-            }
-            catch (Exception exception)
-            {
-                LogException("Tray icon shutdown failed", exception);
-            }
-            finally
-            {
-                _trayIcon = null;
-            }
+            KillLingeringProcesses();
+            Shutdown();
+            Environment.Exit(0);
         }
-
-        if (_bandRecreateTimer is not null)
-        {
-            _bandRecreateTimer.Tick -= OnBandRecreateTimerTick;
-            _bandRecreateTimer = null;
-        }
-
-        DispatcherUnhandledException -= OnDispatcherUnhandledException;
-        try
-        {
-            _singleInstanceMutex?.ReleaseMutex();
-        }
-        catch (ApplicationException)
-        {
-        }
-
-        _singleInstanceMutex?.Dispose();
-        _singleInstanceMutex = null;
-        KillLingeringProcesses();
-        Shutdown();
-        Environment.Exit(0);
     }
 
     private static void KillLingeringProcesses()
@@ -1846,10 +1851,16 @@ public partial class App : System.Windows.Application
         try
         {
             int currentPid = Environment.ProcessId;
+            int currentSession = Process.GetCurrentProcess().SessionId;
             foreach (Process proc in Process.GetProcesses())
             {
                 try
                 {
+                    if (proc.SessionId != currentSession)
+                    {
+                        continue;
+                    }
+
                     string name = proc.ProcessName;
                     if (string.Equals(name, "PresentMon-2.5.1-x64", StringComparison.OrdinalIgnoreCase) ||
                         name.StartsWith("PresentMon", StringComparison.OrdinalIgnoreCase))
@@ -1924,6 +1935,20 @@ public partial class App : System.Windows.Application
                 dpiScale = 1.0;
             }
 
+            nint hMonitor = MonitorFromWindow(bandHandle, 2);
+            if (hMonitor != nint.Zero)
+            {
+                var mi = new MonitorInfo { cbSize = Marshal.SizeOf<MonitorInfo>() };
+                if (GetMonitorInfo(hMonitor, ref mi))
+                {
+                    workArea = new Rect(
+                        mi.rcWork.Left / dpiScale,
+                        mi.rcWork.Top / dpiScale,
+                        (mi.rcWork.Right - mi.rcWork.Left) / dpiScale,
+                        (mi.rcWork.Bottom - mi.rcWork.Top) / dpiScale);
+                }
+            }
+
             double bandCenterDip = ((bandRect.Left + bandRect.Right) / 2.0) / dpiScale;
             targetLeft = bandCenterDip - (detail.Width / 2.0);
             if (targetLeft + detail.Width > workArea.Right - 14)
@@ -1940,6 +1965,10 @@ public partial class App : System.Windows.Application
             if (bandTopDip > workArea.Top + detail.Height + 20)
             {
                 targetTop = bandTopDip - detail.Height - 8;
+            }
+            else
+            {
+                targetTop = (bandRect.Bottom / dpiScale) + 8;
             }
         }
         else
@@ -1960,6 +1989,22 @@ public partial class App : System.Windows.Application
         public int Right;
         public int Bottom;
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MonitorInfo
+    {
+        public int cbSize;
+        public NativeRect rcMonitor;
+        public NativeRect rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern nint MonitorFromWindow(nint hwnd, uint dwFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(nint hMonitor, ref MonitorInfo lpmi);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

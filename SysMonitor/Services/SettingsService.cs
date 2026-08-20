@@ -349,7 +349,7 @@ public sealed class SettingsService
                 }
                 else
                 {
-                    File.Move(temporaryPath, SettingsPath);
+                    File.Move(temporaryPath, SettingsPath, overwrite: true);
                 }
             }
 
@@ -448,36 +448,49 @@ public sealed class SettingsService
     {
         settings = null;
         revision = 0;
-        try
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            if (!File.Exists(path))
+            try
             {
+                if (!File.Exists(path))
+                {
+                    return false;
+                }
+
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                string json = reader.ReadToEnd();
+                using JsonDocument document = JsonDocument.Parse(json);
+                settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
+                if (settings is null)
+                {
+                    return false;
+                }
+
+                if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                    document.RootElement.TryGetProperty(RevisionPropertyName, out JsonElement revisionElement) &&
+                    revisionElement.TryGetInt64(out long persistedRevision))
+                {
+                    revision = Math.Max(0, persistedRevision);
+                }
+
+                return true;
+            }
+            catch (IOException) when (attempt < 2)
+            {
+                Thread.Sleep(20);
+            }
+            catch
+            {
+                settings = null;
+                revision = 0;
                 return false;
             }
-
-            string json = File.ReadAllText(path);
-            using JsonDocument document = JsonDocument.Parse(json);
-            settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
-            if (settings is null)
-            {
-                return false;
-            }
-
-            if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                document.RootElement.TryGetProperty(RevisionPropertyName, out JsonElement revisionElement) &&
-                revisionElement.TryGetInt64(out long persistedRevision))
-            {
-                revision = Math.Max(0, persistedRevision);
-            }
-
-            return true;
         }
-        catch
-        {
-            settings = null;
-            revision = 0;
-            return false;
-        }
+
+        settings = null;
+        revision = 0;
+        return false;
     }
 
     private static bool TryReadPersistedRevision(string path, out long revision)
@@ -519,6 +532,12 @@ public sealed class SettingsService
         settings.ActiveThemeId = string.IsNullOrWhiteSpace(settings.ActiveThemeId)
             ? AppSettings.DefaultThemeId
             : settings.ActiveThemeId.Trim();
+        settings.PanelLeft = settings.PanelLeft is double left && double.IsFinite(left)
+            ? Math.Clamp(Math.Round(left, MidpointRounding.AwayFromZero), -32000, 32000)
+            : null;
+        settings.PanelTop = settings.PanelTop is double top && double.IsFinite(top)
+            ? Math.Clamp(Math.Round(top, MidpointRounding.AwayFromZero), -32000, 32000)
+            : null;
         settings.BandFontFamily = string.IsNullOrWhiteSpace(settings.BandFontFamily)
             ? "Segoe UI Variable Text"
             : settings.BandFontFamily.Trim();

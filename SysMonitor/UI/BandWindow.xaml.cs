@@ -1016,6 +1016,7 @@ public partial class BandWindow : Window
         }
 
         _nativeDestroyedNotified = true;
+        StopPositionTracking();
         BandDiagnostics.Log(
             $"band native destruction notified generation={Generation} " +
             $"hwnd=0x{handle.ToInt64():X} source={source} explicit={_explicitClose}");

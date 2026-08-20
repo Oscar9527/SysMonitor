@@ -175,44 +175,59 @@ public sealed class MonitorService : IMonitorService
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            double cpuUsage = ReadCpuUsage();
-            double? cpuTemperature = ReadCpuTemperature();
-            // Current CPU clock and the DIMM configuration query are used only
-            // in the detailed HUD. Keeping them off for the normal tray/band
-            // session avoids allocating a WMI provider and native buffers.
-            bool detailedTelemetry = Volatile.Read(ref _detailedTelemetryEnabled) != 0;
-            double? cpuFrequency = detailedTelemetry ? _cpuFrequencyReader.ReadCurrentMhz() : null;
-            double? memoryFrequency = detailedTelemetry ? _memoryFrequencyReader.ReadConfiguredMhz() : null;
-            (double usage, long used, long total) memory = ReadMemory();
-            (double download, double upload) network = ReadNetwork();
-            RefreshDrivesIfDue();
-            var fixedDrives = _driveTelemetry.Current;
-            DriveSnapshot? systemDrive = fixedDrives.FirstOrDefault(item => item.IsSystemDrive);
-
-            var snapshot = new MonitorSnapshot(
-                Interlocked.Increment(ref _sequence),
-                DateTimeOffset.Now,
-                cpuUsage,
-                cpuTemperature,
-                Environment.ProcessorCount,
-                memory.usage,
-                memory.used,
-                memory.total,
-                _gpuCoordinator.Read(),
-                network.download,
-                network.upload,
-                systemDrive?.Name ?? _driveTelemetry.SystemDriveName,
-                systemDrive?.UsagePercent ?? 0d,
-                fixedDrives)
+            try
             {
-                ProducerId = _producerId,
-                MonotonicTimestamp = Stopwatch.GetTimestamp(),
-                CpuFrequencyMhz = cpuFrequency,
-                MemoryFrequencyMhz = memoryFrequency
-            };
+                double cpuUsage = ReadCpuUsage();
+                double? cpuTemperature = ReadCpuTemperature();
+                // Current CPU clock and the DIMM configuration query are used only
+                // in the detailed HUD. Keeping them off for the normal tray/band
+                // session avoids allocating a WMI provider and native buffers.
+                bool detailedTelemetry = Volatile.Read(ref _detailedTelemetryEnabled) != 0;
+                double? cpuFrequency = detailedTelemetry ? _cpuFrequencyReader.ReadCurrentMhz() : null;
+                double? memoryFrequency = detailedTelemetry ? _memoryFrequencyReader.ReadConfiguredMhz() : null;
+                (double usage, long used, long total) memory = ReadMemory();
+                (double download, double upload) network = ReadNetwork();
+                RefreshDrivesIfDue();
+                var fixedDrives = _driveTelemetry.Current;
+                DriveSnapshot? systemDrive = fixedDrives.FirstOrDefault(item => item.IsSystemDrive);
 
-            Volatile.Write(ref _latest, snapshot);
-            RaiseSnapshotUpdated(snapshot);
+                var snapshot = new MonitorSnapshot(
+                    Interlocked.Increment(ref _sequence),
+                    DateTimeOffset.Now,
+                    cpuUsage,
+                    cpuTemperature,
+                    Environment.ProcessorCount,
+                    memory.usage,
+                    memory.used,
+                    memory.total,
+                    _gpuCoordinator.Read(),
+                    network.download,
+                    network.upload,
+                    systemDrive?.Name ?? _driveTelemetry.SystemDriveName,
+                    systemDrive?.UsagePercent ?? 0d,
+                    fixedDrives)
+                {
+                    ProducerId = _producerId,
+                    MonotonicTimestamp = Stopwatch.GetTimestamp(),
+                    CpuFrequencyMhz = cpuFrequency,
+                    MemoryFrequencyMhz = memoryFrequency
+                };
+
+                Volatile.Write(ref _latest, snapshot);
+                RaiseSnapshotUpdated(snapshot);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                BandDiagnostics.LogRateLimited(
+                    "sampling-loop-error",
+                    $"Sampling loop recovered from unexpected error: {exception.Message}",
+                    TimeSpan.FromSeconds(5));
+            }
+
             try { await Task.Delay(_samplingInterval, cancellationToken).ConfigureAwait(false); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
         }
