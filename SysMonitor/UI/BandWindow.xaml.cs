@@ -1338,7 +1338,7 @@ public partial class BandWindow : Window
                 : ColorFrom(band.SeparatorColor);
             if (!string.Equals(
                     theme.Identity.Id,
-                    AppSettings.DefaultThemeId,
+                    ThemeCatalogService.DefaultThemeId,
                     StringComparison.OrdinalIgnoreCase))
             {
                 warning = ColorFrom(theme.Definition.Metrics.Warning);

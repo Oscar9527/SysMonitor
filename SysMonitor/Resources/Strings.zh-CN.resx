@@ -58,6 +58,10 @@
   <data name="TrayShowPanel" xml:space="preserve"><value>显示面板</value></data>
   <data name="TrayStartup" xml:space="preserve"><value>开机自启</value></data>
   <data name="AppearanceTheme" xml:space="preserve"><value>主题</value></data>
+  <data name="ThemeSystem" xml:space="preserve"><value>跟随系统（自动）</value></data>
+  <data name="ThemeDefault" xml:space="preserve"><value>浅色模式 (Default)</value></data>
+  <data name="ThemeMidnight" xml:space="preserve"><value>深色模式 (Midnight)</value></data>
+  <data name="ThemeSystemDescription" xml:space="preserve"><value>开机启动时自动检测 Windows 系统深色/浅色模式并适配主题，运行时零额外开销。</value></data>
   <data name="AppearanceThemeImport" xml:space="preserve"><value>导入主题…</value></data>
   <data name="AppearanceThemeDefault" xml:space="preserve"><value>恢复默认主题</value></data>
   <data name="AppearanceSaveFailed" xml:space="preserve"><value>无法保存设置，已恢复之前的外观。</value></data>

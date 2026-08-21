@@ -58,6 +58,10 @@
   <data name="TrayShowPanel" xml:space="preserve"><value>Show panel</value></data>
   <data name="TrayStartup" xml:space="preserve"><value>Start with Windows</value></data>
   <data name="AppearanceTheme" xml:space="preserve"><value>Theme</value></data>
+  <data name="ThemeSystem" xml:space="preserve"><value>Follow System (Auto)</value></data>
+  <data name="ThemeDefault" xml:space="preserve"><value>Light Theme (Default)</value></data>
+  <data name="ThemeMidnight" xml:space="preserve"><value>Dark Theme (Midnight)</value></data>
+  <data name="ThemeSystemDescription" xml:space="preserve"><value>Automatically adapts to Windows light/dark mode once at startup with zero runtime overhead.</value></data>
   <data name="AppearanceThemeImport" xml:space="preserve"><value>Import theme…</value></data>
   <data name="AppearanceThemeDefault" xml:space="preserve"><value>Use default</value></data>
   <data name="AppearanceSaveFailed" xml:space="preserve"><value>Could not save settings. The previous appearance was restored.</value></data>

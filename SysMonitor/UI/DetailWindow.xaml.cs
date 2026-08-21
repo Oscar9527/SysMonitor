@@ -365,6 +365,7 @@ public partial class DetailWindow : Window
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
+        name.SetResourceReference(TextBlock.ForegroundProperty, "AppTextBrush");
         var value = new TextBlock
         {
             FontSize = 12,

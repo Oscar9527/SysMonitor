@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:system="clr-namespace:System;assembly=System.Runtime">
     <Application.Resources>
-        <FontFamily x:Key="AppFontFamily">Segoe UI Variable Display, Segoe UI Variable Text, -apple-system, Segoe UI, sans-serif</FontFamily>
+        <FontFamily x:Key="AppFontFamily">Microsoft YaHei UI, Segoe UI Variable Text, Segoe UI, -apple-system, sans-serif</FontFamily>
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F5F7" />
         <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="AppTextBrush" Color="#1D1D1F" />
@@ -11,6 +11,7 @@
         <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#A1A1A6" />
         <SolidColorBrush x:Key="AppSeparatorBrush" Color="#E5E5EA" />
         <SolidColorBrush x:Key="AppControlBrush" Color="#F2F2F7" />
+        <SolidColorBrush x:Key="AppControlHoverBrush" Color="#E5E5EA" />
         <SolidColorBrush x:Key="AppAccentBrush" Color="#0071E3" />
         <SolidColorBrush x:Key="CpuMetricBrush" Color="#0071E3" />
         <SolidColorBrush x:Key="MemoryMetricBrush" Color="#FF9500" />

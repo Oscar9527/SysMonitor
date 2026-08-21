@@ -32,7 +32,11 @@ public sealed class ThemeResourceApplier
         ThemeMetricPalette metrics = definition.Metrics;
         bool isDefault = string.Equals(
             theme.Identity.Id,
-            AppSettings.DefaultThemeId,
+            ThemeCatalogService.DefaultThemeId,
+            StringComparison.OrdinalIgnoreCase);
+        bool isMidnight = string.Equals(
+            theme.Identity.Id,
+            ThemeCatalogService.MidnightThemeId,
             StringComparison.OrdinalIgnoreCase);
         ResourceDictionary resources = application.Resources;
         var replacements = new Dictionary<string, object>
@@ -44,19 +48,20 @@ public sealed class ThemeResourceApplier
             ["AppTertiaryTextBrush"] = CreateBrush(colors.Tertiary),
             ["AppSeparatorBrush"] = CreateBrush(colors.Separator),
             ["AppControlBrush"] = CreateBrush(colors.Control),
+            ["AppControlHoverBrush"] = isMidnight ? CreateBrush("#32353E") : CreateBrush("#E8EAEF"),
             ["AppAccentBrush"] = CreateBrush(colors.Accent),
             ["CpuMetricBrush"] = CreateBrush(metrics.Cpu),
             ["MemoryMetricBrush"] = CreateBrush(metrics.Memory),
             ["GpuMetricBrush"] = CreateBrush(metrics.Gpu),
             ["WarningMetricBrush"] = CreateBrush(metrics.Warning),
             ["CriticalMetricBrush"] = CreateBrush(metrics.Critical),
-            ["CpuMetricSoftBrush"] = isDefault ? CreateBrush("#E3F0FD") : CreateSoftBrush(metrics.Cpu),
-            ["MemoryMetricSoftBrush"] = isDefault ? CreateBrush("#FFF0DC") : CreateSoftBrush(metrics.Memory),
-            ["GpuMetricSoftBrush"] = isDefault ? CreateBrush("#EFE8FA") : CreateSoftBrush(metrics.Gpu),
-            ["DetailPinBackgroundBrush"] = isDefault ? CreateBrush("#DCEBFF") : CreateSoftBrush(colors.Accent),
+            ["CpuMetricSoftBrush"] = isDefault ? CreateBrush("#E3F0FD") : (isMidnight ? CreateBrush("#1E2D3D") : CreateSoftBrush(metrics.Cpu)),
+            ["MemoryMetricSoftBrush"] = isDefault ? CreateBrush("#FFF0DC") : (isMidnight ? CreateBrush("#382E1E") : CreateSoftBrush(metrics.Memory)),
+            ["GpuMetricSoftBrush"] = isDefault ? CreateBrush("#EFE8FA") : (isMidnight ? CreateBrush("#30243C") : CreateSoftBrush(metrics.Gpu)),
+            ["DetailPinBackgroundBrush"] = isDefault ? CreateBrush("#DCEBFF") : (isMidnight ? CreateBrush("#253346") : CreateSoftBrush(colors.Accent)),
             ["DetailPinForegroundBrush"] = CreateBrush(colors.Accent),
             ["DetailUnpinnedForegroundBrush"] = CreateBrush(colors.Secondary),
-            ["MetricTrackBrush"] = isDefault ? CreateBrush("#F0F1F4") : CreateBrush(colors.Separator),
+            ["MetricTrackBrush"] = isDefault ? CreateBrush("#F0F1F4") : (isMidnight ? CreateBrush("#2E3038") : CreateBrush(colors.Separator)),
             ["AppGroupCornerRadius"] = new CornerRadius(definition.Shape.GroupCornerRadius),
             ["AppShadowOpacity"] = definition.Shape.ShadowOpacity,
             ["BandCornerRadius"] = new CornerRadius(definition.Band.CornerRadius),

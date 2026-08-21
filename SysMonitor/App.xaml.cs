@@ -17,6 +17,22 @@ public partial class App : System.Windows.Application
     private const string ShowPanelEventName = @"Local\SysMonitor.ShowPanel";
     private const string ExitForUpdateEventName = @"Local\SysMonitor.ExitForUpdate";
 
+    static App()
+    {
+        try
+        {
+            FrameworkElement.LanguageProperty.OverrideMetadata(
+                typeof(FrameworkElement),
+                new FrameworkPropertyMetadata(
+                    System.Windows.Markup.XmlLanguage.GetLanguage(
+                        System.Globalization.CultureInfo.CurrentUICulture.IetfLanguageTag)));
+        }
+        catch
+        {
+            // Ignore if metadata is already overridden in test runners
+        }
+    }
+
     private readonly SettingsService _settingsService = new();
     private readonly StartupService _startupService = new();
     private readonly LocalizationService _localizationService = LocalizationService.Current;
@@ -156,10 +172,16 @@ public partial class App : System.Windows.Application
             LogException("Theme catalog initialization failed; using built-in themes", exception);
         }
 
+        bool isSystemTheme = string.Equals(
+            _settings.ActiveThemeId,
+            ThemeCatalogService.SystemThemeId,
+            StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(_settings.ActiveThemeId, "auto", StringComparison.OrdinalIgnoreCase);
+
         bool activeThemeResolved = _themeCatalog.TryResolve(
             _settings.ActiveThemeId,
             out ResolvedTheme startupTheme);
-        if (!activeThemeResolved)
+        if (!activeThemeResolved && !isSystemTheme)
         {
             _settings.ActiveThemeId = startupTheme.Identity.Id;
             _ = TryPatchSettings(settings => settings.ActiveThemeId = startupTheme.Identity.Id);
@@ -167,7 +189,8 @@ public partial class App : System.Windows.Application
 
         if (!ApplyThemeRuntime(startupTheme))
         {
-            ResolvedTheme fallbackTheme = _themeCatalog.ResolveOrDefault(AppSettings.DefaultThemeId);
+            ResolvedTheme fallbackTheme = _themeCatalog.ResolveOrDefault(ThemeCatalogService.DefaultThemeId);
+
             _settings.ActiveThemeId = fallbackTheme.Identity.Id;
             _ = TryPatchSettings(settings => settings.ActiveThemeId = fallbackTheme.Identity.Id);
             if (!ApplyThemeRuntime(fallbackTheme))
@@ -639,7 +662,12 @@ public partial class App : System.Windows.Application
         _settings.BandMetricVisibility =
             BandMetricVisibilitySettings.FromEffective(appearance.EffectiveMetricVisibility);
 
-        _settings.ActiveThemeId = selectedTheme.Identity.Id;
+        string targetThemeId = string.Equals(e.ThemeId, ThemeCatalogService.SystemThemeId, StringComparison.OrdinalIgnoreCase) ||
+                               string.Equals(e.ThemeId, "auto", StringComparison.OrdinalIgnoreCase)
+            ? ThemeCatalogService.SystemThemeId
+            : selectedTheme.Identity.Id;
+
+        _settings.ActiveThemeId = targetThemeId;
         if (!TryPatchSettings(settings =>
             {
                 settings.BandFontFamily = appearance.FontFamily;
@@ -648,7 +676,7 @@ public partial class App : System.Windows.Application
                 settings.BandHorizontalPositionPercent = appearance.HorizontalPositionPercent;
                 settings.BandMetricVisibility = BandMetricVisibilitySettings.FromEffective(
                     appearance.EffectiveMetricVisibility);
-                settings.ActiveThemeId = selectedTheme.Identity.Id;
+                settings.ActiveThemeId = targetThemeId;
             }))
         {
             RestoreAppearanceSettings(previousAppearance);

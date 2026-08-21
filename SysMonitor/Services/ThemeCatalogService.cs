@@ -6,6 +6,7 @@ namespace SysMonitor.Services;
 
 public sealed class ThemeCatalogService
 {
+    public const string SystemThemeId = "system";
     public const string DefaultThemeId = "builtin.default";
     public const string MidnightThemeId = "builtin.midnight";
 
@@ -24,18 +25,32 @@ public sealed class ThemeCatalogService
             .ThenBy(theme => theme.Identity.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToImmutableArray();
 
-    public ThemeCatalogSnapshot Catalog =>
-        new(
-            Themes.Select(theme => new ThemeCatalogItem(
-                    theme.Identity.Id,
-                    theme.Identity.Name,
-                    theme.Identity.Author,
-                    theme.Identity.Version,
-                    theme.IdentityToken,
-                    theme.IsBuiltIn,
-                    theme.PreviewPath))
-                .ToImmutableArray(),
-            DefaultThemeId);
+    public ThemeCatalogSnapshot Catalog
+    {
+        get
+        {
+            var list = new List<ThemeCatalogItem>
+            {
+                new(
+                    SystemThemeId,
+                    "System",
+                    "SysMonitor",
+                    "1.0",
+                    "builtin-system-v1",
+                    true,
+                    null)
+            };
+            list.AddRange(Themes.Select(theme => new ThemeCatalogItem(
+                theme.Identity.Id,
+                theme.Identity.Name,
+                theme.Identity.Author,
+                theme.Identity.Version,
+                theme.IdentityToken,
+                theme.IsBuiltIn,
+                theme.PreviewPath)));
+            return new ThemeCatalogSnapshot(list.ToImmutableArray(), SystemThemeId);
+        }
+    }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -107,6 +122,17 @@ public sealed class ThemeCatalogService
 
     public bool TryResolve(string? id, out ResolvedTheme theme)
     {
+        if (string.Equals(id, SystemThemeId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(id, "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            string targetId = DetectSystemUsesDarkTheme() ? MidnightThemeId : DefaultThemeId;
+            if (_themes.TryGetValue(targetId, out ResolvedTheme? systemResolved))
+            {
+                theme = systemResolved;
+                return true;
+            }
+        }
+
         if (id is not null && _themes.TryGetValue(id, out ResolvedTheme? resolved))
         {
             theme = resolved;
@@ -115,6 +141,32 @@ public sealed class ThemeCatalogService
 
         theme = _themes[DefaultThemeId];
         return false;
+    }
+
+    public static bool DetectSystemUsesDarkTheme()
+    {
+        try
+        {
+            using Microsoft.Win32.RegistryKey? key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                writable: false);
+            if (key is not null)
+            {
+                if (key.GetValue("AppsUseLightTheme") is int appVal)
+                {
+                    return appVal == 0;
+                }
+                if (key.GetValue("SystemUsesLightTheme") is int sysVal)
+                {
+                    return sysVal == 0;
+                }
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public ResolvedTheme ResolveOrDefault(string? id) =>
@@ -163,6 +215,7 @@ public sealed class ThemeCatalogService
                 new ThemePalette(
                     "#F5F6F8", "#FFFFFFFF", "#1D1D1F", "#62666E",
                     "#858A93", "#D9DCE2", "#F0F1F4", "#0A66E8"),
+                new ThemeMetricPalette("#1976D2", "#D97706", "#7E57C2", "#D97706", "#C6262E"),
                 "#00000000",
                 null,
                 null,
@@ -174,6 +227,7 @@ public sealed class ThemeCatalogService
                 new ThemePalette(
                     "#17181B", "#202125", "#F5F5F7", "#B8BBC2",
                     "#8E939C", "#45474F", "#32343A", "#70B5FF"),
+                new ThemeMetricPalette("#38BDF8", "#FBBF24", "#C084FC", "#F59E0B", "#F87171"),
                 "#00000000",
                 null,
                 null,
@@ -185,6 +239,7 @@ public sealed class ThemeCatalogService
         string name,
         string token,
         ThemePalette colors,
+        ThemeMetricPalette metrics,
         string bandBackground,
         string? bandText,
         string? bandSeparator,
@@ -192,7 +247,7 @@ public sealed class ThemeCatalogService
     {
         var definition = new ThemeDefinition(
             colors,
-            new ThemeMetricPalette("#1976D2", "#D97706", "#7E57C2", "#D97706", "#C6262E"),
+            metrics,
             new ThemeShape(groupCornerRadius, 0),
             new ThemeBandStyle(bandBackground, 0, bandText, bandSeparator, null),
             null);

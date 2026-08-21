@@ -166,4 +166,35 @@ public sealed class ThemeCatalogTests
         Assert.False(result.Success);
         Assert.Equal(ThemeImportErrorCode.Cancelled, result.ErrorCode);
     }
+
+    [Theory]
+    [InlineData("system")]
+    [InlineData("SYSTEM")]
+    [InlineData("auto")]
+    [InlineData("AUTO")]
+    public async Task SystemThemeIdResolvesToValidBuiltInTheme(string systemId)
+    {
+        using var temp = new ThemeTestDirectory();
+        var catalog = new ThemeCatalogService(temp.Themes, new Version(1, 3, 0));
+        await catalog.InitializeAsync();
+
+        Assert.True(catalog.TryResolve(systemId, out ResolvedTheme resolved));
+        Assert.True(resolved.IsBuiltIn);
+        Assert.True(
+            resolved.Identity.Id == ThemeCatalogService.DefaultThemeId ||
+            resolved.Identity.Id == ThemeCatalogService.MidnightThemeId);
+    }
+
+    [Fact]
+    public async Task CatalogSnapshotIncludesSystemThemeAsFirstOption()
+    {
+        using var temp = new ThemeTestDirectory();
+        var catalog = new ThemeCatalogService(temp.Themes, new Version(1, 3, 0));
+        await catalog.InitializeAsync();
+
+        var items = catalog.Catalog.Items;
+        Assert.NotEmpty(items);
+        Assert.Equal(ThemeCatalogService.SystemThemeId, items[0].Id);
+        Assert.True(items[0].IsBuiltIn);
+    }
 }

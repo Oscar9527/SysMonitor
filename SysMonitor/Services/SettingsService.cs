@@ -545,7 +545,7 @@ public sealed class SettingsService
             ? Math.Clamp(Math.Round(height, MidpointRounding.AwayFromZero), 360, 2000)
             : null;
         settings.BandFontFamily = string.IsNullOrWhiteSpace(settings.BandFontFamily)
-            ? "Segoe UI Variable Text"
+            ? "Microsoft YaHei UI"
             : settings.BandFontFamily.Trim();
         settings.BandFontSize = double.IsFinite(settings.BandFontSize)
             ? Math.Clamp(Math.Round(settings.BandFontSize), 9, 20)

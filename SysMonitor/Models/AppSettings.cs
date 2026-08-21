@@ -2,7 +2,9 @@ namespace SysMonitor.Models;
 
 public sealed class AppSettings
 {
-    public const string DefaultThemeId = "builtin.default";
+    public const string SystemThemeId = "system";
+    public const string DefaultThemeId = SystemThemeId;
+    public const string BuiltInDefaultThemeId = "builtin.default";
 
     public string UiCulture { get; set; } = "system";
 
@@ -33,7 +35,7 @@ public sealed class AppSettings
     /// <summary>HUD sampling cadence: low, standard, or high.</summary>
     public string GameOverlaySampling { get; set; } = "standard";
 
-    public string BandFontFamily { get; set; } = "Segoe UI Variable Text";
+    public string BandFontFamily { get; set; } = "Microsoft YaHei UI";
 
     public double BandFontSize { get; set; } = 13d;
 
@@ -45,7 +47,7 @@ public sealed class AppSettings
 
     public BandMetricVisibilitySettings? BandMetricVisibility { get; set; } = new();
 
-    public string ActiveThemeId { get; set; } = DefaultThemeId;
+    public string ActiveThemeId { get; set; } = SystemThemeId;
 
     public bool PanelTopmost { get; set; }
 

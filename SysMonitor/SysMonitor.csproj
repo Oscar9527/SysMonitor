@@ -16,9 +16,9 @@
     <DebugType>embedded</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
-    <Version>1.0.2</Version>
-    <AssemblyVersion>1.0.2.0</AssemblyVersion>
-    <FileVersion>1.0.2.0</FileVersion>
+    <Version>1.0.3</Version>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
+    <FileVersion>1.0.3.0</FileVersion>
 
     <!-- Ultra-low RAM optimization (< 50MB runtime working set) -->
     <ServerGarbageCollection>false</ServerGarbageCollection>

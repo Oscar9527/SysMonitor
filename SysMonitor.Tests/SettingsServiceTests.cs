@@ -200,7 +200,7 @@ public sealed class SettingsServiceTests
 
         Assert.Equal("system", loaded.UiCulture);
         Assert.True(loaded.BandVisible);
-        Assert.Equal("Segoe UI Variable Text", loaded.BandFontFamily);
+        Assert.Equal("Microsoft YaHei UI", loaded.BandFontFamily);
         Assert.Equal(13, loaded.BandFontSize);
     }
 

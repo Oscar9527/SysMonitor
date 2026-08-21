@@ -20,8 +20,8 @@ namespace SysMonitor.UI;
 
 public partial class AppearanceSettingsWindow : Window
 {
-    private const string DefaultFontFamily = "Segoe UI Variable Text";
-    private const string BlankFontFallback = "Segoe UI";
+    private const string DefaultFontFamily = "Microsoft YaHei UI";
+    private const string BlankFontFallback = "Microsoft YaHei UI";
     private const double DefaultFontSize = 13d;
     private const double DefaultItemSpacingDip = 10d;
     private const double DefaultPositionPercent = 100d;
@@ -129,14 +129,32 @@ public partial class AppearanceSettingsWindow : Window
             return;
         }
 
-        _themeItems = themes.ToArray();
+        _themeItems = themes.Select(item =>
+        {
+            if (string.Equals(item.Id, ThemeCatalogService.SystemThemeId, StringComparison.OrdinalIgnoreCase))
+            {
+                return item with { Name = LocalizationService.Current.GetString("ThemeSystem") };
+            }
+            if (string.Equals(item.Id, ThemeCatalogService.DefaultThemeId, StringComparison.OrdinalIgnoreCase))
+            {
+                return item with { Name = LocalizationService.Current.GetString("ThemeDefault") };
+            }
+            if (string.Equals(item.Id, ThemeCatalogService.MidnightThemeId, StringComparison.OrdinalIgnoreCase))
+            {
+                return item with { Name = LocalizationService.Current.GetString("ThemeMidnight") };
+            }
+            return item;
+        }).ToArray();
+
         string requested = string.IsNullOrWhiteSpace(selectedThemeId)
-            ? AppSettings.DefaultThemeId
+            ? ThemeCatalogService.SystemThemeId
             : selectedThemeId;
         ThemeCatalogItem? selection = _themeItems.FirstOrDefault(item =>
                 string.Equals(item.Id, requested, StringComparison.OrdinalIgnoreCase)) ??
             _themeItems.FirstOrDefault(item =>
-                string.Equals(item.Id, AppSettings.DefaultThemeId, StringComparison.OrdinalIgnoreCase)) ??
+                string.Equals(item.Id, ThemeCatalogService.SystemThemeId, StringComparison.OrdinalIgnoreCase)) ??
+            _themeItems.FirstOrDefault(item =>
+                string.Equals(item.Id, ThemeCatalogService.DefaultThemeId, StringComparison.OrdinalIgnoreCase)) ??
             _themeItems.FirstOrDefault();
         _loadingTheme = true;
         try
@@ -224,6 +242,12 @@ public partial class AppearanceSettingsWindow : Window
         if (_showingAppliedStatus)
         {
             StatusText.Text = localization.GetString("AppearanceApplied");
+        }
+
+        if (_themeItems.Count > 0)
+        {
+            string? currentSelectedId = SelectedThemeId;
+            LoadThemes(_themeItems, currentSelectedId, markApplied: false);
         }
 
         if (_controlsReady)
@@ -496,7 +520,7 @@ public partial class AppearanceSettingsWindow : Window
     }
 
     private void DefaultThemeButton_Click(object sender, RoutedEventArgs e) =>
-        SelectTheme(AppSettings.DefaultThemeId, requestPreview: true);
+        SelectTheme(ThemeCatalogService.SystemThemeId, requestPreview: true);
 
     private static string GetThemeImportErrorText(ThemeImportErrorCode errorCode)
     {
@@ -545,14 +569,50 @@ public partial class AppearanceSettingsWindow : Window
 
     private void UpdateThemeDetails(ThemeCatalogItem? item)
     {
-        ThemeNameText.Text = item?.Name ?? string.Empty;
-        ThemeMetadataText.Text = item is null
-            ? string.Empty
-            : LocalizationService.Current.Format(
+        if (item is null)
+        {
+            ThemeNameText.Text = string.Empty;
+            ThemeMetadataText.Text = string.Empty;
+            ThemePreviewImage.Source = null;
+            return;
+        }
+
+        if (string.Equals(item.Id, ThemeCatalogService.SystemThemeId, StringComparison.OrdinalIgnoreCase))
+        {
+            ThemeNameText.Text = LocalizationService.Current.GetString("ThemeSystem");
+            ThemeMetadataText.Text = LocalizationService.Current.GetString("ThemeSystemDescription");
+            ThemePreviewImage.Source = null;
+            return;
+        }
+
+        if (string.Equals(item.Id, ThemeCatalogService.DefaultThemeId, StringComparison.OrdinalIgnoreCase))
+        {
+            ThemeNameText.Text = LocalizationService.Current.GetString("ThemeDefault");
+            ThemeMetadataText.Text = LocalizationService.Current.Format(
                 "ThemeMetadata",
                 item.Author,
                 item.Version);
-        ThemePreviewImage.Source = LoadPreview(item?.PreviewPath);
+            ThemePreviewImage.Source = LoadPreview(item.PreviewPath);
+            return;
+        }
+
+        if (string.Equals(item.Id, ThemeCatalogService.MidnightThemeId, StringComparison.OrdinalIgnoreCase))
+        {
+            ThemeNameText.Text = LocalizationService.Current.GetString("ThemeMidnight");
+            ThemeMetadataText.Text = LocalizationService.Current.Format(
+                "ThemeMetadata",
+                item.Author,
+                item.Version);
+            ThemePreviewImage.Source = LoadPreview(item.PreviewPath);
+            return;
+        }
+
+        ThemeNameText.Text = item.Name;
+        ThemeMetadataText.Text = LocalizationService.Current.Format(
+            "ThemeMetadata",
+            item.Author,
+            item.Version);
+        ThemePreviewImage.Source = LoadPreview(item.PreviewPath);
     }
 
     private static BitmapSource? LoadPreview(string? path)
