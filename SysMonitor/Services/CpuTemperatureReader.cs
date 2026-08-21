@@ -16,7 +16,7 @@ internal sealed class CpuTemperatureReader : IDisposable
 {
     private static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan HelperValueMaxAge = TimeSpan.FromSeconds(5);
-    private const int NoSensorRetryThreshold = 5;
+    private const int NoSensorRetryThreshold = 1;
     private const string HelperArgument = "--cpu-temperature-helper";
     private const string HelperPipePrefix = "SysMonitor.CpuTemperature.";
     private readonly object _gate = new();
@@ -563,6 +563,7 @@ internal sealed class CpuTemperatureReader : IDisposable
                 {
                     Volatile.Write(ref _helperTemperature, value);
                     Volatile.Write(ref _helperTemperatureTimestamp, Stopwatch.GetTimestamp());
+                    ReaderReady?.Invoke(this, EventArgs.Empty);
                     BandDiagnostics.LogRateLimited(
                         "cpu-temperature-helper-value",
                         $"CPU temperature source=ElevatedHelper value={value:0.0}C",
