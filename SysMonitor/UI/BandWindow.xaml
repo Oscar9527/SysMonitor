@@ -91,7 +91,14 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Style="{StaticResource MetricLabel}" Text="MEM" />
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock Style="{StaticResource MetricLabel}" Text="MEM" />
+                    <TextBlock x:Name="MemoryCapacityText"
+                               Margin="3,0,0,0"
+                               Style="{StaticResource MetricLabel}"
+                               Opacity="0.75"
+                               Text="" />
+                </StackPanel>
                 <TextBlock x:Name="MemoryValueText"
                            Grid.Row="1"
                            Style="{StaticResource MetricValue}"

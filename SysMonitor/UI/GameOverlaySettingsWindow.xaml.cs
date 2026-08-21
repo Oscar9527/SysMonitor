@@ -70,7 +70,11 @@ public sealed record GameOverlayConfigurationRequest(
 
 public partial class GameOverlaySettingsWindow : Window
 {
-    private readonly ObservableCollection<MetricItem> _items = [];
+    private readonly ObservableCollection<MetricItem> _rowItems = [];
+    private readonly ObservableCollection<MetricItem> _cpuItems = [];
+    private readonly ObservableCollection<MetricItem> _gpuItems = [];
+    private readonly ObservableCollection<MetricItem> _memItems = [];
+    private readonly ObservableCollection<MetricItem> _netItems = [];
     private readonly ObservableCollection<LegacyFpsTargetView> _legacyTargets = [];
     private readonly HudPreviewScheduler _previewScheduler;
     private bool _allowClose;
@@ -88,7 +92,7 @@ public partial class GameOverlaySettingsWindow : Window
     public GameOverlaySettingsWindow()
     {
         InitializeComponent();
-        MetricList.ItemsSource = _items;
+        MetricList.ItemsSource = _rowItems;
         LegacyTargetBox.ItemsSource = _legacyTargets;
         _previewScheduler = new HudPreviewScheduler(
             Dispatcher,
@@ -191,21 +195,59 @@ public partial class GameOverlaySettingsWindow : Window
         _suppressPreview = true;
         try
         {
-            var enabled = new Dictionary<string, bool>(StringComparer.Ordinal)
-            {
-                ["fps"] = visibility.FrameRate, ["cpu"] = visibility.Cpu, ["gpu"] = visibility.Gpu,
-                ["memory"] = visibility.Memory, ["network"] = visibility.Network
-            };
-            _items.Clear();
+            FpsCheckBox.IsChecked = visibility.FrameRate;
+            CpuCheckBox.IsChecked = visibility.Cpu;
+            CpuTempCheckBox.IsChecked = visibility.CpuTemperature;
+            CpuPowerCheckBox.IsChecked = visibility.CpuPower;
+            CpuFreqCheckBox.IsChecked = visibility.CpuFrequency;
+
+            GpuCheckBox.IsChecked = visibility.Gpu;
+            GpuTempCheckBox.IsChecked = visibility.GpuTemperature;
+            GpuPowerCheckBox.IsChecked = visibility.GpuPower;
+            GpuClockCheckBox.IsChecked = visibility.GpuClock;
+            GpuMemoryClockCheckBox.IsChecked = visibility.GpuMemoryClock;
+            GpuMemoryCheckBox.IsChecked = visibility.GpuMemory;
+
+            MemoryCheckBox.IsChecked = visibility.Memory;
+            MemoryFreqCheckBox.IsChecked = visibility.MemoryFrequency;
+
+            NetworkCheckBox.IsChecked = visibility.Network;
+
+            _rowItems.Clear();
             foreach (string id in GameOverlayMetricOrder.Normalize(visibility.Order))
             {
-                _items.Add(new MetricItem(id, NameFor(id), enabled[id]));
+                _rowItems.Add(new MetricItem(id, NameFor(id), true));
             }
+
+            _cpuItems.Clear();
+            foreach (string id in SubItemOrderHelper.Normalize(visibility.CpuItemOrder, SubItemDefaults.Cpu))
+            {
+                _cpuItems.Add(new MetricItem(id, SubItemNameFor("cpu", id), true));
+            }
+
+            _gpuItems.Clear();
+            foreach (string id in SubItemOrderHelper.Normalize(visibility.GpuItemOrder, SubItemDefaults.Gpu))
+            {
+                _gpuItems.Add(new MetricItem(id, SubItemNameFor("gpu", id), true));
+            }
+
+            _memItems.Clear();
+            foreach (string id in SubItemOrderHelper.Normalize(visibility.MemoryItemOrder, SubItemDefaults.Memory))
+            {
+                _memItems.Add(new MetricItem(id, SubItemNameFor("memory", id), true));
+            }
+
+            _netItems.Clear();
+            foreach (string id in SubItemOrderHelper.Normalize(visibility.NetworkItemOrder, SubItemDefaults.Network))
+            {
+                _netItems.Add(new MetricItem(id, SubItemNameFor("network", id), true));
+            }
+
+            RefreshCurrentOrderList();
 
             LoadSamplingItems(sampling);
             LoadLayoutItems(layoutMode);
             LoadPositionPresetItems(horizontalPositionPercent);
-            MetricList.SelectedIndex = _items.Count == 0 ? -1 : 0;
 
             LoadCoordinateContext(coordinateContext);
 
@@ -233,6 +275,35 @@ public partial class GameOverlaySettingsWindow : Window
         finally
         {
             _suppressPreview = false;
+        }
+    }
+
+    private void OrderTargetBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        RefreshCurrentOrderList();
+    }
+
+    private ObservableCollection<MetricItem> GetCurrentCollection()
+    {
+        string tag = (OrderTargetBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "row";
+        return tag switch
+        {
+            "cpu" => _cpuItems,
+            "gpu" => _gpuItems,
+            "memory" => _memItems,
+            "network" => _netItems,
+            _ => _rowItems
+        };
+    }
+
+    private void RefreshCurrentOrderList()
+    {
+        if (MetricList is null) return;
+        var col = GetCurrentCollection();
+        MetricList.ItemsSource = col;
+        if (col.Count > 0)
+        {
+            MetricList.SelectedIndex = 0;
         }
     }
 
@@ -277,11 +348,13 @@ public partial class GameOverlaySettingsWindow : Window
 
     private void Move(int delta)
     {
+        var collection = GetCurrentCollection();
         int current = MetricList.SelectedIndex;
         int target = current + delta;
-        if (current < 0 || target < 0 || target >= _items.Count) return;
-        _items.Move(current, target);
+        if (current < 0 || target < 0 || target >= collection.Count) return;
+        collection.Move(current, target);
         MetricList.SelectedIndex = target;
+        RequestPreviewNow();
     }
 
     private void LayoutMode_Checked(object sender, RoutedEventArgs e)
@@ -331,13 +404,35 @@ public partial class GameOverlaySettingsWindow : Window
             };
     }
 
+    private void MetricCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        if (_suppressPreview) return;
+        RequestPreviewNow();
+    }
+
     private void Apply_Click(object sender, RoutedEventArgs e)
     {
-        bool Enabled(string id) => _items.First(item => item.Id == id).Enabled;
         var metrics = new GameOverlayMetricVisibility(
-            Enabled("fps"), Enabled("cpu"), Enabled("gpu"), Enabled("memory"), Enabled("network"))
+            FpsCheckBox.IsChecked == true,
+            CpuCheckBox.IsChecked == true,
+            GpuCheckBox.IsChecked == true,
+            MemoryCheckBox.IsChecked == true,
+            NetworkCheckBox.IsChecked == true,
+            CpuPowerCheckBox.IsChecked == true,
+            GpuPowerCheckBox.IsChecked == true,
+            CpuFreqCheckBox.IsChecked == true,
+            GpuClockCheckBox.IsChecked == true,
+            GpuMemoryCheckBox.IsChecked == true,
+            MemoryFreqCheckBox.IsChecked == true,
+            CpuTempCheckBox.IsChecked == true,
+            GpuTempCheckBox.IsChecked == true,
+            GpuMemoryClockCheckBox.IsChecked == true)
         {
-            Order = _items.Select(item => item.Id).ToArray()
+            Order = _rowItems.Select(item => item.Id).ToArray(),
+            CpuItemOrder = _cpuItems.Select(item => item.Id).ToArray(),
+            GpuItemOrder = _gpuItems.Select(item => item.Id).ToArray(),
+            MemoryItemOrder = _memItems.Select(item => item.Id).ToArray(),
+            NetworkItemOrder = _netItems.Select(item => item.Id).ToArray()
         };
         LegacyFpsTargetView? target = LegacyTargetBox.SelectedItem as LegacyFpsTargetView;
         bool legacyEnabled = LegacyCompatibilityBox.IsChecked == true;
@@ -477,9 +572,25 @@ public partial class GameOverlaySettingsWindow : Window
         _suppressPreview = true;
         try
         {
-            foreach (MetricItem item in _items)
+            foreach (MetricItem item in _rowItems)
             {
                 item.Name = NameFor(item.Id);
+            }
+            foreach (MetricItem item in _cpuItems)
+            {
+                item.Name = SubItemNameFor("cpu", item.Id);
+            }
+            foreach (MetricItem item in _gpuItems)
+            {
+                item.Name = SubItemNameFor("gpu", item.Id);
+            }
+            foreach (MetricItem item in _memItems)
+            {
+                item.Name = SubItemNameFor("memory", item.Id);
+            }
+            foreach (MetricItem item in _netItems)
+            {
+                item.Name = SubItemNameFor("network", item.Id);
             }
 
             string sampling = SamplingBox.SelectedValue as string ?? "standard";
@@ -794,7 +905,6 @@ public partial class GameOverlaySettingsWindow : Window
         HorizontalLayoutTitleText.Text = L("HudLayoutHorizontal");
         HorizontalLayoutDescriptionText.Text = L("HudLayoutHorizontalDescription");
         AdvancedTitleText.Text = L("HudAdvancedTitle");
-        AdvancedMetricsTitleText.Text = L("HudMetricsTitle");
         PositionTitleText.Text = L("HudPositionTitle");
         PositionHelpText.Text = L("HudPositionHelp");
         PositionMonitorLabelText.Text = L("HudPositionCurrentMonitor");
@@ -806,7 +916,6 @@ public partial class GameOverlaySettingsWindow : Window
         ResetPositionButton.Content = L("HudPositionReset");
         MoveUpButton.Content = L("HudMoveUp");
         MoveDownButton.Content = L("HudMoveDown");
-        OrderHelpText.Text = L("HudOrderHelp");
         SamplingLabelText.Text = L("HudSamplingLabel");
         LegacyTitleText.Text = L("HudLegacyTitle");
         LegacyTargetLabelText.Text = L("HudLegacyTargetLabel");
@@ -819,12 +928,36 @@ public partial class GameOverlaySettingsWindow : Window
 
     private static string NameFor(string id) => id switch
     {
-        "gpu" => L("HudMetricGpu"),
-        "cpu" => L("HudMetricCpu"),
-        "fps" => L("HudMetricFps"),
-        "memory" => L("HudMetricMemory"),
-        "network" => L("HudMetricNetwork"),
+        "fps" => "🎮 游戏帧率 (FPS 行)",
+        "cpu" => "💻 处理器 (CPU 行)",
+        "gpu" => "🎨 显卡 (GPU 行)",
+        "memory" => "⚡ 运行内存 (RAM 行)",
+        "network" => "🌐 网络传输 (NET 行)",
         _ => id
+    };
+
+    private static string SubItemNameFor(string target, string id) => (target, id) switch
+    {
+        ("cpu", "usage") => "CPU 使用率 (%)",
+        ("cpu", "temp") => "CPU 温度 (°C)",
+        ("cpu", "power") => "CPU 功耗 (W)",
+        ("cpu", "freq") => "CPU 主频 (MHz)",
+
+        ("gpu", "usage") => "GPU 使用率 (%)",
+        ("gpu", "temp") => "GPU 温度 (°C)",
+        ("gpu", "power") => "GPU 功耗 (W)",
+        ("gpu", "clock") => "GPU 核心频率 (MHz)",
+        ("gpu", "memClock") => "GPU 显存频率 (MHz)",
+        ("gpu", "memUsed") => "GPU 显存占用 (MB)",
+
+        ("memory", "usage") => "内存使用率 (%)",
+        ("memory", "capacity") => "已用容量 (MB)",
+        ("memory", "freq") => "内存频率 (MHz)",
+
+        ("network", "download") => "下载速度 (↓)",
+        ("network", "upload") => "上传速度 (↑)",
+
+        _ => NameFor(id)
     };
 
     private static string L(string key) => LocalizationService.Current.GetString(key);

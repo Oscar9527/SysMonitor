@@ -182,6 +182,14 @@
   <data name="HudPreviewNoMonitor" xml:space="preserve"><value>Preview unavailable until a monitor is selected.</value></data>
   <data name="HudPreviewInvalid" xml:space="preserve"><value>Enter valid coordinates to preview this position.</value></data>
   <data name="HudPreviewActive" xml:space="preserve"><value>Live preview active. Select Save to keep these changes.</value></data>
-  <data name="HudSettingsSaveFailedTitle" xml:space="preserve"><value>Settings were not saved</value></data>
-  <data name="HudSettingsSaveFailedMessage" xml:space="preserve"><value>SysMonitor could not write the settings file. Your previous HUD layout and position were restored. Check folder permissions or available disk space, then try again.</value></data>
+  <data name="MetricCpuUsage" xml:space="preserve"><value>Usage %</value></data>
+  <data name="MetricCpuTemperature" xml:space="preserve"><value>Temperature °C</value></data>
+  <data name="MetricCpuPower" xml:space="preserve"><value>Power (W)</value></data>
+  <data name="MetricGpuUsage" xml:space="preserve"><value>Usage %</value></data>
+  <data name="MetricGpuTemperature" xml:space="preserve"><value>Temperature °C</value></data>
+  <data name="MetricGpuPower" xml:space="preserve"><value>Power (W)</value></data>
+  <data name="MetricMemoryUsage" xml:space="preserve"><value>Usage %</value></data>
+  <data name="MetricMemoryCapacity" xml:space="preserve"><value>Used Capacity (GB)</value></data>
+  <data name="TrayGameOverlayMetricCpuPower" xml:space="preserve"><value>CPU Power</value></data>
+  <data name="TrayGameOverlayMetricGpuPower" xml:space="preserve"><value>GPU Power</value></data>
 </root>

@@ -76,20 +76,24 @@ internal static class CpuTemperatureHelperHost
                 string payload;
                 try
                 {
-                    double? temperature = CpuTemperatureReader.ReadTemperature(computer);
-                    payload = temperature is double value
-                        ? value.ToString("R", CultureInfo.InvariantCulture)
+                    (double? temperature, double? power) = CpuTemperatureReader.ReadCpuTelemetry(computer);
+                    string tempPart = temperature is double tVal
+                        ? tVal.ToString("R", CultureInfo.InvariantCulture)
                         : "NA";
+                    string powerPart = power is double pVal
+                        ? pVal.ToString("R", CultureInfo.InvariantCulture)
+                        : "NA";
+                    payload = $"{tempPart},{powerPart}";
                     if (!loggedValue && temperature is double loggedTemperature)
                     {
                         loggedValue = true;
                         BandDiagnostics.Log(
-                            $"CPU temperature helper produced value={loggedTemperature:0.0}C");
+                            $"CPU temperature helper produced value={loggedTemperature:0.0}C power={powerPart}W");
                     }
                 }
                 catch
                 {
-                    payload = "NA";
+                    payload = "NA,NA";
                 }
 
                 await writer.WriteLineAsync(payload).ConfigureAwait(false);

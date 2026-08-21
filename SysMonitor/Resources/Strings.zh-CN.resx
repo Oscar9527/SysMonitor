@@ -51,12 +51,12 @@
   <data name="PositionRight" xml:space="preserve"><value>右侧 {0:0}%</value></data>
   <data name="SystemDisk" xml:space="preserve"><value>系统磁盘</value></data>
   <data name="SystemDiskNamed" xml:space="preserve"><value>{0} · 系统磁盘</value></data>
-  <data name="TrayAppearance" xml:space="preserve"><value>任务栏外观…</value></data>
-  <data name="TrayExit" xml:space="preserve"><value>退出</value></data>
-  <data name="TrayHidePanel" xml:space="preserve"><value>隐藏面板</value></data>
-  <data name="TrayPin" xml:space="preserve"><value>面板置顶</value></data>
-  <data name="TrayShowPanel" xml:space="preserve"><value>显示面板</value></data>
-  <data name="TrayStartup" xml:space="preserve"><value>开机自启</value></data>
+  <data name="TrayAppearance" xml:space="preserve"><value>任务栏外观与监控项…</value></data>
+  <data name="TrayExit" xml:space="preserve"><value>退出程序</value></data>
+  <data name="TrayHidePanel" xml:space="preserve"><value>隐藏监控面板</value></data>
+  <data name="TrayPin" xml:space="preserve"><value>监控面板窗口置顶</value></data>
+  <data name="TrayShowPanel" xml:space="preserve"><value>显示监控面板</value></data>
+  <data name="TrayStartup" xml:space="preserve"><value>开机自动启动</value></data>
   <data name="AppearanceTheme" xml:space="preserve"><value>主题</value></data>
   <data name="ThemeSystem" xml:space="preserve"><value>跟随系统（自动）</value></data>
   <data name="ThemeDefault" xml:space="preserve"><value>浅色模式 (Default)</value></data>
@@ -108,14 +108,14 @@
   <data name="TrayGameOverlayMetricMemory" xml:space="preserve"><value>内存</value></data>
   <data name="TrayGameOverlayMetricNetwork" xml:space="preserve"><value>网络</value></data>
   <data name="TrayGameOverlayQuickSettings" xml:space="preserve"><value>游戏浮层设置与布局…</value></data>
-  <data name="TrayGameOverlayAdvanced" xml:space="preserve"><value>HUD 高级选项</value></data>
+  <data name="TrayGameOverlayAdvanced" xml:space="preserve"><value>游戏浮层 HUD 高级设置</value></data>
   <data name="TrayGameOverlayAppearance" xml:space="preserve"><value>HUD 外观与配色…</value></data>
   <data name="TrayGameOverlayTarget" xml:space="preserve"><value>选择监控程序…</value></data>
   <data name="TrayGameOverlayPositionLeft" xml:space="preserve"><value>顶部左侧</value></data>
   <data name="TrayGameOverlayPositionCenter" xml:space="preserve"><value>顶部居中</value></data>
   <data name="TrayGameOverlayPositionRight" xml:space="preserve"><value>顶部右侧</value></data>
-  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏叠加层暂不可用</value></data>
-  <data name="TrayGameSafeMode" xml:space="preserve"><value>安全保护（推荐）</value></data>
+  <data name="TrayGameOverlayUnavailableCompatibility" xml:space="preserve"><value>游戏浮层暂不可用</value></data>
+  <data name="TrayGameSafeMode" xml:space="preserve"><value>安全保护模式（推荐开启）</value></data>
   <data name="TrayGameSafeModeHelp" xml:space="preserve"><value>默认使用非注入监控，并继续使用 CPU 专用温度读取器。</value></data>
   <data name="TrayGameSafeModeDisableTitle" xml:space="preserve"><value>关闭安全保护？</value></data>
   <data name="TrayGameSafeModeDisableMessage" xml:space="preserve"><value>关闭后，RTSS 兼容模式可使用 hook。某些游戏或反作弊系统可能将其视为不兼容。SysMonitor 不保证任何游戏或 ACE 的认证、兼容性或安全性。</value></data>
@@ -179,9 +179,17 @@
   <data name="HudPositionInvalidMessage" xml:space="preserve"><value>请输入 -1,000,000 到 1,000,000 之间的整数 X/Y 坐标，不接受小数或空值。</value></data>
   <data name="HudPositionStaleTitle" xml:space="preserve"><value>显示器已更改</value></data>
   <data name="HudPositionStaleMessage" xml:space="preserve"><value>应用位置前，所选显示器或其边界已发生变化。请检查当前显示器坐标后重试。</value></data>
+  <data name="HudPreviewActive" xml:space="preserve"><value>正在实时预览，点击“保存”即可保留更改。</value></data>
   <data name="HudPreviewNoMonitor" xml:space="preserve"><value>选择显示器后才能预览。</value></data>
   <data name="HudPreviewInvalid" xml:space="preserve"><value>请输入有效坐标后才能预览此位置。</value></data>
-  <data name="HudPreviewActive" xml:space="preserve"><value>正在实时预览，点击“保存”即可保留更改。</value></data>
-  <data name="HudSettingsSaveFailedTitle" xml:space="preserve"><value>设置保存失败</value></data>
-  <data name="HudSettingsSaveFailedMessage" xml:space="preserve"><value>SysMonitor 无法写入设置文件，已经恢复原来的 HUD 排版和位置。请检查文件夹权限或磁盘空间后重试。</value></data>
+  <data name="MetricCpuUsage" xml:space="preserve"><value>使用率</value></data>
+  <data name="MetricCpuTemperature" xml:space="preserve"><value>温度</value></data>
+  <data name="MetricCpuPower" xml:space="preserve"><value>功耗</value></data>
+  <data name="MetricGpuUsage" xml:space="preserve"><value>使用率</value></data>
+  <data name="MetricGpuTemperature" xml:space="preserve"><value>温度</value></data>
+  <data name="MetricGpuPower" xml:space="preserve"><value>功耗</value></data>
+  <data name="MetricMemoryUsage" xml:space="preserve"><value>使用率</value></data>
+  <data name="MetricMemoryCapacity" xml:space="preserve"><value>已用容量</value></data>
+  <data name="TrayGameOverlayMetricCpuPower" xml:space="preserve"><value>CPU 功耗</value></data>
+  <data name="TrayGameOverlayMetricGpuPower" xml:space="preserve"><value>GPU 功耗</value></data>
 </root>

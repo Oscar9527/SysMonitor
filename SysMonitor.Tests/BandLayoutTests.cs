@@ -78,4 +78,19 @@ public sealed class BandLayoutTests
 
         Assert.Equal(first, second);
     }
+
+    [Fact]
+    public void PowerMetricsIncreaseAllocatedWidth()
+    {
+        var standard = new BandMetricVisibility(true, false, true, false, false, false);
+        var withCpuPower = standard with { CpuPower = true };
+        var withBothPower = standard with { CpuPower = true, GpuPower = true };
+
+        EffectiveBandLayout layoutStd = EffectiveBandLayout.Create(standard, false, false, true, 4);
+        EffectiveBandLayout layoutCpuPwr = EffectiveBandLayout.Create(withCpuPower, false, false, true, 4);
+        EffectiveBandLayout layoutBothPwr = EffectiveBandLayout.Create(withBothPower, false, false, true, 4);
+
+        Assert.True(layoutCpuPwr.TargetWidthDip > layoutStd.TargetWidthDip);
+        Assert.True(layoutBothPwr.TargetWidthDip > layoutCpuPwr.TargetWidthDip);
+    }
 }

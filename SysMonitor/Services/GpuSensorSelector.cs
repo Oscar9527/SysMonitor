@@ -6,6 +6,7 @@ internal enum GpuSensorKind
     Temperature,
     SmallData,
     Clock,
+    Power,
 }
 
 internal readonly record struct GpuSensorReading(
@@ -21,6 +22,7 @@ internal readonly record struct GpuSensorSelection(
 {
     internal double? CoreClockMhz { get; init; }
     internal double? MemoryClockMhz { get; init; }
+    internal double? PowerWatts { get; init; }
 }
 
 internal static class GpuSensorSelector
@@ -39,6 +41,7 @@ internal static class GpuSensorSelector
         double? d3dDedicatedUsedMiB = null;
         double? coreClockMhz = null;
         double? memoryClockMhz = null;
+        double? powerWatts = null;
 
         foreach (GpuSensorReading reading in readings)
         {
@@ -69,9 +72,24 @@ internal static class GpuSensorSelector
                     break;
 
                 case GpuSensorKind.Temperature:
-                    if ((name == "GPU CORE" || name == "GPU CORE TEMPERATURE") && value is >= 1d and <= 150d)
+                    if ((name == "GPU CORE" || name == "GPU CORE TEMPERATURE" || name.Contains("TEMPERATURE")) && value is >= 1d and <= 150d)
                     {
                         temperature = value;
+                    }
+
+                    break;
+
+                case GpuSensorKind.Power:
+                    if (value is >= 0d and <= 2000d)
+                    {
+                        if (name.Contains("PACKAGE") || name.Contains("BOARD") || name.Contains("TOTAL") || name == "GPU POWER" || name == "POWER")
+                        {
+                            powerWatts = value;
+                        }
+                        else
+                        {
+                            powerWatts ??= value;
+                        }
                     }
 
                     break;
@@ -140,6 +158,7 @@ internal static class GpuSensorSelector
         {
             CoreClockMhz = coreClockMhz,
             MemoryClockMhz = memoryClockMhz,
+            PowerWatts = powerWatts,
         };
     }
 

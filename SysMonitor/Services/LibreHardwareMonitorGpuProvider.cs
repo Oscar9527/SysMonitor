@@ -231,6 +231,7 @@ internal sealed class LibreHardwareMonitorGpuProvider : IGpuTelemetryProvider
                     SensorType.Temperature => GpuSensorKind.Temperature,
                     SensorType.SmallData => GpuSensorKind.SmallData,
                     SensorType.Clock => GpuSensorKind.Clock,
+                    SensorType.Power => GpuSensorKind.Power,
                     _ => null,
                 };
                 if (kind is not null)
@@ -270,6 +271,7 @@ internal sealed class LibreHardwareMonitorGpuProvider : IGpuTelemetryProvider
         {
             CoreClockMhz = selected.CoreClockMhz,
             MemoryClockMhz = selected.MemoryClockMhz,
+            PowerWatts = selected.PowerWatts,
         };
     }
 

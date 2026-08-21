@@ -1,60 +1,49 @@
-# SysMonitor 1.5.0
+# SysMonitor v1.0.5
 
-## 游戏监控悬浮窗
+SysMonitor 是一款 Windows 系统硬件与状态监视工具。支持在任务栏和游戏内悬浮窗（HUD）中实时查看 CPU、GPU、内存、网速和磁盘状态。
 
-- `Ctrl+Shift+F10` 显示/隐藏，不抢占游戏焦点，鼠标输入穿透悬浮窗。
-- `Present FPS` 默认优先来自已运行 RTSS 的只读共享内存；缺失或过期约 1 秒后回退到随包 PresentMon 2.5.1 的 Windows ETW Present 事件。它不是游戏引擎内部 FPS，也不是 Displayed FPS。SysMonitor 自身不注入或 Hook，也不读取游戏进程内存；RTSS 可能使用自己的图形 API Hook。没有可信样本时 FPS 行会完全隐藏。旧版 DirectDraw 游戏可由用户在设置中按单个游戏明确启用 RTSS 兼容配置。
-- HUD 设置以两个明显选项即时预览垂直/横向显示。横向模式固定为 CPU 占用/温度、GPU 占用/温度和有效 FPS；X/Y 滑块拖动时实时移动 HUD，数字框用于精确微调，取消会恢复打开设置前的状态。不常用选项集中在默认收起的“高级设置”中。
-- CPU、内存和 GPU 百分比均标注为系统总体；温度和当前频率只在数据源真实提供时显示。
-- 默认游戏安全模式不构造 GPU 兼容传感器；CPU 温度始终由 SysMonitor 自带的 CPU 专用读取器独立采集，必要时按需启动独立管理员助手，不依赖 MSI Afterburner。完整兼容传感器仍是需要重启的可选模式，但游戏悬浮窗和快捷键始终可用，不受传感器模式影响。
-- 本功能不注入 DLL、不 Hook DirectX/Vulkan/OpenGL、不读写游戏进程内存，也不尝试绕过反作弊。ETW 能否被具体游戏或反作弊策略接受，以其实际规则为准。
+## 主要功能
 
-SysMonitor 是一款轻量 Windows 系统监控工具。它把 CPU、内存、NVIDIA/AMD/Intel GPU 使用率与可用温度、实时网速和系统盘占用直接显示在主任务栏内；点击监控条或托盘图标可打开现代浅色详情面板，并查看最近 60 秒的 CPU 与 GPU 使用率折线图。GPU 数据缺失时会以断线表示，不会误报为 0%。
+### 1. 任务栏监控条
+- 嵌入在任务栏空白区域，随任务栏自动隐藏和移动。
+- 支持深色/浅色任务栏文字对比度自适应。
+- 支持自定义各项指标子项：
+  - **CPU**：可分别开启或关闭【使用率 %】、【温度 °C】、【功耗 W】
+  - **GPU**：可分别开启或关闭【使用率 %】、【温度 °C】、【功耗 W】
+  - **内存**：可分别开启或关闭【使用率 %】、【已用容量 GB】
+  - **IO**：可分别开启或关闭【下载速度】、【上传速度】、【系统盘占用】
+- 支持调整字体、字号、间距与左右对齐位置。
+- 点击监控条可打开详情面板，查看 60 秒硬件历史曲线。
 
-## 系统要求
+### 2. 游戏浮层 HUD
+- 快捷键 `Ctrl+Shift+F10` 随时开启/关闭。
+- 鼠标点击穿透，不抢占游戏焦点。
+- 支持游戏窗口前台检测与自动吸附跟随（当游戏不在最前台或最小化时自动隐藏 HUD）。
+- 支持水平 / 垂直两种排版，支持在屏幕任意位置拖动定位与微调。
+- 支持自定义显示项目：FPS、CPU（含功耗）、GPU（含功耗）、内存、网络。
+- 颜色与字体完全可自定义（支持一键套用 MSI Afterburner 风格配色）。
 
-- Windows 10/11 64 位
-- Framework-dependent 版本需要 Microsoft .NET 8 Desktop Runtime（x64）
-- GPU 数据依赖 NVIDIA、AMD 或 Intel 正式显卡驱动公开的遥测接口
-- 不需要管理员权限
+## 权限与 CPU 温度说明
 
-## 使用
+- **日常使用无需管理员权限**：常规监控、网速、内存、GPU、磁盘等均无需提权。
+- **关于 CPU 温度与功耗读取**：
+  - 如果未以管理员身份运行，软件首次读取 CPU 硬件传感器时可能需要几秒钟的初始化等待。
+  - 如果希望刚启动就立刻读取到 CPU 温度和功耗，可选择“以管理员身份运行”。
+  - 不使用管理员权限仅影响启动后前几秒的 CPU 温度与功耗初始化，并非必须开启管理员权限。
 
-1. 运行 `SysMonitor.exe`。
-2. 左键点击任务栏监控条或托盘图标，打开/隐藏详情面板。
-3. 右键托盘图标可切换置顶、开机自启、任务栏外观或退出。
-4. 外观设置支持跟随系统、简体中文或 English，并可调整字体、9–20 号字号、项目间距和 0%–100% 左右位置。
-5. 详情面板关闭按钮只隐藏面板；完全退出请使用托盘菜单。
+## 版本与下载
 
-程序只允许运行一个实例。开机自启使用 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run\SysMonitor`，启动新版后会把已经存在的旧路径迁移到当前 EXE；如果原来没有开启自启，则不会擅自创建。
+- **Standalone 独立版**：单文件打包，内置完整运行环境，双击即可直接运行，适合没有安装 .NET 环境的电脑。
+- **Light 轻量版**：体积小巧（约 5MB），需要系统已安装 .NET 7/8 Desktop Runtime。
 
-## 数据来源
-
-- CPU：优先读取 `Processor Information(_Total)\% Processor Utility`，与现代 Windows 任务管理器的总体 CPU 口径一致；不可用时依次回退到 `% Processor Time` 和 `GetSystemTimes`。
-- 内存：PSAPI `GetPerformanceInfo`。
-- GPU：NVIDIA 优先使用一个常驻 `nvidia-smi` 数据流，AMD/Intel 及 NVIDIA 回退使用 LibreHardwareMonitor；显示驱动实际公开的使用率、型号、核心温度和专用显存。
-- 网络：活动物理以太网与 Wi-Fi 网卡收发字节增量，默认排除 VPN、TAP/TUN 和虚拟网卡。
-- 磁盘：Windows 系统卷容量占用率。
-
-Windows 没有通用可靠的内存温度接口，因此不显示估算的内存温度。CPU 温度通过 LibreHardwareMonitor 读取，必要时按需启动同一 EXE 的管理员助手。GPU 只接受明确的核心温度传感器，不会把热点、显存结温或 VRM 温度冒充核心温度；驱动未公开的项目会显示为不可用。
-
-## 任务栏行为
-
-- Band 是 Explorer 任务栏的真实子窗口，透明背景，随任务栏自动隐藏动画一起移动。
-- 定位使用任务栏客户区相对坐标；健康状态不会周期性重新定位，避免 Windows 10 任务栏指示线闪烁。
-- 左右位置会根据任务栏应用图标和通知区图标实时计算；整个 Band 都被限制在两侧图标之间，不能覆盖图标。
-- 安全边界向内立即收紧、向外连续确认；只要 Band 仍在安全区内，像素级边界波动不会带动它左右晃动。
-- 深色任务栏显示白字，浅色任务栏显示黑字；支持 100%–200% DPI。
-- 点击不抢焦点，详情面板惰性创建，350 ms 内重复输入会合并。
-- 边界读取在后台 STA 线程执行，不阻塞界面；任务栏自动隐藏时保留同一 HWND 并随父窗口移动。
-- 如果图标之间暂时没有足够空间，Band 会安全隐藏但继续检测；空间恢复后使用同一 HWND 自动重新显示。
-- Band 支持顶部和底部水平任务栏；Windows 10 左/右侧竖直任务栏会安全隐藏 Band，托盘和详情面板仍可使用。
-- 只有 Windows 已明确销毁原生窗口（例如 Explorer 重启）时才创建一个新 Band。
-- 诊断日志位于 `%AppData%\SysMonitor\band-debug.log`。
-
-## 构建单文件
+## 构建方式
 
 ```powershell
+# 编译 Standalone 独立版
+dotnet publish .\SysMonitor.csproj -c Release -r win-x64 --self-contained true `
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o bin\PublishStandalone
+
+# 编译 Light 轻量版
 dotnet publish .\SysMonitor.csproj -c Release -r win-x64 --self-contained false `
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o bin\PublishLight
 ```

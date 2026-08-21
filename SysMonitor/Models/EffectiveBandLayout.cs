@@ -15,15 +15,18 @@ public sealed record EffectiveBandLayout(
     bool Compact,
     bool Wide,
     double ItemSpacingDip,
-    double TargetWidthDip)
+    double TargetWidthDip,
+    double CpuExtra = 0,
+    double GpuExtra = 0,
+    double MemoryExtra = 0)
 {
     private static readonly BandMetric[] OrderedMetrics = Enum.GetValues<BandMetric>();
     private static readonly IReadOnlyDictionary<BandMetric, double> CompactSlotWidths =
         new Dictionary<BandMetric, double>
         {
-            [BandMetric.Cpu] = 50,
+            [BandMetric.Cpu] = 52,
             [BandMetric.Memory] = 50,
-            [BandMetric.Gpu] = 58,
+            [BandMetric.Gpu] = 52,
             [BandMetric.Download] = 68,
             [BandMetric.Upload] = 68,
             [BandMetric.SystemDisk] = 50
@@ -32,9 +35,9 @@ public sealed record EffectiveBandLayout(
     private static readonly IReadOnlyDictionary<BandMetric, double> NormalSlotWidths =
         new Dictionary<BandMetric, double>
         {
-            [BandMetric.Cpu] = 62,
+            [BandMetric.Cpu] = 60,
             [BandMetric.Memory] = 54,
-            [BandMetric.Gpu] = 62,
+            [BandMetric.Gpu] = 60,
             [BandMetric.Download] = 72,
             [BandMetric.Upload] = 72,
             [BandMetric.SystemDisk] = 54
@@ -60,8 +63,14 @@ public sealed record EffectiveBandLayout(
 
     public bool HasVisibleGroups => ActiveMask != 0;
 
-    public double SlotWidth(BandMetric metric) =>
-        (Compact ? CompactSlotWidths : Wide ? WideSlotWidths : NormalSlotWidths)[metric];
+    public double SlotWidth(BandMetric metric)
+    {
+        double baseWidth = (Compact ? CompactSlotWidths : Wide ? WideSlotWidths : NormalSlotWidths)[metric];
+        if (metric == BandMetric.Cpu) baseWidth += CpuExtra;
+        if (metric == BandMetric.Gpu) baseWidth += GpuExtra;
+        if (metric == BandMetric.Memory) baseWidth += MemoryExtra;
+        return baseWidth;
+    }
 
     public bool IsVisible(BandMetric metric) =>
         (ActiveMask & (1 << (int)metric)) != 0;
@@ -85,17 +94,31 @@ public sealed record EffectiveBandLayout(
         if (visibility.Upload) active.Add(BandMetric.Upload);
         if (visibility.SystemDisk && !compact) active.Add(BandMetric.SystemDisk);
 
+        double cpuExtra = (visibility.CpuTemperature && visibility.CpuPower) ? (compact ? 20 : 26) : 0;
+        double gpuExtra = (visibility.GpuTemperature && visibility.GpuPower) ? (compact ? 20 : 26) : 0;
+        double memExtra = (visibility.MemoryUsage && visibility.MemoryUsedCapacity) ? (compact ? 14 : 18) : 0;
+
         IReadOnlyDictionary<BandMetric, double> widths =
             compact ? CompactSlotWidths : wide ? WideSlotWidths : NormalSlotWidths;
-        double targetWidth = active.Sum(metric => widths[metric] + spacing) +
-            Math.Max(0, active.Count - 1);
+        double targetWidth = active.Sum(metric =>
+        {
+            double w = widths[metric];
+            if (metric == BandMetric.Cpu) w += cpuExtra;
+            if (metric == BandMetric.Gpu) w += gpuExtra;
+            if (metric == BandMetric.Memory) w += memExtra;
+            return w + spacing;
+        }) + Math.Max(0, active.Count - 1);
+
         int mask = active.Aggregate(0, (value, metric) => value | (1 << (int)metric));
         return new EffectiveBandLayout(
             mask,
             compact,
             wide,
             spacing,
-            targetWidth);
+            targetWidth,
+            cpuExtra,
+            gpuExtra,
+            memExtra);
     }
 }
 

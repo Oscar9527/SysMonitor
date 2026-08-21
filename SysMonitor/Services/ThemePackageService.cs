@@ -45,8 +45,7 @@ public sealed class ThemePackageService
     {
         PropertyNameCaseInsensitive = false,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        MaxDepth = 16,
-        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+        MaxDepth = 16
     };
 
     private readonly Version _applicationVersion;

@@ -17,6 +17,8 @@ work/AppearanceQa/
 
 # Local publish directories
 SysMonitor/publish*/
+publish_stage/
+release_assets/
 
 # OS/editor files
 .DS_Store

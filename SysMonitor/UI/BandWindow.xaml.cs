@@ -225,38 +225,142 @@ public partial class BandWindow : Window
             return;
         }
 
-        CpuValueText.Text = FormatPercent(snapshot.CpuUsagePercent);
-        CpuValueText.Foreground = GetUsageBrush(snapshot.CpuUsagePercent);
-        CpuTemperatureText.Text = snapshot.CpuTemperatureCelsius is double cpuTemperature
-            ? $"{cpuTemperature:0}°"
-            : "--°";
+        // CPU
+        if (_metricVisibility.CpuUsage)
+        {
+            CpuValueText.Text = FormatPercent(snapshot.CpuUsagePercent);
+            CpuValueText.Foreground = GetUsageBrush(snapshot.CpuUsagePercent);
+        }
+        else if (_metricVisibility.CpuPower && snapshot.CpuPowerWatts is double cpuPower)
+        {
+            CpuValueText.Text = $"{cpuPower:0}W";
+            CpuValueText.Foreground = _mainTextBrush;
+        }
+        else
+        {
+            CpuValueText.Text = FormatPercent(snapshot.CpuUsagePercent);
+            CpuValueText.Foreground = GetUsageBrush(snapshot.CpuUsagePercent);
+        }
+
+        if (_metricVisibility.CpuTemperature && _metricVisibility.CpuPower)
+        {
+            string t = snapshot.CpuTemperatureCelsius is double temp ? $"{temp:0}°" : "--°";
+            string p = snapshot.CpuPowerWatts is double pow && pow > 0.5 ? $"{pow:0}W" : "--W";
+            CpuTemperatureText.Text = $"{t} {p}";
+            CpuTemperatureText.Visibility = Visibility.Visible;
+        }
+        else if (_metricVisibility.CpuTemperature)
+        {
+            CpuTemperatureText.Text = snapshot.CpuTemperatureCelsius is double cpuTemperature
+                ? $"{cpuTemperature:0}°"
+                : "--°";
+            CpuTemperatureText.Visibility = Visibility.Visible;
+        }
+        else if (_metricVisibility.CpuPower)
+        {
+            CpuTemperatureText.Text = snapshot.CpuPowerWatts is double cpuPower && cpuPower > 0.5
+                ? $"{cpuPower:0}W"
+                : "--W";
+            CpuTemperatureText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            CpuTemperatureText.Text = string.Empty;
+            CpuTemperatureText.Visibility = Visibility.Collapsed;
+        }
         CpuTemperatureText.Foreground = _mainTextBrush;
 
-        MemoryValueText.Text = FormatPercent(snapshot.MemoryUsagePercent);
-        MemoryValueText.Foreground = GetUsageBrush(snapshot.MemoryUsagePercent);
+        // Memory
+        double usedGb = snapshot.MemoryUsedBytes / (1024d * 1024d * 1024d);
+        if (_metricVisibility.MemoryUsage && _metricVisibility.MemoryUsedCapacity)
+        {
+            MemoryCapacityText.Text = $"{usedGb:0.0}G";
+            MemoryCapacityText.Visibility = Visibility.Visible;
+            MemoryValueText.Text = FormatPercent(snapshot.MemoryUsagePercent);
+            MemoryValueText.Foreground = GetUsageBrush(snapshot.MemoryUsagePercent);
+        }
+        else if (_metricVisibility.MemoryUsedCapacity)
+        {
+            MemoryCapacityText.Text = string.Empty;
+            MemoryCapacityText.Visibility = Visibility.Collapsed;
+            MemoryValueText.Text = $"{usedGb:0.0}G";
+            MemoryValueText.Foreground = GetUsageBrush(snapshot.MemoryUsagePercent);
+        }
+        else
+        {
+            MemoryCapacityText.Text = string.Empty;
+            MemoryCapacityText.Visibility = Visibility.Collapsed;
+            MemoryValueText.Text = FormatPercent(snapshot.MemoryUsagePercent);
+            MemoryValueText.Foreground = GetUsageBrush(snapshot.MemoryUsagePercent);
+        }
+        MemoryCapacityText.Foreground = _mainTextBrush;
 
+        // GPU
         bool gpuCapabilityChanged = _gpuCapability.Observe(snapshot.Gpu is not null);
         if (snapshot.Gpu is { } gpu)
         {
-            if (gpu.UsagePercent is { } gpuUsage && double.IsFinite(gpuUsage))
+            if (_metricVisibility.GpuUsage)
             {
-                GpuValueText.Text = FormatPercent(gpuUsage);
-                GpuValueText.Foreground = GetUsageBrush(gpuUsage);
+                if (gpu.UsagePercent is { } gpuUsage && double.IsFinite(gpuUsage))
+                {
+                    GpuValueText.Text = FormatPercent(gpuUsage);
+                    GpuValueText.Foreground = GetUsageBrush(gpuUsage);
+                }
+                else
+                {
+                    GpuValueText.Text = "--%";
+                    GpuValueText.Foreground = _mainTextBrush;
+                }
+            }
+            else if (_metricVisibility.GpuPower && gpu.PowerWatts is double gpuPower && gpuPower > 0.5)
+            {
+                GpuValueText.Text = $"{gpuPower:0}W";
+                GpuValueText.Foreground = _mainTextBrush;
             }
             else
             {
-                GpuValueText.Text = "--%";
-                GpuValueText.Foreground = _mainTextBrush;
+                GpuValueText.Text = gpu.UsagePercent is { } gpuUsage && double.IsFinite(gpuUsage) ? FormatPercent(gpuUsage) : "--%";
+                GpuValueText.Foreground = gpu.UsagePercent is { } gUsage && double.IsFinite(gUsage) ? GetUsageBrush(gUsage) : _mainTextBrush;
             }
 
-            GpuTemperatureText.Text = gpu.TemperatureCelsius is { } gpuTemperature &&
-                                      double.IsFinite(gpuTemperature)
-                ? $"{gpuTemperature:0}℃"
-                : "--℃";
-            GpuValueText.ToolTip = gpu.TemperatureCelsius is { } tooltipTemperature &&
-                                   double.IsFinite(tooltipTemperature)
-                ? $"{gpu.Name}  {tooltipTemperature:0}°C"
-                : gpu.Name;
+            if (_metricVisibility.GpuTemperature && _metricVisibility.GpuPower)
+            {
+                string t = gpu.TemperatureCelsius is { } gTemp && double.IsFinite(gTemp) ? $"{gTemp:0}°" : "--°";
+                string p = gpu.PowerWatts is { } gPow && double.IsFinite(gPow) && gPow > 0.5 ? $"{gPow:0}W" : "--W";
+                GpuTemperatureText.Text = $"{t} {p}";
+                GpuTemperatureText.Visibility = Visibility.Visible;
+            }
+            else if (_metricVisibility.GpuTemperature)
+            {
+                GpuTemperatureText.Text = gpu.TemperatureCelsius is { } gpuTemperature &&
+                                          double.IsFinite(gpuTemperature)
+                    ? $"{gpuTemperature:0}°"
+                    : "--°";
+                GpuTemperatureText.Visibility = Visibility.Visible;
+            }
+            else if (_metricVisibility.GpuPower)
+            {
+                GpuTemperatureText.Text = gpu.PowerWatts is { } gpuPower && double.IsFinite(gpuPower) && gpuPower > 0.5
+                    ? $"{gpuPower:0}W"
+                    : "--W";
+                GpuTemperatureText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                GpuTemperatureText.Text = string.Empty;
+                GpuTemperatureText.Visibility = Visibility.Collapsed;
+            }
+
+            string tooltip = gpu.Name;
+            if (gpu.TemperatureCelsius is { } tooltipTemperature && double.IsFinite(tooltipTemperature))
+            {
+                tooltip += $"  {tooltipTemperature:0}°C";
+            }
+            if (gpu.PowerWatts is { } tooltipPower && double.IsFinite(tooltipPower))
+            {
+                tooltip += $"  {tooltipPower:0}W";
+            }
+            GpuValueText.ToolTip = tooltip;
         }
         else
         {

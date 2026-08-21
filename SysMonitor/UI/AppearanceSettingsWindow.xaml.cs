@@ -205,12 +205,17 @@ public partial class AppearanceSettingsWindow : Window
         ThemeLabelText.Text = localization.GetString("AppearanceTheme");
         ImportThemeButton.Content = localization.GetString("AppearanceThemeImport");
         DefaultThemeButton.Content = localization.GetString("AppearanceThemeDefault");
-        CpuVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleCpu");
-        MemoryVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleMemory");
-        GpuVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleGpu");
-        DownloadVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleDownload");
-        UploadVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleUpload");
-        DiskVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleSystemDisk");
+        CpuUsageCheckBox.Content = localization.GetString("MetricCpuUsage") ?? "使用率";
+        CpuTemperatureCheckBox.Content = localization.GetString("MetricCpuTemperature") ?? "温度";
+        CpuPowerCheckBox.Content = localization.GetString("MetricCpuPower") ?? "功耗";
+        GpuUsageCheckBox.Content = localization.GetString("MetricGpuUsage") ?? "使用率";
+        GpuTemperatureCheckBox.Content = localization.GetString("MetricGpuTemperature") ?? "温度";
+        GpuPowerCheckBox.Content = localization.GetString("MetricGpuPower") ?? "功耗";
+        MemoryUsageCheckBox.Content = localization.GetString("MetricMemoryUsage") ?? "使用率";
+        MemoryCapacityCheckBox.Content = localization.GetString("MetricMemoryCapacity") ?? "已用容量";
+        DownloadVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleDownload") ?? "下载";
+        UploadVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleUpload") ?? "上传";
+        DiskVisibilityCheckBox.Content = localization.GetString("AppearanceVisibleSystemDisk") ?? "系统盘";
         LanguageLabelText.Text = localization.GetString("AppearanceLanguage");
         PreviewLabelText.Text = localization.GetString("AppearancePreview");
         ApplyButton.Content = localization.GetString("AppearanceApply");
@@ -226,9 +231,14 @@ public partial class AppearanceSettingsWindow : Window
         SetAutomationName(FontSizeSlider, localization.GetString("AppearanceFontSize"));
         SetAutomationName(ItemSpacingSlider, localization.GetString("AppearanceItemSpacing"));
         SetAutomationName(HorizontalOffsetSlider, localization.GetString("AppearancePosition"));
-        SetAutomationName(CpuVisibilityCheckBox, localization.GetString("AppearanceVisibleCpu"));
-        SetAutomationName(MemoryVisibilityCheckBox, localization.GetString("AppearanceVisibleMemory"));
-        SetAutomationName(GpuVisibilityCheckBox, localization.GetString("AppearanceVisibleGpu"));
+        SetAutomationName(CpuUsageCheckBox, "CPU Usage");
+        SetAutomationName(CpuTemperatureCheckBox, "CPU Temperature");
+        SetAutomationName(CpuPowerCheckBox, "CPU Power");
+        SetAutomationName(GpuUsageCheckBox, "GPU Usage");
+        SetAutomationName(GpuTemperatureCheckBox, "GPU Temperature");
+        SetAutomationName(GpuPowerCheckBox, "GPU Power");
+        SetAutomationName(MemoryUsageCheckBox, "Memory Usage");
+        SetAutomationName(MemoryCapacityCheckBox, "Memory Capacity");
         SetAutomationName(DownloadVisibilityCheckBox, localization.GetString("AppearanceVisibleDownload"));
         SetAutomationName(UploadVisibilityCheckBox, localization.GetString("AppearanceVisibleUpload"));
         SetAutomationName(DiskVisibilityCheckBox, localization.GetString("AppearanceVisibleSystemDisk"));
@@ -266,9 +276,14 @@ public partial class AppearanceSettingsWindow : Window
             ItemSpacingSlider.Value = NormalizeItemSpacing(value.ItemSpacingDip);
             HorizontalOffsetSlider.Value = NormalizePosition(value.HorizontalPositionPercent);
             BandMetricVisibility visibility = value.EffectiveMetricVisibility;
-            CpuVisibilityCheckBox.IsChecked = visibility.Cpu;
-            MemoryVisibilityCheckBox.IsChecked = visibility.Memory;
-            GpuVisibilityCheckBox.IsChecked = visibility.Gpu;
+            CpuUsageCheckBox.IsChecked = visibility.CpuUsage;
+            CpuTemperatureCheckBox.IsChecked = visibility.CpuTemperature;
+            CpuPowerCheckBox.IsChecked = visibility.CpuPower;
+            GpuUsageCheckBox.IsChecked = visibility.GpuUsage;
+            GpuTemperatureCheckBox.IsChecked = visibility.GpuTemperature;
+            GpuPowerCheckBox.IsChecked = visibility.GpuPower;
+            MemoryUsageCheckBox.IsChecked = visibility.MemoryUsage;
+            MemoryCapacityCheckBox.IsChecked = visibility.MemoryUsedCapacity;
             DownloadVisibilityCheckBox.IsChecked = visibility.Download;
             UploadVisibilityCheckBox.IsChecked = visibility.Upload;
             DiskVisibilityCheckBox.IsChecked = visibility.SystemDisk;
@@ -295,20 +310,48 @@ public partial class AppearanceSettingsWindow : Window
         }
     }
 
-    private BandAppearanceSettings ReadControls() =>
-        new(
+    private BandAppearanceSettings ReadControls()
+    {
+        bool cpuUsage = CpuUsageCheckBox.IsChecked == true;
+        bool cpuTemp = CpuTemperatureCheckBox.IsChecked == true;
+        bool cpuPower = CpuPowerCheckBox.IsChecked == true;
+        bool cpuAny = cpuUsage || cpuTemp || cpuPower;
+
+        bool memUsage = MemoryUsageCheckBox.IsChecked == true;
+        bool memCap = MemoryCapacityCheckBox.IsChecked == true;
+        bool memAny = memUsage || memCap;
+
+        bool gpuUsage = GpuUsageCheckBox.IsChecked == true;
+        bool gpuTemp = GpuTemperatureCheckBox.IsChecked == true;
+        bool gpuPower = GpuPowerCheckBox.IsChecked == true;
+        bool gpuAny = gpuUsage || gpuTemp || gpuPower;
+
+        bool download = DownloadVisibilityCheckBox.IsChecked == true;
+        bool upload = UploadVisibilityCheckBox.IsChecked == true;
+        bool disk = DiskVisibilityCheckBox.IsChecked == true;
+
+        return new(
             NormalizeFontFamily(FontFamilyComboBox.Text),
             NormalizeFontSize(FontSizeSlider.Value),
             NormalizePosition(HorizontalOffsetSlider.Value),
             NormalizeItemSpacing(ItemSpacingSlider.Value),
             0,
             new BandMetricVisibility(
-                CpuVisibilityCheckBox.IsChecked == true,
-                MemoryVisibilityCheckBox.IsChecked == true,
-                GpuVisibilityCheckBox.IsChecked == true,
-                DownloadVisibilityCheckBox.IsChecked == true,
-                UploadVisibilityCheckBox.IsChecked == true,
-                DiskVisibilityCheckBox.IsChecked == true));
+                cpuAny,
+                memAny,
+                gpuAny,
+                download,
+                upload,
+                disk,
+                cpuUsage,
+                cpuTemp,
+                cpuPower,
+                memUsage,
+                memCap,
+                gpuUsage,
+                gpuTemp,
+                gpuPower));
+    }
 
     private void UpdatePreview()
     {
@@ -322,9 +365,29 @@ public partial class AppearanceSettingsWindow : Window
         string gap = new(' ', previewSpaces);
         BandMetricVisibility visibility = value.EffectiveMetricVisibility;
         var previewItems = new List<string>(6);
-        if (visibility.Cpu) previewItems.Add("CPU 37%");
-        if (visibility.Memory) previewItems.Add("MEM 63%");
-        if (visibility.Gpu) previewItems.Add("GPU 12%");
+        if (visibility.Cpu)
+        {
+            string cpuStr = "CPU";
+            if (visibility.CpuTemperature) cpuStr += " 65°";
+            if (visibility.CpuPower) cpuStr += " 45W";
+            if (visibility.CpuUsage) cpuStr += " 37%";
+            previewItems.Add(cpuStr);
+        }
+        if (visibility.Memory)
+        {
+            string memStr = "MEM";
+            if (visibility.MemoryUsedCapacity) memStr += " 8.2G";
+            if (visibility.MemoryUsage) memStr += " 63%";
+            previewItems.Add(memStr);
+        }
+        if (visibility.Gpu)
+        {
+            string gpuStr = "GPU";
+            if (visibility.GpuTemperature) gpuStr += " 58℃";
+            if (visibility.GpuPower) gpuStr += " 115W";
+            if (visibility.GpuUsage) gpuStr += " 12%";
+            previewItems.Add(gpuStr);
+        }
         if (visibility.Download) previewItems.Add("↓ 1.2 MB/s");
         if (visibility.Upload) previewItems.Add("↑ 256 KB/s");
         if (visibility.SystemDisk) previewItems.Add("C: 45%");
@@ -741,10 +804,14 @@ public partial class AppearanceSettingsWindow : Window
         System.Drawing.Rectangle workingArea =
             System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
         HwndSource? source = HwndSource.FromHwnd(handle);
+        double deviceToDipX = source?.CompositionTarget?.TransformFromDevice.M11 ?? 1d;
         double deviceToDipY = source?.CompositionTarget?.TransformFromDevice.M22 ?? 1d;
         double availableHeight = Math.Max(360d, workingArea.Height * deviceToDipY - 16d);
+        double availableWidth = Math.Max(400d, workingArea.Width * deviceToDipX - 16d);
         MaxHeight = availableHeight;
-        Height = Math.Min(676d, availableHeight);
+        MaxWidth = availableWidth;
+        Height = Math.Min(700d, availableHeight);
+        Width = Math.Min(580d, availableWidth);
     }
 
     private void AppearanceSettingsWindow_Closing(object? sender, CancelEventArgs e)

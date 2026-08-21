@@ -81,15 +81,43 @@ public sealed class GameOverlayMetricVisibilitySettings
     public bool? Gpu { get; set; } = true;
     public bool? Memory { get; set; } = true;
     public bool? Network { get; set; }
+    public bool? CpuPower { get; set; } = false;
+    public bool? GpuPower { get; set; } = false;
+    public bool? CpuFrequency { get; set; } = true;
+    public bool? GpuClock { get; set; } = true;
+    public bool? GpuMemoryClock { get; set; } = false;
+    public bool? GpuMemory { get; set; } = true;
+    public bool? MemoryFrequency { get; set; } = true;
+    public bool? CpuTemperature { get; set; } = true;
+    public bool? GpuTemperature { get; set; } = true;
     public List<string>? Order { get; set; }
+    public List<string>? CpuItemOrder { get; set; }
+    public List<string>? GpuItemOrder { get; set; }
+    public List<string>? MemoryItemOrder { get; set; }
+    public List<string>? NetworkItemOrder { get; set; }
 
     public GameOverlayMetricVisibility ToEffective() => new(
         FrameRate ?? true,
         Cpu ?? true,
         Gpu ?? true,
         Memory ?? true,
-        Network ?? false)
-        { Order = GameOverlayMetricOrder.Normalize(Order) };
+        Network ?? false,
+        CpuPower ?? false,
+        GpuPower ?? false,
+        CpuFrequency ?? true,
+        GpuClock ?? true,
+        GpuMemory ?? true,
+        MemoryFrequency ?? true,
+        CpuTemperature ?? true,
+        GpuTemperature ?? true,
+        GpuMemoryClock ?? false)
+        {
+            Order = GameOverlayMetricOrder.Normalize(Order),
+            CpuItemOrder = SubItemOrderHelper.Normalize(CpuItemOrder, SubItemDefaults.Cpu),
+            GpuItemOrder = SubItemOrderHelper.Normalize(GpuItemOrder, SubItemDefaults.Gpu),
+            MemoryItemOrder = SubItemOrderHelper.Normalize(MemoryItemOrder, SubItemDefaults.Memory),
+            NetworkItemOrder = SubItemOrderHelper.Normalize(NetworkItemOrder, SubItemDefaults.Network)
+        };
 
     public static GameOverlayMetricVisibilitySettings FromEffective(GameOverlayMetricVisibility value) => new()
     {
@@ -98,7 +126,20 @@ public sealed class GameOverlayMetricVisibilitySettings
         Gpu = value.Gpu,
         Memory = value.Memory,
         Network = value.Network,
-        Order = value.Order.ToList()
+        CpuPower = value.CpuPower,
+        GpuPower = value.GpuPower,
+        CpuFrequency = value.CpuFrequency,
+        GpuClock = value.GpuClock,
+        GpuMemoryClock = value.GpuMemoryClock,
+        GpuMemory = value.GpuMemory,
+        MemoryFrequency = value.MemoryFrequency,
+        CpuTemperature = value.CpuTemperature,
+        GpuTemperature = value.GpuTemperature,
+        Order = value.Order.ToList(),
+        CpuItemOrder = value.CpuItemOrder.ToList(),
+        GpuItemOrder = value.GpuItemOrder.ToList(),
+        MemoryItemOrder = value.MemoryItemOrder.ToList(),
+        NetworkItemOrder = value.NetworkItemOrder.ToList()
     };
 }
 
@@ -107,9 +148,56 @@ public sealed record GameOverlayMetricVisibility(
     bool Cpu = true,
     bool Gpu = true,
     bool Memory = true,
-    bool Network = false)
+    bool Network = false,
+    bool CpuPower = false,
+    bool GpuPower = false,
+    bool CpuFrequency = true,
+    bool GpuClock = true,
+    bool GpuMemory = true,
+    bool MemoryFrequency = true,
+    bool CpuTemperature = true,
+    bool GpuTemperature = true,
+    bool GpuMemoryClock = false)
 {
     public IReadOnlyList<string> Order { get; init; } = GameOverlayMetricOrder.Default;
+    public IReadOnlyList<string> CpuItemOrder { get; init; } = SubItemDefaults.Cpu;
+    public IReadOnlyList<string> GpuItemOrder { get; init; } = SubItemDefaults.Gpu;
+    public IReadOnlyList<string> MemoryItemOrder { get; init; } = SubItemDefaults.Memory;
+    public IReadOnlyList<string> NetworkItemOrder { get; init; } = SubItemDefaults.Network;
+}
+
+public static class SubItemDefaults
+{
+    public static IReadOnlyList<string> Cpu { get; } = ["usage", "temp", "power", "freq"];
+    public static IReadOnlyList<string> Gpu { get; } = ["usage", "temp", "power", "clock", "memClock", "memUsed"];
+    public static IReadOnlyList<string> Memory { get; } = ["usage", "capacity", "freq"];
+    public static IReadOnlyList<string> Network { get; } = ["download", "upload"];
+    public static IReadOnlyList<string> Io { get; } = ["download", "upload", "disk"];
+}
+
+public static class SubItemOrderHelper
+{
+    public static IReadOnlyList<string> Normalize(IEnumerable<string>? values, IReadOnlyList<string> defaults)
+    {
+        List<string> rawList = values?.Select(v => v?.Trim().ToLowerInvariant()).Where(v => !string.IsNullOrEmpty(v)).Select(v => v!).ToList() ?? [];
+        if (rawList.Count == 0) return defaults;
+        var result = new List<string>();
+        foreach (string id in rawList)
+        {
+            if (defaults.Contains(id, StringComparer.Ordinal) && !result.Contains(id, StringComparer.Ordinal))
+            {
+                result.Add(id);
+            }
+        }
+        foreach (string id in defaults)
+        {
+            if (!result.Contains(id, StringComparer.Ordinal))
+            {
+                result.Add(id);
+            }
+        }
+        return result.SequenceEqual(defaults, StringComparer.Ordinal) ? defaults : result;
+    }
 }
 
 public static class GameOverlayMetricOrder
@@ -219,16 +307,24 @@ public sealed record GameOverlayAppearance(
 public sealed class BandMetricVisibilitySettings
 {
     public bool? Cpu { get; set; } = true;
+    public bool? CpuUsage { get; set; } = true;
+    public bool? CpuTemperature { get; set; } = true;
+    public bool? CpuPower { get; set; } = false;
 
     public bool? Memory { get; set; } = true;
+    public bool? MemoryUsage { get; set; } = true;
+    public bool? MemoryUsedCapacity { get; set; } = false;
 
     public bool? Gpu { get; set; } = true;
+    public bool? GpuUsage { get; set; } = true;
+    public bool? GpuTemperature { get; set; } = true;
+    public bool? GpuPower { get; set; } = false;
 
     public bool? Download { get; set; } = true;
 
     public bool? Upload { get; set; } = true;
 
-    public bool? SystemDisk { get; set; } = true;
+    public bool? SystemDisk { get; set; } = false;
 
     public BandMetricVisibility ToEffective() =>
         new(
@@ -237,14 +333,30 @@ public sealed class BandMetricVisibilitySettings
             Gpu ?? true,
             Download ?? true,
             Upload ?? true,
-            SystemDisk ?? true);
+            SystemDisk ?? false,
+            CpuUsage ?? true,
+            CpuTemperature ?? true,
+            CpuPower ?? false,
+            MemoryUsage ?? true,
+            MemoryUsedCapacity ?? false,
+            GpuUsage ?? true,
+            GpuTemperature ?? true,
+            GpuPower ?? false);
 
     public static BandMetricVisibilitySettings FromEffective(BandMetricVisibility value) =>
         new()
         {
             Cpu = value.Cpu,
+            CpuUsage = value.CpuUsage,
+            CpuTemperature = value.CpuTemperature,
+            CpuPower = value.CpuPower,
             Memory = value.Memory,
+            MemoryUsage = value.MemoryUsage,
+            MemoryUsedCapacity = value.MemoryUsedCapacity,
             Gpu = value.Gpu,
+            GpuUsage = value.GpuUsage,
+            GpuTemperature = value.GpuTemperature,
+            GpuPower = value.GpuPower,
             Download = value.Download,
             Upload = value.Upload,
             SystemDisk = value.SystemDisk
@@ -257,7 +369,29 @@ public sealed record BandMetricVisibility(
     bool Gpu = true,
     bool Download = true,
     bool Upload = true,
-    bool SystemDisk = true)
+    bool SystemDisk = false,
+    bool CpuUsage = true,
+    bool CpuTemperature = true,
+    bool CpuPower = false,
+    bool MemoryUsage = true,
+    bool MemoryUsedCapacity = false,
+    bool GpuUsage = true,
+    bool GpuTemperature = true,
+    bool GpuPower = false)
 {
-    public static BandMetricVisibility All { get; } = new();
+    public static readonly BandMetricVisibility All = new(
+        Cpu: true,
+        Memory: true,
+        Gpu: true,
+        Download: true,
+        Upload: true,
+        SystemDisk: false,
+        CpuUsage: true,
+        CpuTemperature: true,
+        CpuPower: false,
+        MemoryUsage: true,
+        MemoryUsedCapacity: false,
+        GpuUsage: true,
+        GpuTemperature: true,
+        GpuPower: false);
 }

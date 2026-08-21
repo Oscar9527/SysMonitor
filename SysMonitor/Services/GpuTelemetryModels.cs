@@ -35,6 +35,7 @@ internal sealed record GpuProviderSample(
 {
     internal double? CoreClockMhz { get; init; }
     internal double? MemoryClockMhz { get; init; }
+    internal double? PowerWatts { get; init; }
 }
 
 internal sealed class GpuProviderCycle

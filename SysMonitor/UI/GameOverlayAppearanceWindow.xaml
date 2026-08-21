@@ -226,8 +226,8 @@
               <TextBlock Text="HUD 实时效果预览 (游戏画面背景模拟)" FontWeight="SemiBold" FontSize="12.5" Foreground="#AAAAAA" Margin="0,0,0,10"/>
               <Border x:Name="PreviewSurface" Padding="6" Background="Transparent" BorderBrush="Transparent" BorderThickness="0">
                 <WrapPanel x:Name="PreviewPanel">
-                  <TextBlock x:Name="PreviewGpu" Text="GPU 42%  61°C" Margin="0,0,14,4" FontWeight="SemiBold"/>
-                  <TextBlock x:Name="PreviewCpu" Text="CPU 18%  54°C" Margin="0,0,14,4" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="PreviewGpu" Text="GPU 42%  61°C  120W" Margin="0,0,14,4" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="PreviewCpu" Text="CPU 18%  54°C  45W" Margin="0,0,14,4" FontWeight="SemiBold"/>
                   <TextBlock x:Name="PreviewFps" Text="FPS 144" Margin="0,0,14,4" FontWeight="SemiBold"/>
                   <TextBlock x:Name="PreviewMemory" Text="RAM 48%  3200 MHz" Margin="0,0,14,4" FontWeight="SemiBold"/>
                   <TextBlock x:Name="PreviewNetwork" Text="NET ↓ 1.2M ↑ 90K" Margin="0,0,14,4" FontWeight="SemiBold"/>

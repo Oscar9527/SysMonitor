@@ -461,9 +461,9 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         string gpuTemperature = FormatTemperature(monitor.Gpu?.TemperatureCelsius);
 
         SetRow(GpuLabel, GpuValue, _metrics.Gpu,
-            horizontal ? BuildHorizontalMetricValue(gpu, gpuTemperature) : BuildGpuValue(monitor, gpu, gpuTemperature));
+            horizontal ? BuildHorizontalMetricValue(gpu, gpuTemperature, _metrics.GpuPower ? monitor.Gpu?.PowerWatts : null) : BuildGpuValue(monitor, gpu, gpuTemperature));
         SetRow(CpuLabel, CpuValue, _metrics.Cpu,
-            horizontal ? BuildHorizontalMetricValue(cpu, cpuTemperature) : BuildCpuValue(monitor, cpu, cpuTemperature));
+            horizontal ? BuildHorizontalMetricValue(cpu, cpuTemperature, _metrics.CpuPower ? monitor.CpuPowerWatts : null) : BuildCpuValue(monitor, cpu, cpuTemperature));
         SetRow(FpsLabel, FpsValue, showFrameRate, fps);
         SetRow(MemoryLabel, MemoryValue, _metrics.Memory, BuildMemoryValue(monitor, FormatPercent(monitor.MemoryUsagePercent)));
         SetRow(NetworkLabel, NetworkValue, _metrics.Network,
@@ -539,8 +539,15 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         return new OverlayPixelRect(x, y, x + width, y + height);
     }
 
-    internal static string BuildHorizontalMetricValue(string usage, string temperature) =>
-        $"{(string.IsNullOrWhiteSpace(usage) ? "--" : usage)}  {(string.IsNullOrWhiteSpace(temperature) ? "--" : temperature)}";
+    internal static string BuildHorizontalMetricValue(string usage, string temperature, double? powerWatts = null)
+    {
+        string baseVal = $"{(string.IsNullOrWhiteSpace(usage) ? "--" : usage)}  {(string.IsNullOrWhiteSpace(temperature) ? "--" : temperature)}";
+        if (powerWatts is double p && double.IsFinite(p))
+        {
+            return $"{baseVal}  {p:0.#} W";
+        }
+        return baseVal;
+    }
 
     internal static string BuildOverlayText(string fps, string frameState, string cpu, string cpuTemperature, string gpu, string gpuTemperature, string memory, string download = "--", string upload = "--", string preset = "rivatuner", GameOverlayMetricVisibility? metrics = null, string? memoryFrequency = null)
     {
@@ -604,38 +611,88 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private string BuildCpuValue(MonitorSnapshot monitor, string usage, string temperature)
     {
-        if (_preset == "compact") return $"{usage}  {temperature}";
-        string frequency = FormatFrequency(monitor.CpuFrequencyMhz);
-        return _preset == "detailed" && !string.IsNullOrWhiteSpace(frequency) && frequency != "--"
-            ? $"{usage}  {temperature}  {frequency}"
-            : $"{usage}  {temperature}";
+        var itemMap = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(usage) && usage != "--") itemMap["usage"] = usage;
+        if (_metrics.CpuTemperature && !string.IsNullOrWhiteSpace(temperature) && temperature != "--") itemMap["temp"] = temperature;
+        if (_metrics.CpuPower && monitor.CpuPowerWatts is double power && double.IsFinite(power) && power > 0.5)
+        {
+            itemMap["power"] = $"{power:0.#} W";
+        }
+        if (_metrics.CpuFrequency && _preset == "detailed")
+        {
+            string frequency = FormatFrequency(monitor.CpuFrequencyMhz);
+            if (!string.IsNullOrWhiteSpace(frequency) && frequency != "--") itemMap["freq"] = frequency;
+        }
+
+        var items = new List<string>();
+        foreach (string id in _metrics.CpuItemOrder)
+        {
+            if (itemMap.TryGetValue(id, out string? val) && !string.IsNullOrWhiteSpace(val))
+            {
+                items.Add(val);
+            }
+        }
+        return items.Count > 0 ? string.Join("  ", items) : $"{usage}  {temperature}";
     }
 
     private string BuildGpuValue(MonitorSnapshot monitor, string usage, string temperature)
     {
-        if (_preset == "compact") return $"{usage}  {temperature}";
-        string frequency = FormatFrequency(monitor.Gpu?.CoreClockMhz);
-        return _preset == "detailed" && !string.IsNullOrWhiteSpace(frequency) && frequency != "--"
-            ? $"{usage}  {temperature}  {frequency}"
-            : $"{usage}  {temperature}";
+        var itemMap = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(usage) && usage != "--") itemMap["usage"] = usage;
+        if (_metrics.GpuTemperature && !string.IsNullOrWhiteSpace(temperature) && temperature != "--") itemMap["temp"] = temperature;
+        if (_metrics.GpuPower && monitor.Gpu?.PowerWatts is double power && double.IsFinite(power) && power > 0.5)
+        {
+            itemMap["power"] = $"{power:0.#} W";
+        }
+        if (_metrics.GpuClock && _preset == "detailed")
+        {
+            string frequency = FormatFrequency(monitor.Gpu?.CoreClockMhz);
+            if (!string.IsNullOrWhiteSpace(frequency) && frequency != "--") itemMap["clock"] = frequency;
+        }
+        if (_metrics.GpuMemoryClock && _preset == "detailed")
+        {
+            string memClock = FormatFrequency(monitor.Gpu?.MemoryClockMhz);
+            if (!string.IsNullOrWhiteSpace(memClock) && memClock != "--") itemMap["memClock"] = memClock;
+        }
+        if (_metrics.GpuMemory && _preset == "detailed" && monitor.Gpu?.MemoryUsedBytes is long usedMem && usedMem > 0)
+        {
+            itemMap["memUsed"] = $"{Math.Round(usedMem / 1024d / 1024d):0} MB";
+        }
+
+        var items = new List<string>();
+        foreach (string id in _metrics.GpuItemOrder)
+        {
+            if (itemMap.TryGetValue(id, out string? val) && !string.IsNullOrWhiteSpace(val))
+            {
+                items.Add(val);
+            }
+        }
+        return items.Count > 0 ? string.Join("  ", items) : $"{usage}  {temperature}";
     }
 
     private string BuildMemoryValue(MonitorSnapshot monitor, string usage)
     {
-        string usedMb = monitor.MemoryUsedBytes > 0
-            ? $"{Math.Round(monitor.MemoryUsedBytes / 1024d / 1024d):0} MB"
-            : string.Empty;
-        if (_preset == "compact") return $"{usage}";
-        string frequency = FormatFrequency(monitor.MemoryFrequencyMhz);
-        if (_preset == "detailed" && !string.IsNullOrWhiteSpace(frequency) && frequency != "--")
+        var itemMap = new Dictionary<string, string?>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(usage) && usage != "--") itemMap["usage"] = usage;
+        if (_metrics.MemoryFrequency && _preset == "detailed")
         {
-            return !string.IsNullOrWhiteSpace(usedMb)
-                ? $"{usage}  {frequency}  {usedMb}"
-                : $"{usage}  {frequency}";
+            string frequency = FormatFrequency(monitor.MemoryFrequencyMhz);
+            if (!string.IsNullOrWhiteSpace(frequency) && frequency != "--") itemMap["freq"] = frequency;
         }
-        return !string.IsNullOrWhiteSpace(usedMb)
-            ? $"{usage}  {usedMb}"
-            : usage;
+        if (monitor.MemoryUsedBytes > 0)
+        {
+            itemMap["capacity"] = $"{Math.Round(monitor.MemoryUsedBytes / 1024d / 1024d):0} MB";
+        }
+
+        var items = new List<string>();
+        foreach (string id in _metrics.MemoryItemOrder)
+        {
+            if (itemMap.TryGetValue(id, out string? val) && !string.IsNullOrWhiteSpace(val))
+            {
+                items.Add(val);
+            }
+        }
+        return items.Count > 0 ? string.Join("  ", items) : usage;
     }
 
     private static string FormatPercent(double? value) => value is double percent && double.IsFinite(percent) ? $"{Math.Clamp(percent, 0, 100):0}%" : "--";

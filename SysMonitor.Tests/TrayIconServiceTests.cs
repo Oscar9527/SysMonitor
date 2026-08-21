@@ -43,12 +43,12 @@ public sealed class TrayIconServiceTests
                 Checked = true
             };
             var advanced = new Forms.ToolStripMenuItem("游戏叠加层高级设置");
-            advanced.DropDownItems.AddRange(
-            [
+            advanced.DropDownItems.AddRange(new Forms.ToolStripItem[]
+            {
                 new Forms.ToolStripMenuItem("Frame-rate assistant position"),
                 new Forms.ToolStripMenuItem("监控项目与采样频率设置") { Checked = true }
-            ]);
-            menu.Items.AddRange([overlay, advanced]);
+            });
+            menu.Items.AddRange(new Forms.ToolStripItem[] { overlay, advanced });
 
             TrayIconService.ConfigureMenuItems(menu.Items);
             var workArea = new Rectangle(0, 0, 1920, 1040);
@@ -97,7 +97,7 @@ public sealed class TrayIconServiceTests
             var child2 = new Forms.ToolStripMenuItem("帧率助手位置");
             var child3 = new Forms.ToolStripMenuItem("HUD 排版");
             var child4 = new Forms.ToolStripMenuItem("显示项目");
-            parent.DropDownItems.AddRange([child1, child2, child3, child4]);
+            parent.DropDownItems.AddRange(new Forms.ToolStripItem[] { child1, child2, child3, child4 });
             menu.Items.Add(parent);
 
             TrayIconService.ConfigureMenuItems(menu.Items);

@@ -184,7 +184,7 @@ public sealed class MonitorService : IMonitorService
             try
             {
                 double cpuUsage = ReadCpuUsage();
-                double? cpuTemperature = ReadCpuTemperature();
+                (double? cpuTemperature, double? cpuPower) = ReadCpuTelemetry();
                 // Current CPU clock and the DIMM configuration query are used only
                 // in the detailed HUD. Keeping them off for the normal tray/band
                 // session avoids allocating a WMI provider and native buffers.
@@ -216,6 +216,7 @@ public sealed class MonitorService : IMonitorService
                     ProducerId = _producerId,
                     MonotonicTimestamp = Stopwatch.GetTimestamp(),
                     CpuFrequencyMhz = cpuFrequency,
+                    CpuPowerWatts = cpuPower,
                     MemoryFrequencyMhz = memoryFrequency
                 };
 
@@ -235,7 +236,9 @@ public sealed class MonitorService : IMonitorService
             }
 
             TimeSpan delay = _samplingInterval;
-            if (_cpuTemperatureReader is not null && _cpuTemperatureReader.OpenInProgress && _latest.CpuTemperatureCelsius is null)
+            if (_cpuTemperatureReader is not null &&
+                (_cpuTemperatureReader.OpenInProgress || _cpuTemperatureReader.HelperLaunchInProgress) &&
+                _latest.CpuTemperatureCelsius is null)
             {
                 delay = TimeSpan.FromMilliseconds(150);
             }
@@ -268,17 +271,17 @@ public sealed class MonitorService : IMonitorService
         }
     }
 
-    private double? ReadCpuTemperature()
+    private (double? Temperature, double? PowerWatts) ReadCpuTelemetry()
     {
-        double? temperature = _cpuTemperatureReader?.Read();
+        (double? temperature, double? power) = _cpuTemperatureReader?.ReadTelemetry() ?? (null, null);
         if (temperature is double value)
         {
             LogCpuTemperatureSource(CpuTemperatureSource.LibreHardwareMonitor, "independent CPU sensor reader");
-            return value;
+            return (value, power);
         }
 
         LogCpuTemperatureSource(CpuTemperatureSource.Unavailable, "no readable CPU temperature sensor");
-        return null;
+        return (null, power);
     }
 
     private void LogCpuTemperatureSource(CpuTemperatureSource source, string detail)

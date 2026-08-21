@@ -102,10 +102,10 @@ public sealed class SettingsServiceTests
     }
 
     [Theory]
-    [InlineData("{}", true, true, true, true, true, true)]
-    [InlineData("{\"BandMetricVisibility\":null}", true, true, true, true, true, true)]
-    [InlineData("{\"BandMetricVisibility\":{\"Cpu\":false}}", false, true, true, true, true, true)]
-    [InlineData("{\"BandMetricVisibility\":{\"Cpu\":null,\"Gpu\":false,\"FutureMetric\":false}}", true, true, false, true, true, true)]
+    [InlineData("{}", true, true, true, true, true, false)]
+    [InlineData("{\"BandMetricVisibility\":null}", true, true, true, true, true, false)]
+    [InlineData("{\"BandMetricVisibility\":{\"Cpu\":false}}", false, true, true, true, true, false)]
+    [InlineData("{\"BandMetricVisibility\":{\"Cpu\":null,\"Gpu\":false,\"FutureMetric\":false}}", true, true, false, true, true, false)]
     public void Load_MigratesVisibilityFieldsWithoutOverwritingExplicitFalse(
         string json,
         bool cpu,

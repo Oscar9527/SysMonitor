@@ -14,6 +14,8 @@ public sealed record GpuSnapshot(
     public double? CoreClockMhz { get; init; }
 
     public double? MemoryClockMhz { get; init; }
+
+    public double? PowerWatts { get; init; }
 }
 
 public sealed record MonitorSnapshot(
@@ -39,6 +41,8 @@ public sealed record MonitorSnapshot(
     public long MonotonicTimestamp { get; init; }
 
     public double? CpuFrequencyMhz { get; init; }
+
+    public double? CpuPowerWatts { get; init; }
 
     /// <summary>
     /// Configured physical-memory clock speed. This is a DIMM configuration value,

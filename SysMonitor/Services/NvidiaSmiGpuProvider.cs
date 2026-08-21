@@ -17,7 +17,8 @@ internal readonly record struct NvidiaSmiRow(
     long? MemoryUsedBytes,
     long? MemoryTotalBytes,
     double? CoreClockMhz,
-    double? MemoryClockMhz);
+    double? MemoryClockMhz,
+    double? PowerWatts);
 
 internal static class NvidiaSmiCsv
 {
@@ -25,7 +26,7 @@ internal static class NvidiaSmiCsv
     {
         row = default;
         List<string> fields = Parse(line);
-        if (fields.Count != 11)
+        if (fields.Count is not (11 or 12))
         {
             return false;
         }
@@ -62,6 +63,8 @@ internal static class NvidiaSmiCsv
             name = "NVIDIA graphics adapter";
         }
 
+        double? powerWatts = fields.Count > 11 ? PositiveMetric(fields[11]) : null;
+
         row = new NvidiaSmiRow(
             timestampKey,
             sampledAt,
@@ -74,7 +77,8 @@ internal static class NvidiaSmiCsv
             GpuSensorSelector.MiBToBytes(ParseMetric(fields[7])),
             GpuSensorSelector.MiBToBytes(ParseMetric(fields[8])),
             PositiveMetric(fields[9]),
-            PositiveMetric(fields[10]));
+            PositiveMetric(fields[10]),
+            powerWatts);
         return true;
     }
 
@@ -220,6 +224,7 @@ internal sealed class NvidiaSmiCycleAccumulator
             {
                 CoreClockMhz = row.CoreClockMhz,
                 MemoryClockMhz = row.MemoryClockMhz,
+                PowerWatts = row.PowerWatts,
             })
             .ToArray();
         return new GpuProviderCycle(
@@ -470,7 +475,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             RedirectStandardError = true,
             CreateNoWindow = true,
         };
-        startInfo.ArgumentList.Add("--query-gpu=timestamp,index,uuid,pci.bus_id,name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.current.graphics,clocks.current.memory");
+        startInfo.ArgumentList.Add("--query-gpu=timestamp,index,uuid,pci.bus_id,name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.current.graphics,clocks.current.memory,power.draw");
         startInfo.ArgumentList.Add("--format=csv,noheader,nounits");
         startInfo.ArgumentList.Add("--loop=1");
         return Process.Start(startInfo) ??

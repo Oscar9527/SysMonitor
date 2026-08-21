@@ -162,7 +162,8 @@ public partial class DetailWindow : Window
         UpdateMetric(snapshot.CpuUsagePercent, _cpuBrush, CpuValueText, null);
         CpuDetailsText.Text = BuildCpuDetails(
             snapshot.LogicalProcessorCount,
-            snapshot.CpuTemperatureCelsius);
+            snapshot.CpuTemperatureCelsius,
+            snapshot.CpuPowerWatts);
 
         UpdateMetric(snapshot.MemoryUsagePercent, _memoryBrush, MemoryValueText, MemoryProgress);
         MemoryDetailsText.Text = string.Format(
@@ -523,15 +524,22 @@ public partial class DetailWindow : Window
         }
     }
 
-    internal static string BuildCpuDetails(int logicalProcessorCount, double? temperature)
+    internal static string BuildCpuDetails(int logicalProcessorCount, double? temperature, double? powerWatts = null)
     {
         LocalizationService localization = LocalizationService.Current;
         string processorText = logicalProcessorCount > 0
             ? localization.Format("CpuLogicalProcessors", logicalProcessorCount)
             : localization.GetString("CpuLogicalProcessorsUnavailable");
-        return IsFinite(temperature)
-            ? $"{processorText} · {FormatTemperature(temperature!.Value)}"
-            : processorText;
+        var parts = new List<string> { processorText };
+        if (IsFinite(temperature))
+        {
+            parts.Add(FormatTemperature(temperature!.Value));
+        }
+        if (IsFinite(powerWatts))
+        {
+            parts.Add($"{powerWatts!.Value:0.#} W");
+        }
+        return string.Join(" · ", parts);
     }
 
     internal static string BuildGpuDetails(GpuSnapshot gpu)
@@ -541,6 +549,11 @@ public partial class DetailWindow : Window
         if (IsFinite(gpu.TemperatureCelsius))
         {
             details.Add(FormatTemperature(gpu.TemperatureCelsius!.Value));
+        }
+
+        if (IsFinite(gpu.PowerWatts))
+        {
+            details.Add($"{gpu.PowerWatts!.Value:0.#} W");
         }
 
         if (gpu.MemoryTotalBytes is { } total && total > 0)

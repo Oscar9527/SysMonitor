@@ -30,7 +30,10 @@ internal sealed class CpuTemperatureReader : IDisposable
     private long _nextRetryTimestamp;
     private long _helperTemperatureTimestamp;
     private double _helperTemperature;
+    private long _helperPowerTimestamp;
+    private double _helperPower;
     private string? _loggedSensor;
+    private string? _loggedPowerSensor;
     private int _consecutiveNoSensorReads;
     // The motherboard/Super-I/O tree can retain significantly more native
     // driver state. Open it only after a CPU-only scan has actually failed.
@@ -85,6 +88,17 @@ internal sealed class CpuTemperatureReader : IDisposable
         }
     }
 
+    internal bool HelperLaunchInProgress
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _helperLaunchInProgress || (_helperProcess is not null && _helperTemperatureTimestamp == 0);
+            }
+        }
+    }
+
     internal bool MotherboardFallbackAttempted
     {
         get
@@ -111,13 +125,17 @@ internal sealed class CpuTemperatureReader : IDisposable
         }
     }
 
-    internal double? Read()
+    internal double? Read() => ReadTelemetry().Temperature;
+
+    internal double? ReadPower() => ReadTelemetry().PowerWatts;
+
+    internal (double? Temperature, double? PowerWatts) ReadTelemetry()
     {
         lock (_gate)
         {
             if (_disposed)
             {
-                return null;
+                return (null, null);
             }
 
             if (_computer is null &&
@@ -133,37 +151,46 @@ internal sealed class CpuTemperatureReader : IDisposable
             {
                 if (_openInProgress)
                 {
-                    return ReadHelperTemperatureLocked();
+                    return (ReadHelperTemperatureLocked(), ReadHelperPowerLocked());
                 }
 
                 RecordUnavailableReadLocked();
-                return ReadHelperTemperatureLocked();
+                return (ReadHelperTemperatureLocked(), ReadHelperPowerLocked());
             }
 
             try
             {
-                TemperatureCandidate? selected = ReadBestTemperature(_computer);
-                if (selected is null)
+                (TemperatureCandidate? selectedTemp, PowerCandidate? selectedPower) = ReadBestTelemetry(_computer);
+                if (selectedTemp is null)
                 {
                     BandDiagnostics.LogRateLimited(
                         "cpu-temperature-no-sensor",
-                        "CPU temperature unavailable: no readable CPU temperature sensor",
+                        "CPU temperature unavailable in primary reader, checking elevated helper",
                         TimeSpan.FromMinutes(5));
                     RecordUnavailableReadLocked();
-                    return ReadHelperTemperatureLocked();
+                    double? helperTemp = ReadHelperTemperatureLocked();
+                    double? helperPower = ReadHelperPowerLocked();
+                    return (helperTemp, selectedPower?.Value ?? helperPower);
                 }
 
                 _consecutiveNoSensorReads = 0;
                 StopHelperLocked();
 
-                if (!string.Equals(_loggedSensor, selected.Name, StringComparison.Ordinal))
+                if (!string.Equals(_loggedSensor, selectedTemp.Name, StringComparison.Ordinal))
                 {
-                    _loggedSensor = selected.Name;
+                    _loggedSensor = selectedTemp.Name;
                     BandDiagnostics.Log(
-                        $"CPU temperature source=LibreHardwareMonitor sensor=\"{selected.Name}\" value={selected.Value:0.0}C");
+                        $"CPU temperature source=LibreHardwareMonitor sensor=\"{selectedTemp.Name}\" value={selectedTemp.Value:0.0}C");
                 }
 
-                return selected.Value;
+                if (selectedPower is not null && !string.Equals(_loggedPowerSensor, selectedPower.Name, StringComparison.Ordinal))
+                {
+                    _loggedPowerSensor = selectedPower.Name;
+                    BandDiagnostics.Log(
+                        $"CPU power source=LibreHardwareMonitor sensor=\"{selectedPower.Name}\" value={selectedPower.Value:0.0}W");
+                }
+
+                return (selectedTemp.Value, selectedPower?.Value ?? ReadHelperPowerLocked());
             }
             catch (Exception ex)
             {
@@ -174,7 +201,7 @@ internal sealed class CpuTemperatureReader : IDisposable
                 CloseLocked();
                 ScheduleRetryLocked();
                 RecordUnavailableReadLocked();
-                return ReadHelperTemperatureLocked();
+                return (ReadHelperTemperatureLocked(), ReadHelperPowerLocked());
             }
         }
     }
@@ -309,25 +336,40 @@ internal sealed class CpuTemperatureReader : IDisposable
     }
 
     internal static double? ReadTemperature(Computer computer) =>
-        ReadBestTemperature(computer)?.Value;
+        ReadCpuTelemetry(computer).Temperature;
 
-    private static TemperatureCandidate? ReadBestTemperature(Computer computer)
+    internal static (double? Temperature, double? PowerWatts) ReadCpuTelemetry(Computer computer)
     {
-        var candidates = new List<TemperatureCandidate>();
+        (TemperatureCandidate? temp, PowerCandidate? power) = ReadBestTelemetry(computer);
+        return (temp?.Value, power?.Value);
+    }
+
+    private static (TemperatureCandidate? Temperature, PowerCandidate? Power) ReadBestTelemetry(Computer computer)
+    {
+        var tempCandidates = new List<TemperatureCandidate>();
+        var powerCandidates = new List<PowerCandidate>();
         foreach (IHardware hardware in computer.Hardware)
         {
-            CollectCpuTemperatures(hardware, candidates);
+            CollectCpuTelemetry(hardware, tempCandidates, powerCandidates);
         }
 
-        return candidates
+        TemperatureCandidate? bestTemp = tempCandidates
             .OrderBy(candidate => candidate.Priority)
             .ThenByDescending(candidate => candidate.Value)
             .FirstOrDefault();
+
+        PowerCandidate? bestPower = powerCandidates
+            .OrderBy(candidate => candidate.Priority)
+            .ThenByDescending(candidate => candidate.Value)
+            .FirstOrDefault();
+
+        return (bestTemp, bestPower);
     }
 
-    private static void CollectCpuTemperatures(
+    private static void CollectCpuTelemetry(
         IHardware hardware,
-        ICollection<TemperatureCandidate> candidates)
+        ICollection<TemperatureCandidate> tempCandidates,
+        ICollection<PowerCandidate> powerCandidates)
     {
         hardware.Update();
         bool isCpuHardware = hardware.HardwareType == HardwareType.Cpu;
@@ -336,41 +378,58 @@ internal sealed class CpuTemperatureReader : IDisposable
         {
             foreach (ISensor sensor in hardware.Sensors)
             {
-                if (sensor.SensorType != SensorType.Temperature || sensor.Value is not float value)
+                if (sensor.Value is not float value)
                 {
                     continue;
                 }
 
-                double temperature = value;
-                if (!double.IsFinite(temperature) || temperature is < 1 or > 125)
+                if (sensor.SensorType == SensorType.Temperature)
                 {
-                    continue;
-                }
-
-                int priority = GetSensorPriority(sensor.Name);
-                if (!isCpuHardware)
-                {
-                    // Motherboard sensors are a fallback. Only accept names that
-                    // explicitly identify a CPU/package/core sensor so chipset and
-                    // ambient temperatures are never mislabeled as CPU temperature.
-                    if (priority > 3 && !IsCpuTemperatureName(sensor.Name))
+                    double temperature = value;
+                    if (!double.IsFinite(temperature) || temperature is < 1 or > 125)
                     {
                         continue;
                     }
 
-                    priority += 4;
-                }
+                    int priority = GetSensorPriority(sensor.Name);
+                    if (!isCpuHardware)
+                    {
+                        // Motherboard sensors are a fallback. Only accept names that
+                        // explicitly identify a CPU/package/core sensor so chipset and
+                        // ambient temperatures are never mislabeled as CPU temperature.
+                        if (priority > 3 && !IsCpuTemperatureName(sensor.Name))
+                        {
+                            continue;
+                        }
 
-                candidates.Add(new TemperatureCandidate(
-                    $"{hardware.Name} / {sensor.Name}",
-                    temperature,
-                    priority));
+                        priority += 4;
+                    }
+
+                    tempCandidates.Add(new TemperatureCandidate(
+                        $"{hardware.Name} / {sensor.Name}",
+                        temperature,
+                        priority));
+                }
+                else if (isCpuHardware && sensor.SensorType == SensorType.Power)
+                {
+                    double power = value;
+                    if (!double.IsFinite(power) || power is <= 0.5 or > 2000)
+                    {
+                        continue;
+                    }
+
+                    int priority = GetCpuPowerPriority(sensor.Name);
+                    powerCandidates.Add(new PowerCandidate(
+                        $"{hardware.Name} / {sensor.Name}",
+                        power,
+                        priority));
+                }
             }
         }
 
         foreach (IHardware subHardware in hardware.SubHardware)
         {
-            CollectCpuTemperatures(subHardware, candidates);
+            CollectCpuTelemetry(subHardware, tempCandidates, powerCandidates);
         }
     }
 
@@ -394,6 +453,31 @@ internal sealed class CpuTemperatureReader : IDisposable
         }
 
         return 3;
+    }
+
+    private static int GetCpuPowerPriority(string sensorName)
+    {
+        if (sensorName.Contains("Package", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (sensorName.Contains("Total", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (sensorName.Contains("Core", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        if (sensorName.Contains("CPU", StringComparison.OrdinalIgnoreCase))
+        {
+            return 3;
+        }
+
+        return 4;
     }
 
     private static bool IsCpuTemperatureName(string name) =>
@@ -448,6 +532,18 @@ internal sealed class CpuTemperatureReader : IDisposable
         }
 
         return Volatile.Read(ref _helperTemperature);
+    }
+
+    private double? ReadHelperPowerLocked()
+    {
+        long timestamp = Volatile.Read(ref _helperPowerTimestamp);
+        if (timestamp == 0 ||
+            Stopwatch.GetElapsedTime(timestamp, Stopwatch.GetTimestamp()) > HelperValueMaxAge)
+        {
+            return null;
+        }
+
+        return Volatile.Read(ref _helperPower);
     }
 
     private void TryStartHelperLocked()
@@ -553,7 +649,28 @@ internal sealed class CpuTemperatureReader : IDisposable
                     break;
                 }
 
-                if (double.TryParse(
+                if (line.Contains(','))
+                {
+                    string[] parts = line.Split(',');
+                    if (double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double tempVal) &&
+                        double.IsFinite(tempVal) && tempVal is >= 1 and <= 125)
+                    {
+                        Volatile.Write(ref _helperTemperature, tempVal);
+                        Volatile.Write(ref _helperTemperatureTimestamp, Stopwatch.GetTimestamp());
+                    }
+                    if (parts.Length > 1 && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double powerVal) &&
+                        double.IsFinite(powerVal) && powerVal is > 0.5 and <= 2000)
+                    {
+                        Volatile.Write(ref _helperPower, powerVal);
+                        Volatile.Write(ref _helperPowerTimestamp, Stopwatch.GetTimestamp());
+                    }
+                    ReaderReady?.Invoke(this, EventArgs.Empty);
+                    BandDiagnostics.LogRateLimited(
+                        "cpu-temperature-helper-value",
+                        $"CPU telemetry source=ElevatedHelper temp={Volatile.Read(ref _helperTemperature):0.0}C power={Volatile.Read(ref _helperPower):0.0}W",
+                        TimeSpan.FromMinutes(5));
+                }
+                else if (double.TryParse(
                         line,
                         NumberStyles.Float,
                         CultureInfo.InvariantCulture,
@@ -684,4 +801,5 @@ internal sealed class CpuTemperatureReader : IDisposable
     }
 
     private sealed record TemperatureCandidate(string Name, double Value, int Priority);
+    private sealed record PowerCandidate(string Name, double Value, int Priority);
 }

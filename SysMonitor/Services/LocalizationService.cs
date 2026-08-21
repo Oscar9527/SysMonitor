@@ -53,7 +53,11 @@ public sealed class LocalizationService
 
     public string GetString(string key)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new ArgumentException("Key cannot be null or whitespace.", nameof(key));
+        }
+
         return _resources.GetString(key, ActiveCulture) ??
             _resources.GetString(key, English) ??
             key;

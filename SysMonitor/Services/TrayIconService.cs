@@ -24,7 +24,9 @@ public sealed class TrayIconService : IDisposable
     private readonly Forms.ToolStripMenuItem _gameOverlaySettingsItem;
     private readonly Forms.ToolStripMenuItem _gameOverlayFpsMetricItem;
     private readonly Forms.ToolStripMenuItem _gameOverlayCpuMetricItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayCpuPowerMetricItem;
     private readonly Forms.ToolStripMenuItem _gameOverlayGpuMetricItem;
+    private readonly Forms.ToolStripMenuItem _gameOverlayGpuPowerMetricItem;
     private readonly Forms.ToolStripMenuItem _gameOverlayMemoryMetricItem;
     private readonly Forms.ToolStripMenuItem _gameOverlayNetworkMetricItem;
     private readonly Forms.ToolStripMenuItem _gameOverlayCompactItem;
@@ -63,28 +65,38 @@ public sealed class TrayIconService : IDisposable
         _gameOverlayLeftItem = CreateOverlayPositionItem(0);
         _gameOverlayCenterItem = CreateOverlayPositionItem(50);
         _gameOverlayRightItem = CreateOverlayPositionItem(100);
-        _gameOverlayPositionItem.DropDownItems.AddRange(
-        [
+        _gameOverlayPositionItem.DropDownItems.AddRange(new Forms.ToolStripItem[]
+        {
             _gameOverlayLeftItem,
             _gameOverlayCenterItem,
             _gameOverlayRightItem
-        ]);
+        });
 
         _gameOverlayPresetItem = new Forms.ToolStripMenuItem();
         _gameOverlayCompactItem = CreateOverlayPresetItem("compact");
         _gameOverlayRivatunerItem = CreateOverlayPresetItem("rivatuner");
         _gameOverlayDetailedItem = CreateOverlayPresetItem("detailed");
-        _gameOverlayPresetItem.DropDownItems.AddRange(
-        [ _gameOverlayCompactItem, _gameOverlayRivatunerItem, _gameOverlayDetailedItem ]);
+        _gameOverlayPresetItem.DropDownItems.AddRange(new Forms.ToolStripItem[]
+        { _gameOverlayCompactItem, _gameOverlayRivatunerItem, _gameOverlayDetailedItem });
 
         _gameOverlayMetricsItem = new Forms.ToolStripMenuItem();
         _gameOverlayFpsMetricItem = CreateOverlayMetricItem("fps", true);
         _gameOverlayCpuMetricItem = CreateOverlayMetricItem("cpu", true);
+        _gameOverlayCpuPowerMetricItem = CreateOverlayMetricItem("cpuPower", true);
         _gameOverlayGpuMetricItem = CreateOverlayMetricItem("gpu", true);
+        _gameOverlayGpuPowerMetricItem = CreateOverlayMetricItem("gpuPower", true);
         _gameOverlayMemoryMetricItem = CreateOverlayMetricItem("memory", true);
         _gameOverlayNetworkMetricItem = CreateOverlayMetricItem("network", false);
-        _gameOverlayMetricsItem.DropDownItems.AddRange(
-        [ _gameOverlayFpsMetricItem, _gameOverlayCpuMetricItem, _gameOverlayGpuMetricItem, _gameOverlayMemoryMetricItem, _gameOverlayNetworkMetricItem ]);
+        _gameOverlayMetricsItem.DropDownItems.AddRange(new Forms.ToolStripItem[]
+        {
+            _gameOverlayFpsMetricItem,
+            _gameOverlayCpuMetricItem,
+            _gameOverlayCpuPowerMetricItem,
+            _gameOverlayGpuMetricItem,
+            _gameOverlayGpuPowerMetricItem,
+            _gameOverlayMemoryMetricItem,
+            _gameOverlayNetworkMetricItem
+        });
 
         _gameOverlayAppearanceItem = new Forms.ToolStripMenuItem();
         _gameOverlayAppearanceItem.Click += OnGameOverlayAppearanceItemClick;
@@ -93,8 +105,8 @@ public sealed class TrayIconService : IDisposable
         _gameOverlayConfigurationItem.Click += OnGameOverlayConfigurationItemClick;
 
         _gameOverlaySettingsItem = new Forms.ToolStripMenuItem();
-        _gameOverlaySettingsItem.DropDownItems.AddRange(
-        [
+        _gameOverlaySettingsItem.DropDownItems.AddRange(new Forms.ToolStripItem[]
+        {
             _gameOverlayConfigurationItem,
             _gameOverlayAppearanceItem,
             _gameOverlayTargetItem,
@@ -102,7 +114,7 @@ public sealed class TrayIconService : IDisposable
             _gameOverlayPositionItem,
             _gameOverlayPresetItem,
             _gameOverlayMetricsItem
-        ]);
+        });
 
         _appearanceItem = new Forms.ToolStripMenuItem();
         _appearanceItem.Click += OnAppearanceItemClick;
@@ -130,8 +142,8 @@ public sealed class TrayIconService : IDisposable
                 ? new Forms.ToolStripSystemRenderer()
                 : new ModernToolStripRenderer()
         };
-        _contextMenu.Items.AddRange(
-        [
+        _contextMenu.Items.AddRange(new Forms.ToolStripItem[]
+        {
             _panelItem,
             _gameOverlayItem,
             _gameOverlaySettingsItem,
@@ -142,7 +154,7 @@ public sealed class TrayIconService : IDisposable
             _startupItem,
             new Forms.ToolStripSeparator(),
             _exitItem
-        ]);
+        });
         ConfigureMenuItems(_contextMenu.Items);
         _contextMenu.Opening += OnContextMenuOpening;
 
@@ -230,7 +242,9 @@ public sealed class TrayIconService : IDisposable
     {
         SetCheckedWithoutNotification(_gameOverlayFpsMetricItem, metrics.FrameRate);
         SetCheckedWithoutNotification(_gameOverlayCpuMetricItem, metrics.Cpu);
+        SetCheckedWithoutNotification(_gameOverlayCpuPowerMetricItem, metrics.CpuPower);
         SetCheckedWithoutNotification(_gameOverlayGpuMetricItem, metrics.Gpu);
+        SetCheckedWithoutNotification(_gameOverlayGpuPowerMetricItem, metrics.GpuPower);
         SetCheckedWithoutNotification(_gameOverlayMemoryMetricItem, metrics.Memory);
         SetCheckedWithoutNotification(_gameOverlayNetworkMetricItem, metrics.Network);
     }
@@ -308,7 +322,9 @@ public sealed class TrayIconService : IDisposable
         _gameOverlayDetailedItem.Click -= OnGameOverlayPresetItemClick;
         _gameOverlayFpsMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
         _gameOverlayCpuMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
+        _gameOverlayCpuPowerMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
         _gameOverlayGpuMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
+        _gameOverlayGpuPowerMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
         _gameOverlayMemoryMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
         _gameOverlayNetworkMetricItem.CheckedChanged -= OnGameOverlayMetricItemCheckedChanged;
         _gameOverlayAppearanceItem.Click -= OnGameOverlayAppearanceItemClick;
@@ -345,7 +361,9 @@ public sealed class TrayIconService : IDisposable
         _gameOverlaySettingsItem.Text = localization.GetString("TrayGameOverlayAdvanced");
         _gameOverlayFpsMetricItem.Text = localization.GetString("TrayGameOverlayMetricFps");
         _gameOverlayCpuMetricItem.Text = localization.GetString("TrayGameOverlayMetricCpu");
+        _gameOverlayCpuPowerMetricItem.Text = localization.GetString("TrayGameOverlayMetricCpuPower") ?? "CPU 功耗 (W)";
         _gameOverlayGpuMetricItem.Text = localization.GetString("TrayGameOverlayMetricGpu");
+        _gameOverlayGpuPowerMetricItem.Text = localization.GetString("TrayGameOverlayMetricGpuPower") ?? "GPU 功耗 (W)";
         _gameOverlayMemoryMetricItem.Text = localization.GetString("TrayGameOverlayMetricMemory");
         _gameOverlayNetworkMetricItem.Text = localization.GetString("TrayGameOverlayMetricNetwork");
         _gameOverlayCompactItem.Text = localization.GetString("TrayGameOverlayPresetCompact");
@@ -459,7 +477,9 @@ public sealed class TrayIconService : IDisposable
                 _gameOverlayCpuMetricItem.Checked,
                 _gameOverlayGpuMetricItem.Checked,
                 _gameOverlayMemoryMetricItem.Checked,
-                _gameOverlayNetworkMetricItem.Checked));
+                _gameOverlayNetworkMetricItem.Checked,
+                _gameOverlayCpuPowerMetricItem.Checked,
+                _gameOverlayGpuPowerMetricItem.Checked));
         }
     }
 

@@ -128,6 +128,7 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
             {
                 CoreClockMhz = Finite(selected.CoreClockMhz),
                 MemoryClockMhz = Finite(selected.MemoryClockMhz),
+                PowerWatts = Finite(selected.PowerWatts),
             };
     }
 
@@ -315,6 +316,7 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
         DedicatedMemoryTotalBytes = primary.DedicatedMemoryTotalBytes ?? secondary.DedicatedMemoryTotalBytes,
         CoreClockMhz = primary.CoreClockMhz ?? secondary.CoreClockMhz,
         MemoryClockMhz = primary.MemoryClockMhz ?? secondary.MemoryClockMhz,
+        PowerWatts = primary.PowerWatts ?? secondary.PowerWatts,
     };
 
     private static double? Finite(double? value) =>
