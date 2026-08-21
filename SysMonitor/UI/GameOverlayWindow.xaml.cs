@@ -768,6 +768,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         {
             placementArea = ToOverlayRect(exactIdentity.Bounds);
         }
+        else if (target != nint.Zero && TryGetGamePlacementArea(target, out OverlayPixelRect gameArea))
+        {
+            placementArea = gameArea;
+        }
         else if (!TryGetWorkArea(target != nint.Zero && !IsIconic(target) && IsWindowVisible(target) ? target : (_source?.Handle ?? nint.Zero), out placementArea))
         {
             return;
@@ -837,9 +841,11 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private OverlayPixelRect CalculateLegacyPlacementForContext(OverlayMonitorIdentity identity)
     {
         bool isTargetAlive = _targetWindow != nint.Zero && !IsIconic(_targetWindow) && IsWindowVisible(_targetWindow);
-        OverlayPixelRect area = TryGetWorkArea(isTargetAlive ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
-            ? workArea
-            : ToOverlayRect(identity.Bounds);
+        OverlayPixelRect area = isTargetAlive && TryGetGamePlacementArea(_targetWindow, out OverlayPixelRect gameArea)
+            ? gameArea
+            : (TryGetWorkArea(isTargetAlive ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
+                ? workArea
+                : ToOverlayRect(identity.Bounds));
         return CalculatePlacement(
             area,
             GetWidthDip(),

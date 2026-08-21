@@ -255,9 +255,10 @@ public sealed class GameOverlayController : IAsyncDisposable
                 }
 
                 ForegroundWindowCandidate? candidate = _targetTracker.CaptureCandidate();
+                ForegroundTarget? currentTarget = CurrentTarget;
+
                 if (candidate is not null && _targetTracker.IsQualifiedCandidate(candidate))
                 {
-                    ForegroundTarget? currentTarget = CurrentTarget;
                     if (currentTarget is null ||
                         candidate.WindowHandle != currentTarget.WindowHandle ||
                         candidate.ProcessId != currentTarget.ProcessId)
@@ -298,6 +299,30 @@ public sealed class GameOverlayController : IAsyncDisposable
                         {
                             _operations.Release();
                         }
+                    }
+                    else
+                    {
+                        RunOnUi(() =>
+                        {
+                            if (IsCurrent(generation, visible: true) && !_view.OverlayVisible)
+                            {
+                                _view.ShowWithoutActivation();
+                            }
+                        });
+                    }
+                }
+                else if (currentTarget is not null)
+                {
+                    bool isSameProcess = candidate is not null && candidate.ProcessId == currentTarget.ProcessId;
+                    if (!isSameProcess)
+                    {
+                        RunOnUi(() =>
+                        {
+                            if (IsCurrent(generation, visible: true) && _view.OverlayVisible)
+                            {
+                                _view.HideOverlay();
+                            }
+                        });
                     }
                 }
             }

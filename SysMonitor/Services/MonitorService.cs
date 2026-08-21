@@ -29,6 +29,7 @@ public sealed class MonitorService : IMonitorService
         "ZeroTier", "WireGuard", "OpenVPN", "Wintun", "Tailscale", "Hamachi",
     };
 
+    private readonly SemaphoreSlim _samplingWakeup = new(0, 1);
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private readonly CpuUsageReader _cpuReader = new();
     private readonly CpuTemperatureReader? _cpuTemperatureReader;
@@ -78,6 +79,10 @@ public sealed class MonitorService : IMonitorService
         _cpuTemperatureReader = options.EnableCpuTemperatureReader
             ? new CpuTemperatureReader()
             : null;
+        if (_cpuTemperatureReader is not null)
+        {
+            _cpuTemperatureReader.ReaderReady += OnCpuTemperatureReaderReady;
+        }
         _samplingInterval = options.SamplingInterval is { } interval && interval >= TimeSpan.FromMilliseconds(250)
             ? interval
             : TimeSpan.FromSeconds(1);
@@ -168,6 +173,7 @@ public sealed class MonitorService : IMonitorService
         await _gpuCoordinator.DisposeAsync().ConfigureAwait(false);
         _cpuTemperatureReader?.Dispose();
         _cpuReader.Dispose();
+        _samplingWakeup.Dispose();
         _lifecycle.Dispose();
     }
 
@@ -228,8 +234,37 @@ public sealed class MonitorService : IMonitorService
                     TimeSpan.FromSeconds(5));
             }
 
-            try { await Task.Delay(_samplingInterval, cancellationToken).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+            TimeSpan delay = _samplingInterval;
+            if (_cpuTemperatureReader is not null && _cpuTemperatureReader.OpenInProgress && _latest.CpuTemperatureCelsius is null)
+            {
+                delay = TimeSpan.FromMilliseconds(150);
+            }
+
+            try
+            {
+                await _samplingWakeup.WaitAsync(delay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+    }
+
+    private void OnCpuTemperatureReaderReady(object? sender, EventArgs e)
+    {
+        if (_samplingWakeup.CurrentCount == 0)
+        {
+            try
+            {
+                _samplingWakeup.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (SemaphoreFullException)
+            {
+            }
         }
     }
 

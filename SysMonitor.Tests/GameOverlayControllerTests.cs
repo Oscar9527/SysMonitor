@@ -92,6 +92,53 @@ public sealed class GameOverlayControllerTests
         await controller.HideAsync();
     }
 
+    [Fact]
+    public async Task SwitchingToNonGameForeground_HidesOverlay_AndSwitchingBackShowsOverlay()
+    {
+        DateTimeOffset started = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var gameCandidate = new ForegroundWindowCandidate(
+            new nint(10), 100, started, "sango7", "GameWindow", true, true, false);
+        var nonGameCandidate = new ForegroundWindowCandidate(
+            new nint(20), 200, started, "chrome", "Chrome_WidgetWin_1", true, true, false);
+
+        var source = new MutableSource(gameCandidate);
+        var tracker = new ForegroundTargetTracker(
+            source,
+            999,
+            delay: (_, _) => Task.CompletedTask);
+        var provider = new ImmediateFrameProvider();
+        var view = new FakeView();
+        await using var controller = new GameOverlayController(
+            provider,
+            new FakeMonitorService(),
+            tracker,
+            view,
+            action => action());
+
+        await controller.ToggleFromTrayAsync();
+        Assert.True(view.Visible);
+
+        // Switch to Chrome (non-game)
+        source.CurrentCandidate = nonGameCandidate;
+        await Task.Delay(350);
+        Assert.False(view.Visible);
+
+        // Switch back to game
+        source.CurrentCandidate = gameCandidate;
+        await Task.Delay(350);
+        Assert.True(view.Visible);
+
+        await controller.HideAsync();
+    }
+
+    private sealed class MutableSource(ForegroundWindowCandidate? initial) : IForegroundWindowSource
+    {
+        public ForegroundWindowCandidate? CurrentCandidate { get; set; } = initial;
+        public ForegroundWindowCandidate? Capture() => CurrentCandidate;
+        public bool IsCurrentIdentity(ForegroundTarget target) =>
+            CurrentCandidate is not null && CurrentCandidate.ProcessId == target.ProcessId;
+    }
+
     private sealed class RepeatingSource(ForegroundWindowCandidate? candidate)
         : IForegroundWindowSource
     {

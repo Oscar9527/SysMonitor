@@ -61,6 +61,8 @@ internal sealed class CpuTemperatureReader : IDisposable
         _computerOpen = computerOpen ?? throw new ArgumentNullException(nameof(computerOpen));
     }
 
+    public event EventHandler? ReaderReady;
+
     internal bool OpenInProgress
     {
         get
@@ -258,6 +260,7 @@ internal sealed class CpuTemperatureReader : IDisposable
                 _openInProgress = false;
                 _nextRetryTimestamp = 0;
                 BandDiagnostics.Log("CPU temperature reader opened source=LibreHardwareMonitor");
+                ReaderReady?.Invoke(this, EventArgs.Empty);
                 return;
             }
 
