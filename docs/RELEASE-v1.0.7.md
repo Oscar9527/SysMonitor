@@ -14,14 +14,6 @@ v1.0.7 重点降低监控开启后的辅助进程内存，并修复长时间运�
 - 合并任务栏 WinEvent 的 Dispatcher 通知，避免事件风暴积压闭包。
 - 保留 CPU 温度、功耗、UAC、命名管道、Light 和 Standalone 的原有功能。
 
-## 验证
-
-- Release 构建：0 警告、0 错误。
-- 自动化测试：353/353 通过。
-- NuGet 当前源未报告直接或传递依赖的已知漏洞。
-- 真机 UAC 路径成功读取 CPU 温度与功耗。
-- 详细内存口径和可复跑 A/B 脚本见 `docs/MEMORY-OPTIMIZATION-2026-08-22.md` 与 `tools/Measure-HelperMemory.ps1`。
-
 ## SHA-256
 
 - `SysMonitor-v1.0.7-Light.exe`：`CE52E5735754035B04ACF5E1E2599C76DA42FC4AA12D76AEFAB7EDB1AB353752`

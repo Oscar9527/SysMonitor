@@ -25,27 +25,12 @@
 
 ## 📸 界面预览
 
-### 1. 任务栏监控条 (Taskbar Band)
-贴合 Windows 任务栏嵌入显示，支持居左/居中/居右自由调节与项目显示定制：
-
-![任务栏监控条](docs/images/taskbar-band.png)
-
-### 2. 现代圆角详情面板 (Detail Panel)
-点击任务栏监控条或托盘图标即可唤出，实时查看 CPU/GPU 60 秒历史动态曲线、多核信息与存储空间分布：
-
-![详情面板](docs/images/detail-panel.png)
-
-### 3. 游戏浮层 HUD 设置 (HUD Settings)
-支持垂直/水平多种排版布局，自由设置对齐方位与像素级微调：
-
-![HUD 设置与布局](docs/images/hud-settings.png)
-
-### 4. 任务栏外观与个性化 (Appearance Settings)
+### 1. 任务栏外观与个性化 (Appearance Settings)
 自由定制字体、字号、间距、指标开关以及主题色彩：
 
 ![任务栏外观设置](docs/images/appearance-settings.png)
 
-### 5. 系统托盘右键菜单 (Tray Menu)
+### 2. 系统托盘右键菜单 (Tray Menu)
 菜单层次清晰对齐，支持安全保护模式、开机自启与面板置顶等快捷功能：
 
 ![托盘右键菜单](docs/images/tray-menu.png)
@@ -75,8 +60,6 @@
 - 游戏 HUD 改为首次使用时创建，未开启 HUD 的会话不再预建隐藏窗口和帧率控制器。
 - 限频日志键与 PresentMon 交换链缓存改为有界存储，避免长时间运行后持续增长。
 - 合并任务栏 WinEvent 的 Dispatcher 通知，避免资源管理器事件风暴积压闭包。
-- 真机验证保持 CPU 温度/功耗、UAC、命名管道和 Light/Standalone 行为不变。
-- 自动化测试增加至 353 项，并提供可复跑的辅助进程内存 A/B 脚本与测量报告。
 
 ---
 
