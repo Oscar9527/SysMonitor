@@ -11,14 +11,12 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("SysMonitor")]
 [assembly: AssemblyProduct("SysMonitor")]
 [assembly: AssemblyDescription("Portable Windows taskbar system monitor")]
-[assembly: AssemblyVersion("1.5.0.0")]
-[assembly: AssemblyFileVersion("1.5.0.0")]
-[assembly: AssemblyInformationalVersion("1.5.0")]
 
 internal static class SysMonitorLauncher
 {
-    private const string CoreResourceName = "SysMonitor.Core.1.5.0.exe";
-    private const string RuntimeDownloadUrl = "https://dotnet.microsoft.com/download/dotnet/8.0/runtime";
+    private const string CoreResourceName = "SysMonitor.Core.exe";
+    private const string RuntimeDownloadUrl =
+        "https://aka.ms/dotnet/8.0/windowsdesktop-runtime-win-x64.exe";
     private const string LauncherMutexName = @"Local\SysMonitor.Launcher";
     private const string ShowPanelEventName = @"Local\SysMonitor.ShowPanel";
     private const string ExitForUpdateEventName = @"Local\SysMonitor.ExitForUpdate";
@@ -83,15 +81,22 @@ internal static class SysMonitorLauncher
             return 1;
         }
 
-        if (!HasWindowsDesktopRuntime8())
+        if (!HasRequiredWindowsDesktopRuntime())
         {
-            OpenRuntimeDownloadPage();
-            MessageBox.Show(
-                "这台电脑缺少 Microsoft .NET 8 Desktop Runtime（x64）。\n\n已打开官方下载页面，安装后再次运行 SysMonitor。",
-                "需要安装 .NET 运行时",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            return 0;
+            DialogResult download = MessageBox.Show(
+                "这是轻量版，需要 Microsoft .NET 8 Desktop Runtime（x64）才能运行。\n\n" +
+                "点击“是”将打开微软官方安装程序下载。安装完成后，请再次运行 SysMonitor。\n\n" +
+                "如果不想安装 .NET，请点击“否”，改用名称带 Standalone 的独立版；独立版已内置运行环境。",
+                "SysMonitor Light 需要 .NET 8",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information,
+                MessageBoxDefaultButton.Button1);
+            if (download == DialogResult.Yes)
+            {
+                OpenRuntimeDownloadPage();
+            }
+
+            return 2;
         }
 
         try
@@ -252,7 +257,7 @@ internal static class SysMonitorLauncher
         out string corePath,
         out string? error)
     {
-        corePath = Path.Combine(directory, CoreResourceName);
+        corePath = Path.Combine(directory, GetVersionedCoreFileName());
         error = null;
 
         try
@@ -297,6 +302,15 @@ internal static class SysMonitorLauncher
         }
     }
 
+    private static string GetVersionedCoreFileName()
+    {
+        Version? version = Assembly.GetExecutingAssembly().GetName().Version;
+        string productVersion = version is null
+            ? "unknown"
+            : $"{version.Major}.{version.Minor}.{version.Build}";
+        return $"SysMonitor.Core.{productVersion}.exe";
+    }
+
     private static bool CoreMatchesEmbeddedResource(string corePath)
     {
         try
@@ -325,35 +339,8 @@ internal static class SysMonitorLauncher
         }
     }
 
-    private static bool HasWindowsDesktopRuntime8()
+    private static bool HasRequiredWindowsDesktopRuntime()
     {
-        try
-        {
-            var listInfo = new ProcessStartInfo
-            {
-                FileName = "dotnet.exe",
-                Arguments = "--list-runtimes",
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            using Process? listProcess = Process.Start(listInfo);
-            if (listProcess is not null)
-            {
-                string output = listProcess.StandardOutput.ReadToEnd();
-                listProcess.WaitForExit(5000);
-                if (output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Any(line => line.StartsWith("Microsoft.WindowsDesktop.App 8.", StringComparison.OrdinalIgnoreCase)))
-                {
-                    return true;
-                }
-            }
-        }
-        catch
-        {
-        }
-
         try
         {
             using RegistryKey baseKey = RegistryKey.OpenBaseKey(
@@ -361,12 +348,7 @@ internal static class SysMonitorLauncher
                 RegistryView.Registry64);
             using RegistryKey? runtimeKey = baseKey.OpenSubKey(
                 @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App");
-            if (runtimeKey is null)
-            {
-                return false;
-            }
-
-            if (runtimeKey.GetSubKeyNames().Any(name =>
+            if (runtimeKey is not null && runtimeKey.GetSubKeyNames().Any(name =>
                     Version.TryParse(name, out Version? version) && version.Major == 8))
             {
                 return true;
@@ -378,15 +360,19 @@ internal static class SysMonitorLauncher
 
         try
         {
-            string? configuredRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+            string? configuredRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT_X64");
             string[] roots = string.IsNullOrWhiteSpace(configuredRoot)
                 ? new[]
                 {
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
                     @"C:\Program Files\dotnet",
-                    @"C:\Program Files (x86)\dotnet",
                 }
-                : new[] { configuredRoot };
+                : new[]
+                {
+                    configuredRoot,
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
+                    @"C:\Program Files\dotnet",
+                };
 
             return roots.Any(dotnetRoot =>
             {

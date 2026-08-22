@@ -370,6 +370,132 @@ public sealed class SettingsServiceTests
     }
 
     [Fact]
+    public void MaxRevision_IsObservedAndNextPatchWrapsToOne()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(
+            service.SettingsPath,
+            $$"""
+            {
+              "PanelTopmost": true,
+              "__SettingsRevision": {{long.MaxValue}}
+            }
+            """);
+
+        _ = service.Load();
+        Assert.Equal(long.MaxValue, service.Revision);
+        Assert.True(service.TryPatch(settings => settings.PanelLeft = 42, out SettingsSnapshot snapshot));
+        Assert.Equal(1, snapshot.Revision);
+        Assert.True(snapshot.Settings.PanelTopmost);
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(service.SettingsPath));
+        Assert.Equal(1, document.RootElement.GetProperty("__SettingsRevision").GetInt64());
+        Assert.Equal(42, document.RootElement.GetProperty("PanelLeft").GetDouble());
+    }
+
+    [Fact]
+    public void MaxRevision_TwoServicesObserveWrapAndResumeConflicts()
+    {
+        using var directory = new TemporaryDirectory();
+        Directory.CreateDirectory(directory.Path);
+        string settingsPath = System.IO.Path.Combine(directory.Path, "settings.json");
+        File.WriteAllText(settingsPath, $$"""{ "__SettingsRevision": {{long.MaxValue}} }""");
+
+        var first = new SettingsService(directory.Path);
+        var second = new SettingsService(directory.Path);
+        _ = first.Load();
+        _ = second.Load();
+        Assert.Equal(long.MaxValue, first.Revision);
+        Assert.Equal(long.MaxValue, second.Revision);
+
+        Assert.True(first.TryPatch(long.MaxValue, settings => settings.PanelTopmost = true, out SettingsSnapshot committed));
+        Assert.Equal(1, committed.Revision);
+        Assert.False(second.TryPatch(long.MaxValue, settings => settings.BandVisible = false, out SettingsSnapshot stale));
+        Assert.Equal(1, stale.Revision);
+        Assert.True(stale.Settings.PanelTopmost);
+    }
+
+    [Fact]
+    public void MaxRevision_IsObservedAndNextSaveWrapsToOne()
+    {
+        using var directory = new TemporaryDirectory();
+        var service = new SettingsService(directory.Path);
+        Directory.CreateDirectory(directory.Path);
+        File.WriteAllText(
+            service.SettingsPath,
+            $$"""{ "PanelTopmost": true, "__SettingsRevision": {{long.MaxValue}} }""");
+
+        _ = service.Load();
+        Assert.Equal(long.MaxValue, service.Revision);
+        Assert.True(service.TrySave(new AppSettings { BandVisible = false }, long.MaxValue));
+        Assert.Equal(1, service.Revision);
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(service.SettingsPath));
+        Assert.Equal(1, document.RootElement.GetProperty("__SettingsRevision").GetInt64());
+    }
+
+    [Fact]
+    public void RevisionBeforeMax_PersistsMaxConsistentlyAcrossInstances()
+    {
+        using var directory = new TemporaryDirectory();
+        Directory.CreateDirectory(directory.Path);
+        string settingsPath = System.IO.Path.Combine(directory.Path, "settings.json");
+        File.WriteAllText(
+            settingsPath,
+            $$"""{ "__SettingsRevision": {{long.MaxValue - 1}} }""");
+        var first = new SettingsService(directory.Path);
+
+        Assert.True(first.TryPatch(
+            long.MaxValue - 1,
+            settings => settings.PanelTopmost = true,
+            out SettingsSnapshot atMax));
+        Assert.Equal(long.MaxValue, atMax.Revision);
+
+        var second = new SettingsService(directory.Path);
+        Assert.Equal(long.MaxValue, second.Revision);
+        Assert.True(second.GetSnapshot().Settings.PanelTopmost);
+    }
+
+    [Fact]
+    public void TryPatch_CallbackCanUseAnotherServiceWithoutHoldingPathLock()
+    {
+        using var directory = new TemporaryDirectory();
+        var first = new SettingsService(directory.Path);
+        var second = new SettingsService(directory.Path);
+        _ = first.Load();
+        _ = second.Load();
+
+        Thread? nested = null;
+        bool nestedResult = false;
+        Exception? nestedError = null;
+        bool nestedCompletedInsideCallback = false;
+        bool outer = first.TryPatch(settings =>
+        {
+            nested = new Thread(() =>
+            {
+                try
+                {
+                    nestedResult = second.TryPatch(inner => inner.PanelTopmost = true, out _);
+                }
+                catch (Exception exception)
+                {
+                    nestedError = exception;
+                }
+            });
+            nested.Start();
+            nestedCompletedInsideCallback = nested.Join(TimeSpan.FromSeconds(2));
+        }, out _);
+
+        Assert.True(nestedCompletedInsideCallback);
+        Assert.False(outer);
+        Assert.Null(nestedError);
+        Assert.True(nestedResult);
+        Assert.True(first.Confirmed.PanelTopmost);
+    }
+
+    [Fact]
     public void SnapshotsAndRetainedPatchReferencesCannotMutateConfirmedState()
     {
         using var directory = new TemporaryDirectory();

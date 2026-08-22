@@ -153,9 +153,9 @@ public partial class GameOverlayAppearanceWindow : Window
         }
     }
 
-    private void Apply_Click(object sender, RoutedEventArgs e) { _applied = Read(); Applied?.Invoke(_applied); Hide(); MemoryOptimizer.TrimWorkingSet(); }
+    private void Apply_Click(object sender, RoutedEventArgs e) { _applied = Read(); Applied?.Invoke(_applied); Hide(); }
     private void Cancel_Click(object sender, RoutedEventArgs e) => CancelAndHide();
-    private void CancelAndHide() { PreviewChanged?.Invoke(_applied); Hide(); MemoryOptimizer.TrimWorkingSet(); }
+    private void CancelAndHide() { PreviewChanged?.Invoke(_applied); Hide(); }
 
     private sealed record OverlaySkin(string Name, GameOverlayAppearance Appearance);
 }

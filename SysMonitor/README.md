@@ -1,4 +1,4 @@
-# SysMonitor v1.0.5
+# SysMonitor v1.0.6
 
 SysMonitor 是一款 Windows 系统硬件与状态监视工具。支持在任务栏和游戏内悬浮窗（HUD）中实时查看 CPU、GPU、内存、网速和磁盘状态。
 
@@ -25,25 +25,19 @@ SysMonitor 是一款 Windows 系统硬件与状态监视工具。支持在任务
 
 ## 权限与 CPU 温度说明
 
-- **日常使用无需管理员权限**：常规监控、网速、内存、GPU、磁盘等均无需提权。
+- **主界面通常无需管理员权限**：常规监控可在普通权限运行；受限硬件传感器或 PresentMon ETW 场景可能通过受控助手请求提升权限。
 - **关于 CPU 温度与功耗读取**：
-  - 如果未以管理员身份运行，软件首次读取 CPU 硬件传感器时可能需要几秒钟的初始化等待。
-  - 如果希望刚启动就立刻读取到 CPU 温度和功耗，可选择“以管理员身份运行”。
-  - 不使用管理员权限仅影响启动后前几秒的 CPU 温度与功耗初始化，并非必须开启管理员权限。
+  - 权限或硬件后端不提供数据时，对应指标保持不可用，不会填充估算值。
+  - 不建议仅为缩短初始化时间让主进程长期以管理员身份运行。
 
 ## 版本与下载
 
-- **Standalone 独立版**：单文件打包，内置完整运行环境，双击即可直接运行，适合没有安装 .NET 环境的电脑。
-- **Light 轻量版**：体积小巧（约 5MB），需要系统已安装 .NET 7/8 Desktop Runtime。
+- **Standalone 独立版**：单文件打包并内置完整 .NET 运行环境，双击即可直接运行，适合不想安装 .NET 的用户。
+- **Light 轻量版**：框架依赖单文件。本机缺少 x64 .NET 8 Desktop Runtime 时，会提示用户并一键打开微软官方安装程序下载；也会明确建议不想安装的用户改用 Standalone。本审计构建为 5.26 MiB。
 
 ## 构建方式
 
 ```powershell
-# 编译 Standalone 独立版
-dotnet publish .\SysMonitor.csproj -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o bin\PublishStandalone
-
-# 编译 Light 轻量版
-dotnet publish .\SysMonitor.csproj -c Release -r win-x64 --self-contained false `
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o bin\PublishLight
+# 从仓库根目录同时生成两个正式产物
+.\Launcher\Build-Release.ps1
 ```

@@ -4,21 +4,49 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$version = '1.5.0'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+$projectPath = Join-Path $repositoryRoot 'SysMonitor\SysMonitor.csproj'
+[xml]$projectXml = Get-Content -LiteralPath $projectPath -Raw
+$version = [string](
+    $projectXml.Project.PropertyGroup |
+        ForEach-Object { $_.Version } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -First 1)
+$assemblyVersion = [string](
+    $projectXml.Project.PropertyGroup |
+        ForEach-Object { $_.AssemblyVersion } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -First 1)
+if ($version -notmatch '^\d+\.\d+\.\d+$' -or $assemblyVersion -notmatch '^\d+\.\d+\.\d+\.\d+$')
+{
+    throw 'SysMonitor.csproj must define three-part Version and four-part AssemblyVersion values.'
+}
+$assemblyProductVersion = ([version]$assemblyVersion).ToString(3)
+if ($assemblyProductVersion -ne $version)
+{
+    throw "Version ($version) must match the first three AssemblyVersion components ($assemblyProductVersion)."
+}
+
 $artifactDirectory = Join-Path $repositoryRoot 'artifacts'
 $publishDirectory = Join-Path $repositoryRoot "work\portable-core-$version"
 $corePath = Join-Path $artifactDirectory "SysMonitor.Core.$version.exe"
-$launcherPath = Join-Path $artifactDirectory 'SysMonitor.exe'
-$projectPath = Join-Path $repositoryRoot 'SysMonitor\SysMonitor.csproj'
+$launcherPath = Join-Path $artifactDirectory "SysMonitor-v$version-Light.exe"
 $iconPath = Join-Path $repositoryRoot 'SysMonitor\Assets\sysmonitor.ico'
 $sourcePath = Join-Path $PSScriptRoot 'SysMonitorLauncher.cs'
+$versionSourcePath = Join-Path $publishDirectory 'LauncherVersion.g.cs'
 
 New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
 New-Item -ItemType Directory -Force -Path $publishDirectory | Out-Null
 
+@"
+using System.Reflection;
+[assembly: AssemblyVersion("$assemblyVersion")]
+[assembly: AssemblyFileVersion("$assemblyVersion")]
+[assembly: AssemblyInformationalVersion("$version")]
+"@ | Set-Content -LiteralPath $versionSourcePath -Encoding UTF8
+
 # Remove obsolete intermediate cores left by older build scripts. The release
-# directory must contain only the portable launcher requested by users.
+# directory must not retain obsolete intermediate cores.
 Get-ChildItem -LiteralPath $artifactDirectory -Filter 'SysMonitor.Core.*.exe' -File |
     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
 
@@ -56,6 +84,11 @@ if ($sdkLine -notmatch '^(\S+)\s+\[(.+)\]$')
 
 $sdkVersion = $Matches[1]
 $sdkRoot = $Matches[2]
+if ([version]$sdkVersion -lt [version]'8.0.100')
+{
+    throw "Building SysMonitor requires .NET 8 SDK or newer; selected SDK is $sdkVersion."
+}
+
 $compiler = Join-Path $sdkRoot "$sdkVersion\Roslyn\bincore\csc.dll"
 $framework = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'
 
@@ -64,12 +97,13 @@ dotnet $compiler `
     /target:winexe /platform:anycpu /optimize+ /deterministic+ `
     "/out:$launcherPath" `
     "/win32icon:$iconPath" `
-    "/resource:$corePath,SysMonitor.Core.$version.exe" `
+    "/resource:$corePath,SysMonitor.Core.exe" `
     "/reference:$framework\mscorlib.dll" `
     "/reference:$framework\System.dll" `
     "/reference:$framework\System.Core.dll" `
     "/reference:$framework\System.Windows.Forms.dll" `
-    $sourcePath
+    $sourcePath `
+    $versionSourcePath
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # The core is embedded as a resource in the launcher. Keep the distributable

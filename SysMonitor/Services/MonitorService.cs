@@ -74,10 +74,18 @@ public sealed class MonitorService : IMonitorService
     }
 
     public MonitorService(MonitorOptions options)
+        : this(options, gpuCoordinator: null, cpuTemperatureReader: null)
+    {
+    }
+
+    internal MonitorService(
+        MonitorOptions options,
+        GpuTelemetryCoordinator? gpuCoordinator,
+        CpuTemperatureReader? cpuTemperatureReader)
     {
         ArgumentNullException.ThrowIfNull(options);
         _cpuTemperatureReader = options.EnableCpuTemperatureReader
-            ? new CpuTemperatureReader()
+            ? cpuTemperatureReader ?? new CpuTemperatureReader()
             : null;
         if (_cpuTemperatureReader is not null)
         {
@@ -86,7 +94,7 @@ public sealed class MonitorService : IMonitorService
         _samplingInterval = options.SamplingInterval is { } interval && interval >= TimeSpan.FromMilliseconds(250)
             ? interval
             : TimeSpan.FromSeconds(1);
-        _gpuCoordinator = new GpuTelemetryCoordinator(options.EnableLibreHardwareMonitor);
+        _gpuCoordinator = gpuCoordinator ?? new GpuTelemetryCoordinator(options.EnableLibreHardwareMonitor);
         BandDiagnostics.Log(
             $"monitor options gpuCompatibility={options.EnableLibreHardwareMonitor} " +
             $"cpuTemperature={options.EnableCpuTemperatureReader} " +
@@ -110,7 +118,19 @@ public sealed class MonitorService : IMonitorService
             _cpuReader.Start();
             _cpuTemperatureReader?.Start();
             InitializeNetworkCounters();
-            await _gpuCoordinator.StartAsync(_runCancellation.Token).ConfigureAwait(false);
+            try
+            {
+                await _gpuCoordinator.StartAsync(_runCancellation.Token).ConfigureAwait(false);
+            }
+            catch
+            {
+                // The lifecycle gate is already held here. Clean up inline
+                // instead of calling StopAsync, which would re-enter the gate
+                // and deadlock while a provider start is failing/canceling.
+                await CleanupFailedStartAsync().ConfigureAwait(false);
+                throw;
+            }
+
             _samplingTask = Task.Run(
                 () => SamplingLoopAsync(_runCancellation.Token),
                 CancellationToken.None);
@@ -171,6 +191,10 @@ public sealed class MonitorService : IMonitorService
 
         await StopAsync().ConfigureAwait(false);
         await _gpuCoordinator.DisposeAsync().ConfigureAwait(false);
+        if (_cpuTemperatureReader is not null)
+        {
+            _cpuTemperatureReader.ReaderReady -= OnCpuTemperatureReaderReady;
+        }
         _cpuTemperatureReader?.Dispose();
         _cpuReader.Dispose();
         _samplingWakeup.Dispose();
@@ -256,19 +280,78 @@ public sealed class MonitorService : IMonitorService
 
     private void OnCpuTemperatureReaderReady(object? sender, EventArgs e)
     {
-        if (_samplingWakeup.CurrentCount == 0)
+        try
         {
-            try
+            if (_samplingWakeup.CurrentCount == 0)
             {
                 _samplingWakeup.Release();
             }
-            catch (ObjectDisposedException)
-            {
-            }
-            catch (SemaphoreFullException)
-            {
-            }
         }
+        catch (ObjectDisposedException)
+        {
+            // A reader open can complete concurrently with service disposal.
+        }
+        catch (SemaphoreFullException)
+        {
+            // A sampling loop wakeup was already queued.
+        }
+    }
+
+    private async Task CleanupFailedStartAsync()
+    {
+        try
+        {
+            _runCancellation?.Cancel();
+        }
+        catch (Exception exception)
+        {
+            BandDiagnostics.LogRateLimited(
+                "monitor-start-cleanup-cancel",
+                $"Cancellation during failed monitor start cleanup failed: {exception.GetType().Name}",
+                TimeSpan.FromSeconds(30));
+        }
+
+        try
+        {
+            await _gpuCoordinator.StopAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            BandDiagnostics.LogRateLimited(
+                "monitor-start-cleanup-gpu",
+                $"GPU cleanup after failed monitor start failed: {exception.GetType().Name}",
+                TimeSpan.FromSeconds(30));
+        }
+
+        try
+        {
+            _cpuTemperatureReader?.Stop();
+        }
+        catch (Exception exception)
+        {
+            BandDiagnostics.LogRateLimited(
+                "monitor-start-cleanup-cpu-temperature",
+                $"CPU temperature cleanup after failed monitor start failed: {exception.GetType().Name}",
+                TimeSpan.FromSeconds(30));
+        }
+
+        try
+        {
+            _cpuReader.Stop();
+        }
+        catch (Exception exception)
+        {
+            BandDiagnostics.LogRateLimited(
+                "monitor-start-cleanup-cpu",
+                $"CPU cleanup after failed monitor start failed: {exception.GetType().Name}",
+                TimeSpan.FromSeconds(30));
+        }
+
+        _samplingTask = null;
+        _networkCounters.Clear();
+        CancellationTokenSource? runCancellation = _runCancellation;
+        _runCancellation = null;
+        runCancellation?.Dispose();
     }
 
     private (double? Temperature, double? PowerWatts) ReadCpuTelemetry()

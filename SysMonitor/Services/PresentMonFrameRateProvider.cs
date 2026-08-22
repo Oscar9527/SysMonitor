@@ -230,6 +230,14 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         bool exited = await WaitForExitAsync(collector, CollectorExitTimeout).ConfigureAwait(false);
         if (!exited)
         {
+            exited = await WaitForExitAsync(collector, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        }
+
+        if (!exited)
+        {
+            // This is the exact collector process that this provider started;
+            // never broaden cleanup to a process-name scan.
+            TryKill(collector);
             await WaitForExitAsync(collector, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
         }
 

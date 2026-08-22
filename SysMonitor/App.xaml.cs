@@ -60,6 +60,8 @@ public partial class App : System.Windows.Application
     private DetailWindow? _detailWindow;
     private AppearanceSettingsWindow? _appearanceSettingsWindow;
     private DispatcherTimer? _bandRecreateTimer;
+    private UiRefreshScheduler? _snapshotRefreshScheduler;
+    private MonitorSnapshot? _pendingSnapshot;
     private AppSettings _settings = new();
     private ResolvedTheme? _currentTheme;
     private ResolvedTheme? _appliedTheme;
@@ -237,7 +239,6 @@ public partial class App : System.Windows.Application
                 _settings.GameOverlayPreset,
                 _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
             _gameOverlayWindow.SetLayoutMode(_settings.GameOverlayLayoutMode);
-            SetDetailedHudTelemetry(_settings.GameOverlayPreset);
             _gameOverlayWindow.SetAppearance(
                 _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
             _gameOverlayController = new GameOverlayController(
@@ -246,6 +247,7 @@ public partial class App : System.Windows.Application
                 new ForegroundTargetTracker(new Win32ForegroundWindowSource()),
                 _gameOverlayWindow);
             _gameOverlayController.StateChanged += OnGameOverlayStateChanged;
+            UpdateDetailedHudTelemetry();
             _gameOverlayHotkey = new GlobalHotkeyService();
             _gameOverlayHotkey.Pressed += OnGameOverlayHotkeyPressed;
             if (!_gameOverlayHotkey.IsRegistered &&
@@ -267,10 +269,15 @@ public partial class App : System.Windows.Application
             _trayIcon.SetGameOverlayMetrics(_settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
 
             _monitorService.SnapshotUpdated += OnSnapshotUpdated;
+            _snapshotRefreshScheduler = new UiRefreshScheduler(
+                action =>
+                {
+                    _ = Dispatcher.InvokeAsync(action, DispatcherPriority.Background);
+                },
+                () => !_isExiting && !Dispatcher.HasShutdownStarted,
+                ApplyPendingSnapshot);
             await _monitorService.StartAsync();
             RegisterControlEventCallbacks();
-            MemoryOptimizer.Initialize();
-            _ = Task.Delay(2500).ContinueWith(_ => MemoryOptimizer.TrimWorkingSet(force: true));
 
             if (e.Args.Any(argument =>
                     string.Equals(argument, "--show-panel", StringComparison.OrdinalIgnoreCase)))
@@ -465,33 +472,43 @@ public partial class App : System.Windows.Application
 
     private void OnSnapshotUpdated(object? sender, MonitorSnapshot snapshot)
     {
-        if (Dispatcher.HasShutdownStarted)
+        if (_isExiting || Dispatcher.HasShutdownStarted)
         {
             return;
         }
 
-        _ = Dispatcher.InvokeAsync(
-            () =>
+        // Keep history complete on the producer thread, but render only the latest
+        // snapshot. A blocked dispatcher can therefore retain at most one snapshot
+        // instead of queueing an unbounded series of stale closures.
+        _ = _metricHistory.TryAdd(new MetricHistoryPoint(
+            snapshot.ProducerId,
+            snapshot.Sequence,
+            snapshot.MonotonicTimestamp,
+            snapshot.CpuUsagePercent,
+            snapshot.Gpu?.UsagePercent));
+        Volatile.Write(ref _pendingSnapshot, snapshot);
+        _snapshotRefreshScheduler?.Request();
+    }
+
+    private void ApplyPendingSnapshot()
+    {
+        Dispatcher.VerifyAccess();
+        MonitorSnapshot? snapshot = Interlocked.Exchange(ref _pendingSnapshot, null);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        _bandWindow?.UpdateSnapshot(snapshot);
+        _detailWindow?.UpdateSnapshot(snapshot);
+        if (_detailWindow is
             {
-                Dispatcher.VerifyAccess();
-                _ = _metricHistory.TryAdd(new MetricHistoryPoint(
-                    snapshot.ProducerId,
-                    snapshot.Sequence,
-                    snapshot.MonotonicTimestamp,
-                    snapshot.CpuUsagePercent,
-                    snapshot.Gpu?.UsagePercent));
-                _bandWindow?.UpdateSnapshot(snapshot);
-                _detailWindow?.UpdateSnapshot(snapshot);
-                if (_detailWindow is
-                    {
-                        IsVisible: true,
-                        WindowState: not WindowState.Minimized
-                    } visibleDetail)
-                {
-                    visibleDetail.UpdateHistory(_metricHistory.Snapshot());
-                }
-            },
-            DispatcherPriority.Background);
+                IsVisible: true,
+                WindowState: not WindowState.Minimized
+            } visibleDetail)
+        {
+            visibleDetail.UpdateHistory(_metricHistory.Snapshot());
+        }
     }
 
     private void OnToggleDetailsRequested(object? sender, EventArgs e)
@@ -524,7 +541,6 @@ public partial class App : System.Windows.Application
                 SavePanelPosition();
                 detail.Hide();
                 _trayIcon?.SetPanelVisible(false);
-                MemoryOptimizer.TrimWorkingSet();
                 return;
             }
 
@@ -922,6 +938,7 @@ public partial class App : System.Windows.Application
     {
         bool visible = _gameOverlayController?.DesiredVisible == true;
         _trayIcon?.SetGameOverlayState(visible, available: true);
+        UpdateDetailedHudTelemetry();
 
         if (visible && _gameOverlayController?.CurrentTarget is { ExecutablePath: { Length: > 0 } exePath } target)
         {
@@ -1121,12 +1138,13 @@ public partial class App : System.Windows.Application
         _gameOverlayWindow?.SetLayout(
             _settings.GameOverlayPreset,
             _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
-        SetDetailedHudTelemetry(_settings.GameOverlayPreset);
+        UpdateDetailedHudTelemetry();
     }
 
-    private void SetDetailedHudTelemetry(string? preset) =>
+    private void UpdateDetailedHudTelemetry() =>
         _monitorService?.SetDetailedTelemetryEnabled(
-            string.Equals(preset, "detailed", StringComparison.OrdinalIgnoreCase));
+            _gameOverlayController?.DesiredVisible == true &&
+            string.Equals(_settings.GameOverlayPreset, "detailed", StringComparison.OrdinalIgnoreCase));
 
     private void OnGameOverlayMetricsChanged(GameOverlayMetricVisibility metrics)
     {
@@ -1385,36 +1403,6 @@ public partial class App : System.Windows.Application
                 ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: false);
                 return false;
             }
-
-            RtssCompatibilityResult result = _rtssLegacyCompatibilityService.SetEnabled(
-                request.LegacyExecutablePath,
-                request.LegacyEnabled);
-            if (!result.Success)
-            {
-                BandDiagnostics.Log(
-                    $"RTSS compatibility change failed code={result.Code} diagnostic={result.Diagnostic}");
-                System.Windows.MessageBox.Show(
-                    _gameOverlaySettingsWindow,
-                    _localizationService.Format("HudLegacyApplyFailedMessage", result.Diagnostic),
-                    _localizationService.GetString("HudLegacyApplyFailedTitle"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: true);
-                return false;
-            }
-
-            if (result.RestartRequired)
-            {
-                string key = request.LegacyEnabled
-                    ? "HudLegacyRestartEnabledMessage"
-                    : "HudLegacyRestartDisabledMessage";
-                System.Windows.MessageBox.Show(
-                    _gameOverlaySettingsWindow,
-                    _localizationService.Format(key, result.ExecutableName ?? Path.GetFileName(request.LegacyExecutablePath)),
-                    _localizationService.GetString("HudLegacyRestartTitle"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
         }
 
         if (positionIdentity is OverlayMonitorIdentity originallySelected &&
@@ -1515,6 +1503,63 @@ public partial class App : System.Windows.Application
                 MessageBoxImage.Error);
             return false;
         }
+
+        // Mutate the external RTSS profile only after every stale-monitor check
+        // and the atomic settings write have succeeded. This prevents a later
+        // settings failure from leaving an unrelated profile change behind.
+        if (request.LegacyChanged && !string.IsNullOrWhiteSpace(request.LegacyExecutablePath))
+        {
+            RtssCompatibilityResult result = _rtssLegacyCompatibilityService.SetEnabled(
+                request.LegacyExecutablePath,
+                request.LegacyEnabled);
+            if (!result.Success)
+            {
+                bool settingsRolledBack = TryPatchSettings(settings =>
+                {
+                    settings.GameOverlayLayoutMode = previousLayoutMode;
+                    settings.GameOverlayHorizontalPositionPercent = previousHorizontalPositionPercent;
+                    settings.GameOverlayMonitorPositions = previousMonitorPositions;
+                    settings.GameOverlayMetrics = previousMetrics;
+                    settings.GameOverlaySampling = previousSampling;
+                });
+                if (!settingsRolledBack)
+                {
+                    _settings.GameOverlayLayoutMode = previousLayoutMode;
+                    _settings.GameOverlayHorizontalPositionPercent = previousHorizontalPositionPercent;
+                    _settings.GameOverlayMonitorPositions = previousMonitorPositions;
+                    _settings.GameOverlayMetrics = previousMetrics;
+                    _settings.GameOverlaySampling = previousSampling;
+                }
+
+                BandDiagnostics.Log(
+                    $"RTSS compatibility change failed code={result.Code} " +
+                    $"settingsRollback={settingsRolledBack} diagnostic={result.Diagnostic}");
+                System.Windows.MessageBox.Show(
+                    _gameOverlaySettingsWindow,
+                    _localizationService.Format("HudLegacyApplyFailedMessage", result.Diagnostic),
+                    _localizationService.GetString("HudLegacyApplyFailedTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                ResetGameOverlayPreviewAfterFailedApply(reloadConfiguration: true);
+                return false;
+            }
+
+            if (result.RestartRequired)
+            {
+                string key = request.LegacyEnabled
+                    ? "HudLegacyRestartEnabledMessage"
+                    : "HudLegacyRestartDisabledMessage";
+                System.Windows.MessageBox.Show(
+                    _gameOverlaySettingsWindow,
+                    _localizationService.Format(
+                        key,
+                        result.ExecutableName ?? Path.GetFileName(request.LegacyExecutablePath)),
+                    _localizationService.GetString("HudLegacyRestartTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
+
         _gameOverlayWindow?.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
         _gameOverlayWindow?.SetLayoutMode(_settings.GameOverlayLayoutMode);
         _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
@@ -1661,6 +1706,9 @@ public partial class App : System.Windows.Application
             if (_monitorService is not null)
             {
                 _monitorService.SnapshotUpdated -= OnSnapshotUpdated;
+                _snapshotRefreshScheduler?.Dispose();
+                _snapshotRefreshScheduler = null;
+                Interlocked.Exchange(ref _pendingSnapshot, null);
                 await _monitorService.DisposeAsync();
             }
 
@@ -1849,8 +1897,6 @@ public partial class App : System.Windows.Application
                 }
             }
 
-            MemoryOptimizer.Shutdown();
-
             try
             {
                 _singleInstanceMutex?.ReleaseMutex();
@@ -1868,51 +1914,8 @@ public partial class App : System.Windows.Application
         }
         finally
         {
-            KillLingeringProcesses();
             Shutdown();
             Environment.Exit(0);
-        }
-    }
-
-    private static void KillLingeringProcesses()
-    {
-        try
-        {
-            int currentPid = Environment.ProcessId;
-            int currentSession = Process.GetCurrentProcess().SessionId;
-            foreach (Process proc in Process.GetProcesses())
-            {
-                try
-                {
-                    if (proc.SessionId != currentSession)
-                    {
-                        continue;
-                    }
-
-                    string name = proc.ProcessName;
-                    if (string.Equals(name, "PresentMon-2.5.1-x64", StringComparison.OrdinalIgnoreCase) ||
-                        name.StartsWith("PresentMon", StringComparison.OrdinalIgnoreCase))
-                    {
-                        proc.Kill(entireProcessTree: true);
-                    }
-                    else if ((string.Equals(name, "SysMonitor", StringComparison.OrdinalIgnoreCase) ||
-                              name.StartsWith("SysMonitor-", StringComparison.OrdinalIgnoreCase)) &&
-                             proc.Id != currentPid)
-                    {
-                        proc.Kill(entireProcessTree: true);
-                    }
-                }
-                catch
-                {
-                }
-                finally
-                {
-                    proc.Dispose();
-                }
-            }
-        }
-        catch
-        {
         }
     }
 

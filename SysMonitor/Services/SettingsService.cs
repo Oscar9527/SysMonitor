@@ -22,7 +22,11 @@ public sealed class SettingsService
     private readonly object _gate = new();
     private static readonly ConcurrentDictionary<string, object> SharedPathGates =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, object> SharedPathPatchGates =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly AsyncLocal<HashSet<object>?> ActivePatchGates = new();
     private readonly object _sharedPathGate;
+    private readonly object _sharedPathPatchGate;
     private bool _loaded;
     private long _revision;
     private AppSettings _confirmed = new();
@@ -35,6 +39,9 @@ public sealed class SettingsService
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SysMonitor");
         SettingsPath = Path.Combine(SettingsDirectory, "settings.json");
         _sharedPathGate = SharedPathGates.GetOrAdd(
+            Path.GetFullPath(SettingsPath),
+            static _ => new object());
+        _sharedPathPatchGate = SharedPathPatchGates.GetOrAdd(
             Path.GetFullPath(SettingsPath),
             static _ => new object());
     }
@@ -157,19 +164,12 @@ public sealed class SettingsService
 
     public SettingsSnapshot Patch(Action<AppSettings> patch)
     {
-        ArgumentNullException.ThrowIfNull(patch);
-        lock (_sharedPathGate)
-        lock (_gate)
+        if (!TryPatch(patch, out SettingsSnapshot snapshot))
         {
-            EnsureLoadedLocked();
-            SettingsSnapshot snapshot = PatchLocked(patch, null, out bool committed);
-            if (!committed)
-            {
-                throw new IOException("Settings could not be committed.");
-            }
-
-            return snapshot;
+            throw new IOException("Settings could not be committed.");
         }
+
+        return snapshot;
     }
 
     public bool TryPatch(Action<AppSettings> patch, out SettingsSnapshot snapshot)
@@ -200,31 +200,36 @@ public sealed class SettingsService
     private bool TryPatch(long? expectedRevision, Action<AppSettings> patch, out SettingsSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(patch);
+        using PatchGateLease patchGate = EnterPatchGate();
+        return TryPatchCore(expectedRevision, patch, out snapshot);
+    }
+
+    private bool TryPatchCore(long? expectedRevision, Action<AppSettings> patch, out SettingsSnapshot snapshot)
+    {
+
+        AppSettings baseline;
+        long baseRevision;
+
         lock (_sharedPathGate)
         lock (_gate)
         {
             EnsureLoadedLocked();
-            snapshot = PatchLocked(patch, expectedRevision, out bool committed);
-            return committed;
-        }
-    }
+            // A second service instance may have committed since this instance
+            // loaded. Refresh the detached state before checking the revision.
+            RefreshExternalStateLocked();
+            if (expectedRevision is long expected && expected != _revision)
+            {
+                snapshot = new SettingsSnapshot(_confirmed, _revision);
+                return false;
+            }
 
-    private SettingsSnapshot PatchLocked(
-        Action<AppSettings> patch,
-        long? expectedRevision,
-        out bool committed)
-    {
-        // A second service instance may have committed since this instance
-        // loaded. Refresh the detached state before checking the revision.
-        RefreshExternalStateLocked();
-        if (expectedRevision is long expected && expected != _revision)
-        {
-            committed = false;
-            return new SettingsSnapshot(_confirmed, _revision);
+            baseRevision = _revision;
+            baseline = Clone(_confirmed);
         }
 
-        AppSettings working = Clone(_confirmed);
-        AppSettings callbackCandidate = Clone(working);
+        // User callbacks run without either the per-instance or shared-path
+        // lock. The candidate is detached from all service-owned snapshots.
+        AppSettings callbackCandidate = Clone(baseline);
         try
         {
             patch(callbackCandidate);
@@ -232,16 +237,80 @@ public sealed class SettingsService
         }
         catch
         {
-            committed = false;
-            return new SettingsSnapshot(_confirmed, _revision);
+            lock (_sharedPathGate)
+            lock (_gate)
+            {
+                EnsureLoadedLocked();
+                RefreshExternalStateLocked();
+                snapshot = new SettingsSnapshot(_confirmed, _revision);
+                return false;
+            }
         }
 
-        // Keep references handed to callbacks detached from all service-owned
-        // snapshots, including after the callback returns and mutates them.
-        _working = Clone(working);
-        _candidate = Clone(callbackCandidate);
-        committed = TryCommitLocked(callbackCandidate, expectedRevision);
-        return new SettingsSnapshot(_confirmed, _revision);
+        lock (_sharedPathGate)
+        lock (_gate)
+        {
+            EnsureLoadedLocked();
+            // Refresh while reacquiring the locks. If another writer won while
+            // the callback was running, fail this transaction without replaying
+            // the callback against the newer state.
+            RefreshExternalStateLocked();
+            if (_revision != baseRevision ||
+                (expectedRevision is long expected && expected != _revision))
+            {
+                snapshot = new SettingsSnapshot(_confirmed, _revision);
+                return false;
+            }
+
+            // Keep references handed to callbacks detached from all
+            // service-owned snapshots, including after the callback returns and
+            // mutates them.
+            _working = Clone(baseline);
+            _candidate = Clone(callbackCandidate);
+            bool committed = TryCommitLocked(callbackCandidate, baseRevision);
+            snapshot = new SettingsSnapshot(_confirmed, _revision);
+            return committed;
+        }
+    }
+
+    private PatchGateLease EnterPatchGate()
+    {
+        HashSet<object>? previous = ActivePatchGates.Value;
+        bool ownsGate = previous is null || !previous.Contains(_sharedPathPatchGate);
+        if (ownsGate)
+        {
+            Monitor.Enter(_sharedPathPatchGate);
+        }
+
+        HashSet<object> active = previous is null
+            ? new HashSet<object>()
+            : new HashSet<object>(previous);
+        active.Add(_sharedPathPatchGate);
+        ActivePatchGates.Value = active;
+        return new PatchGateLease(_sharedPathPatchGate, previous, ownsGate);
+    }
+
+    private readonly struct PatchGateLease : IDisposable
+    {
+        private readonly object _gate;
+        private readonly HashSet<object>? _previous;
+        private readonly bool _ownsGate;
+
+        public PatchGateLease(object gate, HashSet<object>? previous, bool ownsGate)
+        {
+            _gate = gate;
+            _previous = previous;
+            _ownsGate = ownsGate;
+        }
+
+        public void Dispose()
+        {
+            ActivePatchGates.Value = _previous;
+            if (_ownsGate)
+            {
+                Monitor.Exit(_gate);
+            }
+        }
     }
 
     private bool TryCommitLocked(AppSettings candidate, long? expectedRevision)
@@ -253,7 +322,7 @@ public sealed class SettingsService
 
         AppSettings normalized = Clone(candidate);
         Normalize(normalized);
-        long nextRevision = checked(_revision + 1);
+        long nextRevision = GetNextRevision(_revision);
         if (!TryPersistLocked(normalized, nextRevision))
         {
             // Confirmed remains untouched on serialization or I/O failure.
@@ -285,7 +354,7 @@ public sealed class SettingsService
         _candidate = Clone(settings);
         if (!preserveRevision)
         {
-            _revision = Math.Max(0, revision);
+            _revision = NormalizePersistedRevision(revision);
         }
 
         _loaded = true;
@@ -471,7 +540,7 @@ public sealed class SettingsService
                     document.RootElement.TryGetProperty(RevisionPropertyName, out JsonElement revisionElement) &&
                     revisionElement.TryGetInt64(out long persistedRevision))
                 {
-                    revision = Math.Max(0, persistedRevision);
+                    revision = NormalizePersistedRevision(persistedRevision);
                 }
 
                 return true;
@@ -511,13 +580,29 @@ public sealed class SettingsService
                 return false;
             }
 
-            revision = Math.Max(0, parsed);
+            revision = NormalizePersistedRevision(parsed);
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static long NormalizePersistedRevision(long revision)
+    {
+        // Keep every non-negative persisted value observable by all service
+        // instances. In particular, normalizing MaxValue to zero would make
+        // one instance disagree with another immediately after MaxValue was
+        // legitimately persisted from MaxValue - 1.
+        return revision >= 0 ? revision : 0;
+    }
+
+    private static long GetNextRevision(long revision)
+    {
+        // Wrap the terminal value to one instead of overflowing. Zero remains
+        // the recovery baseline for missing, corrupt, or negative revisions.
+        return revision is >= 0 and < long.MaxValue ? revision + 1 : 1;
     }
 
     private static AppSettings Clone(AppSettings source)

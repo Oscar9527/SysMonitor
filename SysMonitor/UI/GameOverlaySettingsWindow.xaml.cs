@@ -859,7 +859,6 @@ public partial class GameOverlaySettingsWindow : Window
     {
         FinalizePreviewSession(committed);
         Hide();
-        MemoryOptimizer.TrimWorkingSet();
     }
 
     private void FinalizePreviewSession(bool committed)

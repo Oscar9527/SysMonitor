@@ -17,9 +17,9 @@
   - 经典 MSI Afterburner 单行纯色风格与 Consolas 字体，无损呈现 GPU、CPU、RAM、FPS 等指标；
   - 支持顶部左侧、居中、右侧预设对齐与像素级拖动滑块微调，多显示器坐标独立记忆；
   - 全局显示器基准定位，自动过滤浏览器与日常桌面工具，全屏/窗口化/切屏/最小化均稳如磐石；
-  - 双通道帧率引擎：优先读取 RTSS 共享内存，自动回退至内嵌 PresentMon 2.5.1 ETW 零侵入采集，兼容 DirectX、Vulkan、OpenGL 及 DirectDraw 经典老游戏。
-- **超低资源占用**：独家后台工作集自动压缩算法，常驻物理内存稳定在 **19MB ~ 30MB**，CPU 占用低于 0.1%。
-- **免安装便携运行**：单文件即开即用，无需管理员权限，纯绿色环保。
+  - 双通道帧率引擎：可选读取 RTSS 共享内存，否则使用内嵌 PresentMon 2.5.1 ETW 采集。只有目标实际产生可观察的呈现事件时才显示 FPS；旧式 DirectDraw 或特殊渲染路径可能没有数据。
+- **按需采样**：隐藏 HUD 时停用详细频率遥测，界面只消费最新快照；不使用周期性强制 GC 或工作集裁剪来制造低内存数字。
+- **免安装便携运行**：支持单文件运行。普通界面不要求管理员权限；部分硬件传感器或 ETW 采集可能通过受控助手请求提升权限。
 
 ---
 
@@ -59,55 +59,50 @@
 | **任务栏 Band** | 透明无边框、置顶显示、自动适应任务栏位置和 DPI、支持自动隐藏任务栏 |
 | **CPU 监控** | 总体使用率、逻辑处理器数量、CPU 核心温度 |
 | **内存监控** | 物理内存使用率、已用/总容量 |
-| **GPU 监控** | NVIDIA、AMD、Intel 全系列显卡支持，显示核心利用率、核心温度与显存占用 |
+| **GPU 监控** | 在驱动和采集后端提供数据时，显示 NVIDIA、AMD、Intel GPU 的利用率、温度与显存占用 |
 | **网络监控** | 活动 IPv4 网卡合计实时下载与上传速率 |
 | **存储监控** | 任务栏显示系统盘，详情面板自适应展示所有分区容量与占用进度 |
 | **历史曲线** | 详情面板呈现最近 60 秒 CPU / GPU 连续使用率曲线 |
 | **游戏 HUD** | `Ctrl+Shift+F10` 全局热键、垂直/水平排版、预设对齐与每显示器精确坐标记忆 |
 | **外观定制** | 自定义字体、字号、间距 `0–18px`、左右位置、按项显示/隐藏、多语言支持 |
-| **超低内存** | 智能工作集修剪技术，内存占用优化至 19MB~30MB |
+| **资源策略** | 按显示状态启停详细采样，合并待处理 UI 快照，交由 .NET GC 正常管理内存 |
 
 ---
 
-## 🚀 v1.0.5 更新内容
+## 🚀 v1.0.6 更新日志（相比上一版本 v1.0.5）
 
-- **新增 CPU / GPU 功耗监测 (W)**：
-  - 任务栏监控条与游戏浮层 HUD 均已支持实时显示功耗；
-  - 采用芯片内部 MSR / NVAPI 硬件能量计数器采样，精度达 0.1W，可独立选择开启或关闭。
-- **全新矩阵式监控项自定义与自由排序**：
-  - 设置界面提供九宫格矩阵（使用率、温度、功耗、频率、容量），各项均可独立开关；
-  - 游戏浮层支持同类指标自由上下调序，满足个性化排版需求。
-- **单文件无损压缩瘦身（体积减少近 60%）**：
-  - 开启流式无损压缩（Deflate）并剥离调试符号表，独立单文件版从 163MB 瘦身至 **69.7MB**；
-  - 功能、检测精度与运行时性能 100% 保持一致，常驻内存维持在 19MB~30MB。
-- **任务栏排版与高 DPI 全局自适应**：
-  - 任务栏重构为规范的上下双层结构，修复同时显示容量时占用率百分比被覆盖的问题；
-  - 深度支持 `PerMonitorV2`，在 100%~200% 缩放及多显示器跨屏切换时自适应重绘，字迹清晰锐利。
-- **托盘菜单与交互体验精简**：
-  - 优化菜单层级与文案，操作逻辑更直观顺畅。
+- 修复应用按名称误杀其他 SysMonitor/PresentMon 进程及采集器异常退出后残留的问题。
+- 修复设置并发回调死锁、跨实例覆盖和修订号达到 `long.MaxValue` 时的溢出边界。
+- 删除周期性强制 Gen2 GC、工作集裁剪和 50 MiB GC 堆硬限制，避免暂停、缺页和有效负载 OOM。
+- UI 只调度最新监控快照；HUD 隐藏时停止详细频率遥测，减少无效后台工作。
+- 监控服务启动失败后完整清理并允许重启；收紧系统 DLL 搜索路径。
+- 核心、测试和启动器统一为 `.NET 8`，版本和发布文件名由项目文件生成。
+- 新增统一双版本构建：Standalone 内置 .NET；Light 缺少运行时时可一键进入微软官方 x64 Desktop Runtime 下载。
+- 自动化测试增加至 338 项，并补充完整审计、发布环境和真机验证边界。
 
 ---
 
 ## 📥 下载与运行
 
-前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.5) 下载最新正式版：
+前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.6) 下载最新正式版：
 
-### 🌟 最新版本 (v1.0.5)
+### 🌟 最新版本 (v1.0.6)
 
 | 发行版本 | 文件名 | 说明 |
 | :--- | :--- | :--- |
-| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.5-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.5/SysMonitor-v1.0.5-Standalone.exe) | 内置完整 .NET 运行时，即开即用，无需安装任何前置依赖 |
-| **轻量单文件版** | [`SysMonitor-v1.0.5-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.5/SysMonitor-v1.0.5-Light.exe) | 体积仅约 4.9MB，需要系统中已安装 Microsoft .NET 7/8 桌面运行时 |
+| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.6-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.6/SysMonitor-v1.0.6-Standalone.exe) | 内置完整 .NET 运行时，即开即用，无需安装任何前置依赖 |
+| **轻量单文件版** | [`SysMonitor-v1.0.6-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.6/SysMonitor-v1.0.6-Light.exe) | 需要 x64 .NET 8 Desktop Runtime；缺失时自动提示并可一键进入微软官方下载。不想安装运行时请使用 Standalone |
 
 <details>
 <summary><b>📦 历史版本归档 (Release Archive)</b></summary>
 
 | 版本 | 发布说明与特性 | 独立版下载 (Standalone) | 轻量版下载 (Light) |
 | :--- | :--- | :--- | :--- |
+| **v1.0.5** | [v1.0.5 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.5) · 功耗监测、矩阵式项目定制、单文件压缩与 DPI 调整 | [`SysMonitor-v1.0.5-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.5/SysMonitor-v1.0.5-Standalone.exe) | [`SysMonitor-v1.0.5-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.5/SysMonitor-v1.0.5-Light.exe) |
 | **v1.0.4** | [v1.0.4 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.4) · 窗口化游戏边缘智能贴靠、窗口焦点自动同步、CPU 快速采样 | [`SysMonitor-v1.0.4-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.4/SysMonitor-v1.0.4-Standalone.exe) | [`SysMonitor-v1.0.4-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.4/SysMonitor-v1.0.4-Light.exe) |
 | **v1.0.3** | [v1.0.3 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.3) · 跟随系统深色/浅色自适应、暗色模式深度调优、规范简体中文字形渲染修复 | [`SysMonitor-v1.0.3-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.3/SysMonitor-v1.0.3-Standalone.exe) | [`SysMonitor-v1.0.3-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.3/SysMonitor-v1.0.3-Light.exe) |
 | **v1.0.2** | [v1.0.2 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.2) · 鼠标全向自由缩放与尺寸永久记忆、16px 纯净圆角无黑边、多显示器副屏支持 | [`SysMonitor-v1.0.2-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.2/SysMonitor-v1.0.2-Standalone.exe) | [`SysMonitor-v1.0.2-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.2/SysMonitor-v1.0.2-Light.exe) |
-| **v1.0.1** | [v1.0.1 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.1) · 首发正式版、大字号排版、老游戏 DirectDraw 兼容、超低 19MB 内存优化 | [`SysMonitor-v1.0.1-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.1/SysMonitor-v1.0.1-Standalone.exe) | [`SysMonitor-v1.0.1-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.1/SysMonitor-v1.0.1-Light.exe) |
+| **v1.0.1** | [v1.0.1 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.1) · 首发正式版、大字号排版与早期 DirectDraw 兼容尝试 | [`SysMonitor-v1.0.1-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.1/SysMonitor-v1.0.1-Standalone.exe) | [`SysMonitor-v1.0.1-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.1/SysMonitor-v1.0.1-Light.exe) |
 
 </details>
 
@@ -115,17 +110,16 @@
 
 ## ⚙️ 快速使用
 
-1. 下载 `SysMonitor-v1.0.5-Standalone.exe` 后直接双击运行（无需管理员权限）；
+1. 下载 `SysMonitor-v1.0.6-Standalone.exe` 后直接双击运行；
 2. 任务栏右侧将自动出现性能监控条，并在系统托盘生成图标；
 3. **点击监控条**：即可在正上方弹出圆角详情面板；
 4. **游戏浮层**：在游戏内随时按下 `Ctrl+Shift+F10` 即可开启/隐藏实时游戏监控；
 5. **右键托盘图标**：可打开外观设置、HUD 详细配置、切换安全保护模式或退出程序。
 
 > **💡 关于 CPU 温度读取与管理员权限**：
-> - 软件默认直接双击运行即可，**无需管理员权限**。
+> - 软件界面可直接双击运行，通常无需让主进程常驻管理员权限。
 > - 如果在部分电脑上启动时 CPU 温度需要等几秒钟才显示，这是因为系统限制了非管理员权限直接读取 CPU 硬件传感器，程序在后台进行安全适配导致的。
-> - **不以管理员运行仅影响启动时几秒钟的初次读取，并非必须打开管理员权限**。
-> - 如果你想在启动瞬间立刻显示 CPU 温度，可以右键选择「以管理员身份运行」。
+> - 某些受限传感器或 PresentMon ETW 场景可能请求受控助手提升权限；拒绝提升时对应指标会保持不可用，不会伪造数据。
 
 ---
 
@@ -142,7 +136,12 @@ dotnet publish .\SysMonitor\SysMonitor.csproj -c Release -r win-x64 `
   --self-contained true -p:PublishSingleFile=true `
   -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
   -o publish-standalone
+
+# 一次生成 Light 与 Standalone 两个带版本号的单文件
+.\Launcher\Build-Release.ps1
 ```
+
+审计、修复清单、验证命令与仍需真机复核的边界见 [`AUDIT-v1.0.5.md`](AUDIT-v1.0.5.md)。
 
 ---
 
