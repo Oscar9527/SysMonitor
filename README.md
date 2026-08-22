@@ -78,7 +78,7 @@
 - 监控服务启动失败后完整清理并允许重启；收紧系统 DLL 搜索路径。
 - 核心、测试和启动器统一为 `.NET 8`，版本和发布文件名由项目文件生成。
 - 新增统一双版本构建：Standalone 内置 .NET；Light 缺少运行时时可一键进入微软官方 x64 Desktop Runtime 下载。
-- 自动化测试增加至 338 项，并补充完整审计、发布环境和真机验证边界。
+- 完善全量单元测试与稳定性加固。
 
 ---
 
@@ -140,8 +140,6 @@ dotnet publish .\SysMonitor\SysMonitor.csproj -c Release -r win-x64 `
 # 一次生成 Light 与 Standalone 两个带版本号的单文件
 .\Launcher\Build-Release.ps1
 ```
-
-审计、修复清单、验证命令与仍需真机复核的边界见 [`AUDIT-v1.0.5.md`](AUDIT-v1.0.5.md)。
 
 ---
 
