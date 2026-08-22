@@ -69,35 +69,34 @@
 
 ---
 
-## 🚀 v1.0.6 更新日志（相比上一版本 v1.0.5）
+## 🚀 v1.0.7 更新日志（相比上一版本 v1.0.6）
 
-- 修复应用按名称误杀其他 SysMonitor/PresentMon 进程及采集器异常退出后残留的问题。
-- 修复设置并发回调死锁、跨实例覆盖和修订号达到 `long.MaxValue` 时的溢出边界。
-- 删除周期性强制 Gen2 GC、工作集裁剪和 50 MiB GC 堆硬限制，避免暂停、缺页和有效负载 OOM。
-- UI 只调度最新监控快照；HUD 隐藏时停止详细频率遥测，减少无效后台工作。
-- 监控服务启动失败后完整清理并允许重启；收紧系统 DLL 搜索路径。
-- 核心、测试和启动器统一为 `.NET 8`，版本和发布文件名由项目文件生成。
-- 新增统一双版本构建：Standalone 内置 .NET；Light 缺少运行时时可一键进入微软官方 x64 Desktop Runtime 下载。
-- 完善全量单元测试与稳定性加固。
+- CPU 温度与 PresentMon 助手在 WPF 初始化前分流，不再为辅助进程加载完整界面运行时。
+- 游戏 HUD 改为首次使用时创建，未开启 HUD 的会话不再预建隐藏窗口和帧率控制器。
+- 限频日志键与 PresentMon 交换链缓存改为有界存储，避免长时间运行后持续增长。
+- 合并任务栏 WinEvent 的 Dispatcher 通知，避免资源管理器事件风暴积压闭包。
+- 真机验证保持 CPU 温度/功耗、UAC、命名管道和 Light/Standalone 行为不变。
+- 自动化测试增加至 353 项，并提供可复跑的辅助进程内存 A/B 脚本与测量报告。
 
 ---
 
 ## 📥 下载与运行
 
-前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.6) 下载最新正式版：
+前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.7) 下载最新正式版：
 
-### 🌟 最新版本 (v1.0.6)
+### 🌟 最新版本 (v1.0.7)
 
 | 发行版本 | 文件名 | 说明 |
 | :--- | :--- | :--- |
-| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.6-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.6/SysMonitor-v1.0.6-Standalone.exe) | 内置完整 .NET 运行时，即开即用，无需安装任何前置依赖 |
-| **轻量单文件版** | [`SysMonitor-v1.0.6-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.6/SysMonitor-v1.0.6-Light.exe) | 需要 x64 .NET 8 Desktop Runtime；缺失时自动提示并可一键进入微软官方下载。不想安装运行时请使用 Standalone |
+| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.7-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.7/SysMonitor-v1.0.7-Standalone.exe) | 内置完整 .NET 运行时，即开即用，无需安装任何前置依赖 |
+| **轻量单文件版** | [`SysMonitor-v1.0.7-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.7/SysMonitor-v1.0.7-Light.exe) | 需要 x64 .NET 8 Desktop Runtime；缺失时自动提示并可一键进入微软官方下载。不想安装运行时请使用 Standalone |
 
 <details>
 <summary><b>📦 历史版本归档 (Release Archive)</b></summary>
 
 | 版本 | 发布说明与特性 | 独立版下载 (Standalone) | 轻量版下载 (Light) |
 | :--- | :--- | :--- | :--- |
+| **v1.0.6** | [v1.0.6 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.6) · 全面审计、并发与生命周期修复、双版本发布 | [`SysMonitor-v1.0.6-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.6/SysMonitor-v1.0.6-Standalone.exe) | [`SysMonitor-v1.0.6-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.6/SysMonitor-v1.0.6-Light.exe) |
 | **v1.0.5** | [v1.0.5 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.5) · 功耗监测、矩阵式项目定制、单文件压缩与 DPI 调整 | [`SysMonitor-v1.0.5-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.5/SysMonitor-v1.0.5-Standalone.exe) | [`SysMonitor-v1.0.5-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.5/SysMonitor-v1.0.5-Light.exe) |
 | **v1.0.4** | [v1.0.4 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.4) · 窗口化游戏边缘智能贴靠、窗口焦点自动同步、CPU 快速采样 | [`SysMonitor-v1.0.4-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.4/SysMonitor-v1.0.4-Standalone.exe) | [`SysMonitor-v1.0.4-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.4/SysMonitor-v1.0.4-Light.exe) |
 | **v1.0.3** | [v1.0.3 Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.3) · 跟随系统深色/浅色自适应、暗色模式深度调优、规范简体中文字形渲染修复 | [`SysMonitor-v1.0.3-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.3/SysMonitor-v1.0.3-Standalone.exe) | [`SysMonitor-v1.0.3-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.3/SysMonitor-v1.0.3-Light.exe) |
@@ -110,7 +109,7 @@
 
 ## ⚙️ 快速使用
 
-1. 下载 `SysMonitor-v1.0.6-Standalone.exe` 后直接双击运行；
+1. 下载 `SysMonitor-v1.0.7-Standalone.exe` 后直接双击运行；
 2. 任务栏右侧将自动出现性能监控条，并在系统托盘生成图标；
 3. **点击监控条**：即可在正上方弹出圆角详情面板；
 4. **游戏浮层**：在游戏内随时按下 `Ctrl+Shift+F10` 即可开启/隐藏实时游戏监控；

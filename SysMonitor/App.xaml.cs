@@ -73,59 +73,8 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        EnsureWindowsDirectoryEnvironment();
         base.OnStartup(e);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
-
-        // This branch must precede the single-instance mutex and every tray/band
-        // initialization step. It is a short-lived, elevated sensor process only.
-        if (CpuTemperatureHelperHost.TryGetPipeName(e.Args, out string helperPipeName))
-        {
-            try
-            {
-                await CpuTemperatureHelperHost.RunAsync(helperPipeName);
-            }
-            catch (Exception exception)
-            {
-                // The parent may exit, UAC policy may block the driver, or the pipe
-                // may disappear. None of those conditions should show helper UI.
-                BandDiagnostics.Log(
-                    $"CPU temperature helper host failed type={exception.GetType().Name}");
-            }
-            finally
-            {
-                Shutdown();
-            }
-
-            return;
-        }
-
-        if (PresentMonHelperHost.TryGetRequest(
-                e.Args,
-                out string presentMonPipeName,
-                out int presentMonProcessId,
-                out string presentMonSessionName))
-        {
-            try
-            {
-                await PresentMonHelperHost.RunAsync(
-                    presentMonPipeName,
-                    presentMonProcessId,
-                    presentMonSessionName);
-            }
-            catch (Exception exception)
-            {
-                BandDiagnostics.Log(
-                    $"PresentMon helper host failed type={exception.GetType().Name}");
-            }
-            finally
-            {
-                Shutdown();
-                Environment.Exit(0);
-            }
-
-            return;
-        }
 
         string? launcherArgument = e.Args.FirstOrDefault(argument =>
             argument.StartsWith("--launcher-path=", StringComparison.OrdinalIgnoreCase));
@@ -228,26 +177,6 @@ public partial class App : System.Windows.Application
             };
             _monitorService = new MonitorService(monitorOptions);
             BandDiagnostics.Log("monitor service created");
-
-            _gameOverlayFrameProvider = new GameOverlayFrameProviderAdapter(
-                GameOverlayFrameRateProviderFactory.Create());
-            _gameOverlayWindow = new GameOverlayWindow();
-            _gameOverlayWindow.SetHorizontalPositionPercent(
-                _settings.GameOverlayHorizontalPositionPercent);
-            _gameOverlayWindow.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
-            _gameOverlayWindow.SetLayout(
-                _settings.GameOverlayPreset,
-                _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
-            _gameOverlayWindow.SetLayoutMode(_settings.GameOverlayLayoutMode);
-            _gameOverlayWindow.SetAppearance(
-                _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
-            _gameOverlayController = new GameOverlayController(
-                _gameOverlayFrameProvider,
-                _monitorService,
-                new ForegroundTargetTracker(new Win32ForegroundWindowSource()),
-                _gameOverlayWindow);
-            _gameOverlayController.StateChanged += OnGameOverlayStateChanged;
-            UpdateDetailedHudTelemetry();
             _gameOverlayHotkey = new GlobalHotkeyService();
             _gameOverlayHotkey.Pressed += OnGameOverlayHotkeyPressed;
             if (!_gameOverlayHotkey.IsRegistered &&
@@ -878,7 +807,7 @@ public partial class App : System.Windows.Application
 
     private async void OnGameOverlayHotkeyPressed(object? sender, EventArgs e)
     {
-        if (_isExiting || _gameOverlayController is null)
+        if (_isExiting || !EnsureGameOverlayInitialized())
         {
             return;
         }
@@ -893,9 +822,8 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        if (_gameOverlayController is null)
+        if (!EnsureGameOverlayInitialized())
         {
-            _trayIcon?.ShowGameSafeModeRestartRequired();
             return;
         }
 
@@ -931,6 +859,104 @@ public partial class App : System.Windows.Application
         finally
         {
             OnGameOverlayStateChanged(controller, EventArgs.Empty);
+        }
+    }
+
+    private bool EnsureGameOverlayInitialized()
+    {
+        if (_gameOverlayController is not null &&
+            _gameOverlayFrameProvider is not null &&
+            _gameOverlayWindow is not null)
+        {
+            return true;
+        }
+
+        if (_isExiting || _monitorService is null || Dispatcher.HasShutdownStarted)
+        {
+            return false;
+        }
+
+        if (!Dispatcher.CheckAccess())
+        {
+            try
+            {
+                return Dispatcher.Invoke(EnsureGameOverlayInitialized);
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+            catch (TaskCanceledException)
+            {
+                return false;
+            }
+        }
+
+        GameOverlayFrameProviderAdapter? frameProvider = null;
+        GameOverlayWindow? window = null;
+        GameOverlayController? controller = null;
+        try
+        {
+            frameProvider = new GameOverlayFrameProviderAdapter(
+                GameOverlayFrameRateProviderFactory.Create());
+            window = new GameOverlayWindow();
+            window.SetHorizontalPositionPercent(
+                _settings.GameOverlayHorizontalPositionPercent);
+            window.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
+            window.SetLayout(
+                _settings.GameOverlayPreset,
+                _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility());
+            window.SetLayoutMode(_settings.GameOverlayLayoutMode);
+            window.SetAppearance(
+                _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
+            controller = new GameOverlayController(
+                frameProvider,
+                _monitorService,
+                new ForegroundTargetTracker(new Win32ForegroundWindowSource()),
+                window);
+            controller.StateChanged += OnGameOverlayStateChanged;
+
+            _gameOverlayFrameProvider = frameProvider;
+            _gameOverlayWindow = window;
+            _gameOverlayController = controller;
+            BandDiagnostics.Log("game overlay runtime initialized on first use");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            if (controller is not null)
+            {
+                controller.StateChanged -= OnGameOverlayStateChanged;
+                try
+                {
+                    controller.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                }
+                catch
+                {
+                }
+            }
+
+            if (frameProvider is not null)
+            {
+                try
+                {
+                    frameProvider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                }
+                catch
+                {
+                }
+            }
+
+            try
+            {
+                window?.Close();
+            }
+            catch
+            {
+            }
+
+            LogException("Game overlay lazy initialization failed", exception);
+            return false;
         }
     }
 
@@ -1071,26 +1097,14 @@ public partial class App : System.Windows.Application
         OnToggleDetailsRequested(null, EventArgs.Empty);
     }
 
-    private static void EnsureWindowsDirectoryEnvironment()
-    {
-        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WINDIR")) &&
-            !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("windir")))
-        {
-            return;
-        }
-
-        string windowsDirectory = Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\Windows\\";
-        windowsDirectory = windowsDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        Environment.SetEnvironmentVariable("WINDIR", windowsDirectory);
-        Environment.SetEnvironmentVariable("windir", windowsDirectory);
-    }
-
     private async void OnSelectGameOverlayTargetRequested(object? sender, EventArgs e)
     {
-        if (_isExiting || _gameOverlayController is null)
+        if (_isExiting || !EnsureGameOverlayInitialized())
         {
             return;
         }
+
+        GameOverlayController controller = _gameOverlayController!;
 
         GameOverlayTargetOption? option = GameOverlayTargetSelectionDialog.Show();
         ForegroundTarget? target = GameOverlayTargetCatalog.ToForegroundTarget(option);
@@ -1102,7 +1116,7 @@ public partial class App : System.Windows.Application
         try
         {
             _explicitGameOverlayTarget = option;
-            await _gameOverlayController.ShowForTargetAsync(target);
+            await controller.ShowForTargetAsync(target);
         }
         catch (Exception exception)
         {
@@ -1110,7 +1124,7 @@ public partial class App : System.Windows.Application
         }
         finally
         {
-            OnGameOverlayStateChanged(_gameOverlayController, EventArgs.Empty);
+            OnGameOverlayStateChanged(controller, EventArgs.Empty);
         }
     }
 
@@ -1156,7 +1170,7 @@ public partial class App : System.Windows.Application
 
     private void OnGameOverlayAppearanceRequested(object? sender, EventArgs e)
     {
-        if (_isExiting || _gameOverlayWindow is null)
+        if (_isExiting || !EnsureGameOverlayInitialized())
         {
             return;
         }
@@ -1169,7 +1183,7 @@ public partial class App : System.Windows.Application
 
     private void OnGameOverlayConfigurationRequested(object? sender, EventArgs e)
     {
-        if (_isExiting || _gameOverlayWindow is null) return;
+        if (_isExiting || !EnsureGameOverlayInitialized()) return;
         GameOverlaySettingsWindow window = EnsureGameOverlaySettingsWindow();
         if (window.IsVisible)
         {

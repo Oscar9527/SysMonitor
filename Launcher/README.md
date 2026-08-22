@@ -20,9 +20,9 @@ Requirements: Windows x64 and .NET 8 SDK 8.0.100 or newer. The script reads
 `Version` and `AssemblyVersion` from `SysMonitor.csproj`. The release build
 writes two versioned files and their SHA-256 values:
 
-- `artifacts\SysMonitor-v1.0.6-Light.exe`: small framework-dependent build;
+- `artifacts\SysMonitor-v1.0.7-Light.exe`: small framework-dependent build;
   guides the user to the official .NET installer when needed.
-- `artifacts\SysMonitor-v1.0.6-Standalone.exe`: self-contained build with the
+- `artifacts\SysMonitor-v1.0.7-Standalone.exe`: self-contained build with the
   .NET runtime included; no separate .NET installation is required.
 
 Use `Build-Portable.ps1` only when rebuilding the Light artifact by itself.

@@ -5,6 +5,7 @@ internal sealed class FrameRateAggregator
     private static readonly TimeSpan WindowLength = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan CurrentChainFreshness = TimeSpan.FromSeconds(1.5);
     private static readonly TimeSpan ReceiveFreshness = TimeSpan.FromSeconds(2);
+    private const int MaximumChains = 256;
     private const double ChallengerRatio = 1.25d;
     private readonly Dictionary<ulong, ChainState> _chains = new();
     private ulong? _currentChain;
@@ -14,9 +15,12 @@ internal sealed class FrameRateAggregator
     private DateTimeOffset? _lastReceivedAt;
 
     internal bool HasReceivedFrames => _lastReceivedAt is not null;
+    internal int ChainCount => _chains.Count;
 
     internal bool Add(PresentMonFrame frame, DateTimeOffset receivedAt)
     {
+        PruneChains(receivedAt);
+
         if (!_chains.TryGetValue(frame.SwapChainAddress, out ChainState? chain))
         {
             chain = new ChainState();
@@ -40,11 +44,14 @@ internal sealed class FrameRateAggregator
         }
 
         Trim(chain, frame.TimeInSeconds);
+        EnforceChainLimit(frame.SwapChainAddress);
         return true;
     }
 
     internal double? Read(DateTimeOffset now)
     {
+        PruneChains(now);
+
         if (_lastReceivedAt is null || now - _lastReceivedAt.Value > ReceiveFreshness)
         {
             ResetSelection();
@@ -138,6 +145,66 @@ internal sealed class FrameRateAggregator
         double totalMilliseconds = chain.Intervals.Sum(interval => interval.Milliseconds);
         double fps = 1000d * chain.Intervals.Count / totalMilliseconds;
         return totalMilliseconds > 0d && double.IsFinite(fps) && fps >= 0d ? fps : null;
+    }
+
+    private void PruneChains(DateTimeOffset now)
+    {
+        foreach (ulong address in _chains
+                     .Where(pair => now - pair.Value.LastReceivedAt > ReceiveFreshness)
+                     .Select(pair => pair.Key)
+                     .ToArray())
+        {
+            RemoveChain(address);
+        }
+
+        if (_currentChain is null)
+        {
+            ClearChallenger();
+        }
+    }
+
+    private void EnforceChainLimit(ulong justAddedAddress)
+    {
+        while (_chains.Count > MaximumChains)
+        {
+            IEnumerable<KeyValuePair<ulong, ChainState>> candidates = _chains
+                .Where(pair => pair.Key != justAddedAddress);
+
+            // Prefer evicting an unselected chain, but never evict the chain that
+            // was just updated. If every other chain is selected, the selected
+            // chain is still eligible so the hard cap remains absolute.
+            if (candidates.Any(pair => !IsSelected(pair.Key)))
+            {
+                candidates = candidates.Where(pair => !IsSelected(pair.Key));
+            }
+
+            KeyValuePair<ulong, ChainState> oldest = candidates
+                .OrderBy(pair => pair.Value.LastReceivedAt)
+                .ThenBy(pair => pair.Key)
+                .First();
+            RemoveChain(oldest.Key);
+        }
+    }
+
+    private bool IsSelected(ulong address) =>
+        _currentChain == address || _challengerChain == address;
+
+    private void RemoveChain(ulong address)
+    {
+        if (!_chains.Remove(address))
+        {
+            return;
+        }
+
+        if (_currentChain == address)
+        {
+            _currentChain = null;
+        }
+
+        if (_challengerChain == address || _currentChain is null)
+        {
+            ClearChallenger();
+        }
     }
 
     private void SetCurrent(ulong address)

@@ -15,6 +15,7 @@ public sealed class TaskbarMotionTracker : IDisposable
     private const uint WineventSkipOwnProcess = 0x0002;
 
     private readonly Dispatcher _dispatcher;
+    private readonly Action<Action> _postDispatcherNotification;
     private readonly Action _reposition;
     private readonly Action _requestRegionProbe;
     private readonly Action _requestRecoveryProbe;
@@ -29,6 +30,8 @@ public sealed class TaskbarMotionTracker : IDisposable
     private int _generation;
     private int _layoutChangePending;
     private int _eventGeneration;
+    private int _layoutNotificationVersion;
+    private int _layoutNotificationPosted;
     private int _closing = 1;
     private bool _started;
     private bool _hasTaskbarSignature;
@@ -41,8 +44,27 @@ public sealed class TaskbarMotionTracker : IDisposable
         Action requestRegionProbe,
         Action requestRecoveryProbe,
         Action healthCheck)
+        : this(
+            dispatcher,
+            reposition,
+            requestRegionProbe,
+            requestRecoveryProbe,
+            healthCheck,
+            postDispatcherNotification: null)
+    {
+    }
+
+    internal TaskbarMotionTracker(
+        Dispatcher dispatcher,
+        Action reposition,
+        Action requestRegionProbe,
+        Action requestRecoveryProbe,
+        Action healthCheck,
+        Action<Action>? postDispatcherNotification)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        _postDispatcherNotification = postDispatcherNotification ??
+            (callback => _ = dispatcher.InvokeAsync(callback, DispatcherPriority.Render));
         _reposition = reposition ?? throw new ArgumentNullException(nameof(reposition));
         _requestRegionProbe = requestRegionProbe ??
             throw new ArgumentNullException(nameof(requestRegionProbe));
@@ -127,6 +149,11 @@ public sealed class TaskbarMotionTracker : IDisposable
 
     public void Dispose()
     {
+        // Close the notification gate even when Dispatcher shutdown prevents us
+        // from synchronously running the full UI-thread Stop path.
+        Volatile.Write(ref _closing, 1);
+        Interlocked.Increment(ref _generation);
+
         if (_dispatcher.CheckAccess())
         {
             Stop();
@@ -245,29 +272,104 @@ public sealed class TaskbarMotionTracker : IDisposable
             return;
         }
 
+        QueueLayoutChangeNotification(generation);
+    }
+
+    private void QueueLayoutChangeNotification(int generation)
+    {
         Interlocked.Exchange(ref _layoutChangePending, 1);
+        Volatile.Write(ref _eventGeneration, generation);
+        _ = Interlocked.Increment(ref _layoutNotificationVersion);
+        PostLayoutChangeNotification();
+    }
+
+    // These narrow hooks keep coalescing tests independent of the shell process and WinEvent hook.
+    internal void ActivateForTesting(int generation)
+    {
+        VerifyDispatcherAccess();
+        if (generation == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(generation));
+        }
+
+        _started = true;
+        Volatile.Write(ref _closing, 0);
+        Volatile.Write(ref _generation, generation);
+    }
+
+    internal void NotifyAcceptedLayoutChangeForTesting()
+    {
+        int generation = Volatile.Read(ref _generation);
+        if (Volatile.Read(ref _closing) != 0 || generation == 0)
+        {
+            return;
+        }
+
+        QueueLayoutChangeNotification(generation);
+    }
+
+    internal void RunEventDebounceForTesting()
+    {
+        VerifyDispatcherAccess();
+        OnEventDebounceTimerTick(null, EventArgs.Empty);
+    }
+
+    private void PostLayoutChangeNotification()
+    {
+        if (Interlocked.CompareExchange(ref _layoutNotificationPosted, 1, 0) != 0)
+        {
+            return;
+        }
 
         try
         {
-            _ = _dispatcher.InvokeAsync(
-                () =>
-                {
-                    if (Volatile.Read(ref _closing) != 0 ||
-                        generation != Volatile.Read(ref _generation))
-                    {
-                        return;
-                    }
-
-                    ScheduleQuietProbe(generation);
-                },
-                DispatcherPriority.Render);
+            _postDispatcherNotification(OnLayoutChangeNotification);
         }
         catch (InvalidOperationException)
         {
+            Interlocked.Exchange(ref _layoutNotificationPosted, 0);
         }
         catch (TaskCanceledException)
         {
+            Interlocked.Exchange(ref _layoutNotificationPosted, 0);
         }
+    }
+
+    private void OnLayoutChangeNotification()
+    {
+        int observedVersion = Volatile.Read(ref _layoutNotificationVersion);
+        try
+        {
+            if (Volatile.Read(ref _closing) != 0)
+            {
+                return;
+            }
+
+            int generation = Volatile.Read(ref _eventGeneration);
+            bool layoutDirty = Volatile.Read(ref _layoutChangePending) != 0;
+            if (layoutDirty &&
+                generation != 0 &&
+                generation == Volatile.Read(ref _generation))
+            {
+                ScheduleQuietProbe(generation);
+            }
+        }
+        finally
+        {
+            CompleteLayoutChangeNotification(observedVersion);
+        }
+    }
+
+    private void CompleteLayoutChangeNotification(int observedVersion)
+    {
+        Interlocked.Exchange(ref _layoutNotificationPosted, 0);
+        if (Volatile.Read(ref _closing) != 0 ||
+            Volatile.Read(ref _layoutNotificationVersion) == observedVersion)
+        {
+            return;
+        }
+
+        PostLayoutChangeNotification();
     }
 
     private void OnEventDebounceTimerTick(object? sender, EventArgs e)
@@ -325,7 +427,7 @@ public sealed class TaskbarMotionTracker : IDisposable
             return;
         }
 
-        _eventGeneration = generation;
+        Volatile.Write(ref _eventGeneration, generation);
         _eventDebounceTimer.Stop();
         _eventDebounceTimer.Start();
     }

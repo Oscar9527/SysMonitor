@@ -66,6 +66,59 @@ public sealed class FrameRateAggregatorTests
         Assert.Null(aggregator.Read(now.AddSeconds(2.1)));
     }
 
+    [Fact]
+    public void PrunesStaleChainsAndBoundsUniqueSwapchains()
+    {
+        var aggregator = new FrameRateAggregator();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        for (ulong address = 1; address <= 1024; address++)
+        {
+            Assert.True(aggregator.Add(Frame(address, address, 16), now));
+        }
+
+        Assert.Equal(256, aggregator.ChainCount);
+        Assert.Null(aggregator.Read(now.AddSeconds(2.1)));
+        Assert.Equal(0, aggregator.ChainCount);
+    }
+
+    [Fact]
+    public void PreservesActiveSelectionWhileEvictingUnselectedChains()
+    {
+        var aggregator = new FrameRateAggregator();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        AddPair(aggregator, 1, 1, 16, now);
+        Assert.Equal(62.5d, aggregator.Read(now.AddMilliseconds(16))!.Value, 6);
+
+        for (ulong address = 2; address <= 257; address++)
+        {
+            Assert.True(aggregator.Add(Frame(address, address, 16), now.AddMilliseconds(20)));
+        }
+
+        Assert.Equal(256, aggregator.ChainCount);
+        Assert.Equal(62.5d, aggregator.Read(now.AddMilliseconds(20))!.Value, 6);
+    }
+
+    [Fact]
+    public void NeverEvictsJustAddedChainWhenTheCapIsReached()
+    {
+        var aggregator = new FrameRateAggregator();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        // The first chain is pruned before the burst, leaving no selected chain
+        // to bias the eviction order.
+        AddPair(aggregator, 1, 1, 16, now);
+        DateTimeOffset burst = now.AddSeconds(2.1);
+        for (ulong address = 2; address <= 258; address++)
+        {
+            Assert.True(aggregator.Add(Frame(address, address, 16), burst));
+        }
+
+        Assert.Equal(256, aggregator.ChainCount);
+        Assert.True(aggregator.Add(Frame(258, 258.016, 16), burst.AddMilliseconds(1)));
+        Assert.Equal(62.5d, aggregator.Read(burst.AddMilliseconds(1))!.Value, 6);
+    }
+
     private static void AddPair(
         FrameRateAggregator aggregator,
         ulong chain,

@@ -1,4 +1,4 @@
-# SysMonitor v1.0.6
+# SysMonitor v1.0.7
 
 SysMonitor 是一款 Windows 系统硬件与状态监视工具。支持在任务栏和游戏内悬浮窗（HUD）中实时查看 CPU、GPU、内存、网速和磁盘状态。
 

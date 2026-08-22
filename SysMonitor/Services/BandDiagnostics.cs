@@ -7,9 +7,54 @@ namespace SysMonitor.Services;
 public static class BandDiagnostics
 {
     private const long MaximumFileBytes = 256 * 1024;
+    private static readonly TimeSpan RateLimitedKeyTtl = TimeSpan.FromHours(24);
+    private const int MaximumRateLimitedKeys = 512;
+    private const int PruneIntervalUniqueKeys = 64;
     private static readonly object Gate = new();
     private static readonly Dictionary<string, DateTimeOffset> LastRateLimitedLog = new();
     private static readonly string SessionId = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture)[..8];
+    private static int _uniqueKeysSincePrune;
+
+    // These hooks are intentionally internal so tests can inspect the bounded
+    // bookkeeping without expanding the application's public API.
+    internal static int RateLimitedKeyCount
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return LastRateLimitedLog.Count;
+            }
+        }
+    }
+
+    internal static bool IsRateLimitedKeyTrackedForTests(string key)
+    {
+        lock (Gate)
+        {
+            return LastRateLimitedLog.ContainsKey(key);
+        }
+    }
+
+    internal static bool IsRateLimitedKeyExpiredForTests(
+        DateTimeOffset now,
+        DateTimeOffset last) =>
+        now - last >= RateLimitedKeyTtl;
+
+    internal static string SelectOldestRateLimitedKeyForTests(
+        IEnumerable<KeyValuePair<string, DateTimeOffset>> entries) =>
+        SelectOldestRateLimitedKey(entries);
+
+    internal static bool TrackRateLimitedKeyForTests(
+        string key,
+        TimeSpan minimumInterval,
+        DateTimeOffset now)
+    {
+        lock (Gate)
+        {
+            return TrackRateLimitedKeyLocked(key, minimumInterval, now);
+        }
+    }
 
     public static void LogProcessSession()
     {
@@ -25,20 +70,97 @@ public static class BandDiagnostics
             return;
         }
 
+        bool shouldLog;
         lock (Gate)
         {
-            DateTimeOffset now = DateTimeOffset.Now;
-            if (LastRateLimitedLog.TryGetValue(key, out DateTimeOffset last) &&
-                now - last < minimumInterval)
-            {
-                return;
-            }
-
-            LastRateLimitedLog[key] = now;
+            shouldLog = TrackRateLimitedKeyLocked(key, minimumInterval, DateTimeOffset.Now);
         }
 
-        Log(message);
+        if (shouldLog)
+        {
+            Log(message);
+        }
     }
+
+    private static bool TrackRateLimitedKeyLocked(
+        string key,
+        TimeSpan minimumInterval,
+        DateTimeOffset now)
+    {
+        if (LastRateLimitedLog.TryGetValue(key, out DateTimeOffset last))
+        {
+            if (now - last < RateLimitedKeyTtl)
+            {
+                if (now - last < minimumInterval)
+                {
+                    return false;
+                }
+
+                LastRateLimitedLog[key] = now;
+                return true;
+            }
+
+            // Expired keys are treated as new keys, so they cannot occupy a
+            // slot indefinitely or suppress a log forever.
+            LastRateLimitedLog.Remove(key);
+        }
+
+        InsertNewRateLimitedKey(key, now);
+        return true;
+    }
+
+    private static void InsertNewRateLimitedKey(string key, DateTimeOffset now)
+    {
+        _uniqueKeysSincePrune++;
+        if (_uniqueKeysSincePrune >= PruneIntervalUniqueKeys)
+        {
+            PruneExpired(now);
+            _uniqueKeysSincePrune = 0;
+        }
+
+        if (LastRateLimitedLog.Count >= MaximumRateLimitedKeys)
+        {
+            // Prune before evicting a live key whenever the hard cap is hit.
+            PruneExpired(now);
+        }
+
+        while (LastRateLimitedLog.Count >= MaximumRateLimitedKeys)
+        {
+            EvictOldest();
+        }
+
+        LastRateLimitedLog[key] = now;
+    }
+
+    private static void PruneExpired(DateTimeOffset now)
+    {
+        foreach (string key in LastRateLimitedLog
+                     .Where(pair => now - pair.Value >= RateLimitedKeyTtl)
+                     .Select(pair => pair.Key)
+                     .ToArray())
+        {
+            LastRateLimitedLog.Remove(key);
+        }
+    }
+
+    private static void EvictOldest()
+    {
+        if (LastRateLimitedLog.Count == 0)
+        {
+            return;
+        }
+
+        string oldestKey = SelectOldestRateLimitedKey(LastRateLimitedLog);
+        LastRateLimitedLog.Remove(oldestKey);
+    }
+
+    private static string SelectOldestRateLimitedKey(
+        IEnumerable<KeyValuePair<string, DateTimeOffset>> entries) =>
+        entries
+            .OrderBy(pair => pair.Value)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .First()
+            .Key;
 
     public static void Log(string message)
     {
