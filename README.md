@@ -1,10 +1,12 @@
-# SysMonitor
+# SysMonitor — Windows 任务栏系统监控与游戏 FPS HUD
 
 [![Release](https://img.shields.io/github/v/release/Oscar9527/SysMonitor?display_name=tag&sort=semver)](https://github.com/Oscar9527/SysMonitor/releases)
 [![License](https://img.shields.io/github/license/Oscar9527/SysMonitor)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/Oscar9527/SysMonitor)
 
 **SysMonitor** 是一款轻量、优雅、高性能的 Windows 任务栏系统性能监视器与游戏帧率浮层工具。将 CPU、内存、GPU、温度、网络速率和系统盘使用率直接无缝嵌入任务栏中，并提供现代化极简圆角详情面板与专业级游戏监控浮层（HUD）。
+
+> **Windows Taskbar System Monitor & Game FPS Overlay** — A lightweight, portable hardware monitor for Windows 10/11 with CPU/GPU temperature, RAM, network, disk and in-game FPS monitoring.
 
 ---
 
