@@ -18,6 +18,7 @@ internal static class RtssSharedMemoryParser
     internal const int RollingFpsEntrySize = 5028;
     internal const uint MaximumEntries = 4096;
     internal const uint MaximumEntrySize = 1024 * 1024;
+    internal const uint MaximumSampleAgeMilliseconds = 2000;
     internal const double MaximumPlausibleFps = 2000d;
 
     internal static SharedMemoryValue Parse(ReadOnlySpan<byte> data, int processId, uint tickCount)
@@ -63,18 +64,18 @@ internal static class RtssSharedMemoryParser
             SharedMemoryParsing.TryReadUInt32(data, offset + 272, out uint time1);
             SharedMemoryParsing.TryReadUInt32(data, offset + 276, out uint frames);
             SharedMemoryParsing.TryReadUInt32(data, offset + 280, out uint frameTimeMicroseconds);
+
+            if (unchecked(tickCount - time1) > MaximumSampleAgeMilliseconds)
+            {
+                return SharedMemoryValue.Missing("RTSS target sample is stale");
+            }
+
             // 1. Check authoritative rolling FPS first (calculated directly by RTSS statistics engine)
             if (entrySize >= RollingFpsEntrySize &&
                 SharedMemoryParsing.TryReadUInt32(data, offset + RollingFpsOffset, out uint rollingTenths) &&
                 TryValidateFps(rollingTenths / 10d, out double rollingFps))
             {
                 return SharedMemoryValue.Present(rollingFps, "RTSS rolling FPS");
-            }
-
-            // For legacy / non-rolling entries, check freshness of time1 against tickCount
-            if (unchecked(tickCount - time1) > 2000u)
-            {
-                return SharedMemoryValue.Missing("RTSS target sample is stale");
             }
 
             // 2. Check frame-time microseconds

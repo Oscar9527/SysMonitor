@@ -168,12 +168,7 @@ public partial class App : System.Windows.Application
             _sessionGameSafeMode = _settings.GameSafeMode;
             MonitorOptions monitorOptions = MonitorOptions.FromGameSafeMode(_sessionGameSafeMode) with
             {
-                SamplingInterval = _settings.GameOverlaySampling?.ToLowerInvariant() switch
-                {
-                    "low" => TimeSpan.FromSeconds(2),
-                    "high" => TimeSpan.FromMilliseconds(500),
-                    _ => TimeSpan.FromSeconds(1)
-                }
+                SamplingInterval = ResolveGameOverlaySamplingInterval(_settings.GameOverlaySampling)
             };
             _monitorService = new MonitorService(monitorOptions);
             BandDiagnostics.Log("monitor service created");
@@ -913,7 +908,8 @@ public partial class App : System.Windows.Application
                 frameProvider,
                 _monitorService,
                 new ForegroundTargetTracker(new Win32ForegroundWindowSource()),
-                window);
+                window,
+                ResolveGameOverlaySamplingInterval(_settings.GameOverlaySampling));
             controller.StateChanged += OnGameOverlayStateChanged;
 
             _gameOverlayFrameProvider = frameProvider;
@@ -1577,15 +1573,20 @@ public partial class App : System.Windows.Application
         _gameOverlayWindow?.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
         _gameOverlayWindow?.SetLayoutMode(_settings.GameOverlayLayoutMode);
         _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
-        _monitorService?.SetSamplingInterval(sampling switch
+        TimeSpan samplingInterval = ResolveGameOverlaySamplingInterval(sampling);
+        _monitorService?.SetSamplingInterval(samplingInterval);
+        _gameOverlayController?.SetSamplingInterval(samplingInterval);
+        _trayIcon?.SetGameOverlayMetrics(metrics);
+        return true;
+    }
+
+    private static TimeSpan ResolveGameOverlaySamplingInterval(string? sampling) =>
+        sampling?.Trim().ToLowerInvariant() switch
         {
             "low" => TimeSpan.FromSeconds(2),
             "high" => TimeSpan.FromMilliseconds(500),
             _ => TimeSpan.FromSeconds(1)
-        });
-        _trayIcon?.SetGameOverlayMetrics(metrics);
-        return true;
-    }
+        };
 
     private void RemoveOverlayMonitorPosition(OverlayMonitorIdentity identity)
     {

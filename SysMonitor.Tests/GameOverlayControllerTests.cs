@@ -131,6 +131,75 @@ public sealed class GameOverlayControllerTests
         await controller.HideAsync();
     }
 
+    [Fact]
+    public async Task SwitchingTargetsRepositionsBeforeSlowFrameProviderRestartCompletes()
+    {
+        DateTimeOffset started = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var first = new ForegroundWindowCandidate(
+            new nint(30), 300, started, "game-one", "GameWindow", true, true, false);
+        var second = new ForegroundWindowCandidate(
+            new nint(40), 400, started, "game-two", "GameWindow", true, true, false);
+        var source = new MutableSource(first);
+        var tracker = new ForegroundTargetTracker(
+            source,
+            999,
+            delay: (_, _) => Task.CompletedTask);
+        var provider = new BlockingSecondStartFrameProvider();
+        var view = new FakeView();
+        await using var controller = new GameOverlayController(
+            provider,
+            new FakeMonitorService(),
+            tracker,
+            view,
+            action => action());
+
+        await controller.ToggleFromTrayAsync();
+        Assert.Equal(first.WindowHandle, view.Target?.WindowHandle);
+
+        source.CurrentCandidate = second;
+        await provider.SecondStartEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(second.WindowHandle, view.Target?.WindowHandle);
+        Assert.Equal(GameOverlayFrameStatus.Starting, view.LastFrame.Status);
+        Assert.Null(view.LastFrame.FramesPerSecond);
+        Assert.True(view.Visible);
+
+        provider.ReleaseSecondStart.TrySetResult();
+        await Task.Delay(50);
+        await controller.HideAsync();
+    }
+
+    [Fact]
+    public async Task VisibleMetricsFollowConfiguredSamplingInterval()
+    {
+        DateTimeOffset started = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var candidate = new ForegroundWindowCandidate(
+            new nint(50), 500, started, "game", "GameWindow", true, true, false);
+        var tracker = new ForegroundTargetTracker(
+            new RepeatingSource(candidate),
+            999,
+            delay: (_, _) => Task.CompletedTask);
+        var provider = new EmittingFrameProvider();
+        var view = new FakeView();
+        await using var controller = new GameOverlayController(
+            provider,
+            new FakeMonitorService(),
+            tracker,
+            view,
+            action => action(),
+            TimeSpan.FromMilliseconds(300));
+
+        await controller.ToggleFromTrayAsync();
+        Assert.Equal(60, view.LastFrame.FramesPerSecond);
+
+        provider.Emit(120);
+        await Task.Delay(100);
+        Assert.Equal(60, view.LastFrame.FramesPerSecond);
+
+        await WaitUntilAsync(() => view.LastFrame.FramesPerSecond == 120);
+        await controller.HideAsync();
+    }
+
     private sealed class MutableSource(ForegroundWindowCandidate? initial) : IForegroundWindowSource
     {
         public ForegroundWindowCandidate? CurrentCandidate { get; set; } = initial;
@@ -202,6 +271,74 @@ public sealed class GameOverlayControllerTests
         }
     }
 
+    private sealed class BlockingSecondStartFrameProvider : IGameOverlayFrameProvider
+    {
+        public TaskCompletionSource SecondStartEntered { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseSecondStart { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int StartCalls { get; private set; }
+        public GameOverlayFrameSnapshot Latest { get; private set; } =
+            GameOverlayFrameSnapshot.Unavailable;
+        public event EventHandler<GameOverlayFrameSnapshot>? SnapshotUpdated;
+
+        public async Task StartAsync(int processId, CancellationToken cancellationToken)
+        {
+            StartCalls++;
+            if (StartCalls == 2)
+            {
+                SecondStartEntered.TrySetResult();
+                await ReleaseSecondStart.Task.WaitAsync(cancellationToken);
+            }
+
+            Latest = new GameOverlayFrameSnapshot(
+                60,
+                GameOverlayFrameStatus.Active,
+                DateTimeOffset.UtcNow,
+                FrameRateSource.RtssSharedMemory);
+            SnapshotUpdated?.Invoke(this, Latest);
+        }
+
+        public Task StopAsync()
+        {
+            Latest = GameOverlayFrameSnapshot.Unavailable;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class EmittingFrameProvider : IGameOverlayFrameProvider
+    {
+        public GameOverlayFrameSnapshot Latest { get; private set; } =
+            GameOverlayFrameSnapshot.Unavailable;
+        public event EventHandler<GameOverlayFrameSnapshot>? SnapshotUpdated;
+
+        public Task StartAsync(int processId, CancellationToken cancellationToken)
+        {
+            Latest = new GameOverlayFrameSnapshot(
+                60,
+                GameOverlayFrameStatus.Active,
+                DateTimeOffset.UtcNow,
+                FrameRateSource.RtssSharedMemory);
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync()
+        {
+            Latest = GameOverlayFrameSnapshot.Unavailable;
+            return Task.CompletedTask;
+        }
+
+        public void Emit(double fps)
+        {
+            Latest = new GameOverlayFrameSnapshot(
+                fps,
+                GameOverlayFrameStatus.Active,
+                DateTimeOffset.UtcNow,
+                FrameRateSource.RtssSharedMemory);
+            SnapshotUpdated?.Invoke(this, Latest);
+        }
+    }
+
     private sealed class FakeMonitorService : IMonitorService
     {
         public event EventHandler<MonitorSnapshot>? SnapshotUpdated
@@ -221,13 +358,30 @@ public sealed class GameOverlayControllerTests
         public bool OverlayVisible => Visible;
         public bool Visible { get; private set; }
         public int ShowCalls { get; private set; }
-        public void SetTarget(ForegroundTarget? target) { }
+        public ForegroundTarget? Target { get; private set; }
+        public GameOverlayFrameSnapshot LastFrame { get; private set; } =
+            GameOverlayFrameSnapshot.Unavailable;
+        public void SetTarget(ForegroundTarget? target) => Target = target;
         public void UpdateMetrics(
             MonitorSnapshot monitor,
             GameOverlayFrameSnapshot frame,
-            double? currentFrequencyMegahertz = null) { }
+            double? currentFrequencyMegahertz = null) => LastFrame = frame;
         public void ShowWithoutActivation() { Visible = true; ShowCalls++; }
         public void HideOverlay() => Visible = false;
         public void RaiseTargetInvalidated() => TargetInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> predicate)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(2);
+        while (!predicate())
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException("The HUD did not refresh within the expected interval.");
+            }
+
+            await Task.Delay(10);
+        }
     }
 }

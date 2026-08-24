@@ -61,18 +61,22 @@ public sealed class GameOverlayController : IAsyncDisposable
     private readonly UiRefreshScheduler _uiRefreshScheduler;
     private readonly SemaphoreSlim _operations = new(1, 1);
     private readonly object _stateGate = new();
+    private readonly object _viewUpdateGate = new();
     private readonly Action<Action> _uiDispatcher;
     private CancellationTokenSource? _targetCancellation;
     private bool _desiredVisible;
     private bool _disposed;
     private long _generation;
+    private long _targetEpoch;
+    private long _metricsSequence;
 
     public GameOverlayController(
         IGameOverlayFrameProvider frameProvider,
         IMonitorService monitorService,
         ForegroundTargetTracker targetTracker,
-        IGameOverlayView view)
-        : this(frameProvider, monitorService, targetTracker, view, null)
+        IGameOverlayView view,
+        TimeSpan? samplingInterval = null)
+        : this(frameProvider, monitorService, targetTracker, view, null, samplingInterval)
     {
     }
 
@@ -81,7 +85,8 @@ public sealed class GameOverlayController : IAsyncDisposable
         IMonitorService monitorService,
         ForegroundTargetTracker targetTracker,
         IGameOverlayView view,
-        Action<Action>? uiDispatcher)
+        Action<Action>? uiDispatcher,
+        TimeSpan? samplingInterval = null)
     {
         _frameProvider = frameProvider ?? throw new ArgumentNullException(nameof(frameProvider));
         _monitorService = monitorService ?? throw new ArgumentNullException(nameof(monitorService));
@@ -94,7 +99,9 @@ public sealed class GameOverlayController : IAsyncDisposable
         _uiRefreshScheduler = new UiRefreshScheduler(
             dispatch: _uiDispatcher,
             isActive: () => DesiredVisible && _view.OverlayVisible,
-            callback: () => _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest));
+            callback: () => { },
+            interval: samplingInterval ?? TimeSpan.FromSeconds(1),
+            enforceMinimumInterval: true);
     }
 
     public event EventHandler? StateChanged;
@@ -107,6 +114,9 @@ public sealed class GameOverlayController : IAsyncDisposable
     public bool IsVisible => _view.OverlayVisible;
 
     public ForegroundTarget? CurrentTarget => _targetTracker.LastQualified;
+
+    public void SetSamplingInterval(TimeSpan interval) =>
+        _uiRefreshScheduler.SetInterval(interval);
 
     public Task ToggleFromHotkeyAsync()
     {
@@ -144,19 +154,31 @@ public sealed class GameOverlayController : IAsyncDisposable
     {
         CancellationTokenSource cancellation;
         long generation;
+        long targetEpoch;
         lock (_stateGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _desiredVisible = visible;
             generation = ++_generation;
+            targetEpoch = ++_targetEpoch;
             _targetCancellation?.Cancel();
             _targetCancellation?.Dispose();
             _targetCancellation = cancellation = new CancellationTokenSource();
+            _uiRefreshScheduler.InvalidatePending();
         }
 
         if (!visible)
         {
-            RunOnUi(_view.HideOverlay);
+            RunOnUi(() =>
+            {
+                lock (_viewUpdateGate)
+                {
+                    if (IsTargetEpochCurrent(targetEpoch))
+                    {
+                        _view.HideOverlay();
+                    }
+                }
+            });
         }
 
         RaiseStateChanged();
@@ -192,18 +214,24 @@ public sealed class GameOverlayController : IAsyncDisposable
                     cancellationToken).ConfigureAwait(false);
             if (target is null)
             {
+                long waitingEpoch = BeginTargetTransition();
                 RunOnUi(() =>
                 {
-                    if (IsCurrent(generation, visible: true))
+                    lock (_viewUpdateGate)
                     {
-                        _view.SetTarget(null);
-                        _view.UpdateMetrics(
-                            _monitorService.Latest,
-                            new GameOverlayFrameSnapshot(
-                                null,
-                                GameOverlayFrameStatus.WaitingForTarget,
-                                DateTimeOffset.UtcNow));
-                        _view.ShowWithoutActivation();
+                        if (IsCurrent(generation, visible: true) &&
+                            IsTargetEpochCurrent(waitingEpoch))
+                        {
+                            _view.SetTarget(null);
+                            _view.UpdateMetrics(
+                                _monitorService.Latest,
+                                new GameOverlayFrameSnapshot(
+                                    null,
+                                    GameOverlayFrameStatus.WaitingForTarget,
+                                    DateTimeOffset.UtcNow));
+                            _uiRefreshScheduler.RestartInterval();
+                            _view.ShowWithoutActivation();
+                        }
                     }
                 });
                 target = await _targetTracker.WaitForTargetAsync(cancellationToken)
@@ -218,16 +246,22 @@ public sealed class GameOverlayController : IAsyncDisposable
                 return;
             }
 
+            long targetEpoch = BeginTargetTransition();
             RunOnUi(() =>
             {
-                if (!IsCurrent(generation, visible: true))
+                lock (_viewUpdateGate)
                 {
-                    return;
-                }
+                    if (!IsCurrent(generation, visible: true) ||
+                        !IsTargetEpochCurrent(targetEpoch))
+                    {
+                        return;
+                    }
 
-                _view.SetTarget(target);
-                _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
-                _view.ShowWithoutActivation();
+                    _view.SetTarget(target);
+                    _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
+                    _uiRefreshScheduler.RestartInterval();
+                    _view.ShowWithoutActivation();
+                }
             });
             RaiseStateChanged();
             _ = MonitorForegroundTargetsAsync(generation, cancellationToken);
@@ -278,22 +312,37 @@ public sealed class GameOverlayController : IAsyncDisposable
                                 break;
                             }
 
+                            bool processChanged = currentTarget?.ProcessId != newTarget.ProcessId;
                             _targetTracker.SetManualTarget(newTarget);
-                            if (currentTarget?.ProcessId != newTarget.ProcessId)
-                            {
-                                await _frameProvider.StartAsync(newTarget.ProcessId, cancellationToken).ConfigureAwait(false);
-                            }
-
+                            long targetEpoch = BeginTargetTransition();
+                            GameOverlayFrameSnapshot initialFrame = processChanged
+                                ? new GameOverlayFrameSnapshot(
+                                    null,
+                                    GameOverlayFrameStatus.Starting,
+                                    DateTimeOffset.UtcNow)
+                                : _frameProvider.Latest;
                             RunOnUi(() =>
                             {
-                                if (IsCurrent(generation, visible: true))
+                                lock (_viewUpdateGate)
                                 {
-                                    _view.SetTarget(newTarget);
-                                    _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
-                                    _view.ShowWithoutActivation();
+                                    if (IsCurrent(generation, visible: true) &&
+                                        IsTargetEpochCurrent(targetEpoch) &&
+                                        _targetTracker.TryGetRecentTarget()?.SameIdentity(newTarget) == true)
+                                    {
+                                        _view.SetTarget(newTarget);
+                                        _view.UpdateMetrics(_monitorService.Latest, initialFrame);
+                                        _uiRefreshScheduler.RestartInterval();
+                                        _view.ShowWithoutActivation();
+                                    }
                                 }
                             });
                             RaiseStateChanged();
+
+                            if (processChanged)
+                            {
+                                await _frameProvider.StartAsync(newTarget.ProcessId, cancellationToken).ConfigureAwait(false);
+                                RequestUiUpdate();
+                            }
                         }
                         finally
                         {
@@ -346,34 +395,85 @@ public sealed class GameOverlayController : IAsyncDisposable
         }
     }
 
+    private long BeginTargetTransition()
+    {
+        long epoch;
+        lock (_stateGate)
+        {
+            epoch = ++_targetEpoch;
+            _uiRefreshScheduler.InvalidatePending();
+        }
+        return epoch;
+    }
+
+    private bool IsTargetEpochCurrent(long epoch)
+    {
+        lock (_stateGate)
+        {
+            return !_disposed && epoch == _targetEpoch;
+        }
+    }
+
     private void OnFrameUpdated(object? sender, GameOverlayFrameSnapshot snapshot) =>
         RequestUiUpdate();
 
-    private void OnMonitorUpdated(object? sender, MonitorSnapshot snapshot) => RequestUiUpdate();
+    private void OnMonitorUpdated(object? sender, MonitorSnapshot snapshot) =>
+        RequestUiUpdate();
 
     private void RequestUiUpdate()
     {
-        if (DesiredVisible)
+        lock (_stateGate)
         {
-            _uiRefreshScheduler.Request();
+            if (_disposed || !_desiredVisible)
+            {
+                return;
+            }
+
+            long epoch = _targetEpoch;
+            long sequence = Interlocked.Increment(ref _metricsSequence);
+            _uiRefreshScheduler.Request(() => ApplyScheduledMetrics(epoch, sequence));
+        }
+    }
+
+    private void ApplyScheduledMetrics(long epoch, long sequence)
+    {
+        lock (_viewUpdateGate)
+        {
+            if (IsTargetEpochCurrent(epoch) &&
+                sequence == Volatile.Read(ref _metricsSequence) &&
+                DesiredVisible &&
+                _view.OverlayVisible)
+            {
+                _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
+            }
         }
     }
 
     private void OnTargetInvalidated(object? sender, EventArgs e)
     {
         _targetTracker.MarkTargetExited();
+        long targetEpoch = BeginTargetTransition();
         RunOnUi(() =>
         {
-            _view.SetTarget(null);
-            _view.UpdateMetrics(
-                _monitorService.Latest,
-                new GameOverlayFrameSnapshot(
-                    null,
-                    GameOverlayFrameStatus.WaitingForTarget,
-                    DateTimeOffset.UtcNow));
-            if (DesiredVisible)
+            lock (_viewUpdateGate)
             {
-                _view.ShowWithoutActivation();
+                if (!IsTargetEpochCurrent(targetEpoch))
+                {
+                    return;
+                }
+
+                _view.SetTarget(null);
+                _view.UpdateMetrics(
+                    _monitorService.Latest,
+                    new GameOverlayFrameSnapshot(
+                        null,
+                        GameOverlayFrameStatus.WaitingForTarget,
+                        DateTimeOffset.UtcNow));
+                _uiRefreshScheduler.RestartInterval();
+                if (DesiredVisible)
+                {
+                    _view.ShowWithoutActivation();
+                }
             }
         });
         CancellationTokenSource cancellation;
@@ -414,13 +514,19 @@ public sealed class GameOverlayController : IAsyncDisposable
                 return;
             }
 
+            long targetEpoch = BeginTargetTransition();
             RunOnUi(() =>
             {
-                if (IsCurrent(generation, visible: true))
+                lock (_viewUpdateGate)
                 {
-                    _view.SetTarget(target);
-                    _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
-                    _view.ShowWithoutActivation();
+                    if (IsCurrent(generation, visible: true) &&
+                        IsTargetEpochCurrent(targetEpoch))
+                    {
+                        _view.SetTarget(target);
+                        _view.UpdateMetrics(_monitorService.Latest, _frameProvider.Latest);
+                        _uiRefreshScheduler.RestartInterval();
+                        _view.ShowWithoutActivation();
+                    }
                 }
             });
             RaiseStateChanged();
@@ -465,6 +571,7 @@ public sealed class GameOverlayController : IAsyncDisposable
             _disposed = true;
             _desiredVisible = false;
             _generation++;
+            _targetEpoch++;
             _targetCancellation?.Cancel();
         }
 
@@ -472,7 +579,13 @@ public sealed class GameOverlayController : IAsyncDisposable
         _frameProvider.SnapshotUpdated -= OnFrameUpdated;
         _monitorService.SnapshotUpdated -= OnMonitorUpdated;
         _view.TargetInvalidated -= OnTargetInvalidated;
-        RunOnUi(_view.HideOverlay);
+        RunOnUi(() =>
+        {
+            lock (_viewUpdateGate)
+            {
+                _view.HideOverlay();
+            }
+        });
         await _operations.WaitAsync().ConfigureAwait(false);
         try
         {

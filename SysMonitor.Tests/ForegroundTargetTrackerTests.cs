@@ -10,10 +10,16 @@ public sealed class ForegroundTargetTrackerTests
     [InlineData("explorer", "GameWindow")]
     [InlineData("dwm.exe", "GameWindow")]
     [InlineData("ShellExperienceHost", "GameWindow")]
+    [InlineData("ChatGPT.exe", "Chrome_WidgetWin_1")]
+    [InlineData("codex", "GameWindow")]
+    [InlineData("codex-code-mode-host.exe", "GameWindow")]
+    [InlineData("DesktopMgr64.exe", "GameWindow")]
+    [InlineData("delta_force_launcher.exe", "GameWindow")]
+    [InlineData("ACE-Helper.exe", "GameWindow")]
     [InlineData("game", "Shell_TrayWnd")]
     [InlineData("game", "Progman")]
     [InlineData("game", "WorkerW")]
-    public void Policy_ExcludesShellProcessesAndClasses(string processName, string windowClass)
+    public void Policy_ExcludesKnownNonGameProcessesAndShellClasses(string processName, string windowClass)
     {
         ForegroundWindowCandidate candidate = Candidate(processName: processName, windowClass: windowClass);
 

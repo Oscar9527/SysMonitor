@@ -20,6 +20,33 @@ public sealed class RtssSharedMemoryParserTests
     }
 
     [Fact]
+    public void RollingFpsIsRejectedAfterItsSampleBecomesStale()
+    {
+        byte[] data = CreateFixture(RtssSharedMemoryParser.RollingFpsEntrySize, 1);
+        WriteEntry(data, 0, 3, 1_000, 2_000, 60, 16_667, rollingTenths: 1_470);
+
+        SharedMemoryValue result = RtssSharedMemoryParser.Parse(data, 3, 4_001);
+
+        Assert.Null(result.Value);
+        Assert.Contains("stale", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RollingFpsAtFreshnessBoundaryRemainsValid()
+    {
+        byte[] data = CreateFixture(RtssSharedMemoryParser.RollingFpsEntrySize, 1);
+        WriteEntry(data, 0, 3, 1_000, 2_000, 60, 16_667, rollingTenths: 1_470);
+
+        SharedMemoryValue result = RtssSharedMemoryParser.Parse(
+            data,
+            3,
+            2_000 + RtssSharedMemoryParser.MaximumSampleAgeMilliseconds);
+
+        Assert.Equal(147, result.Value);
+        Assert.Contains("rolling", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void LegacyEntryUsesFrameTimeThenFrameCounterFormula()
     {
         uint tick = 10_000;

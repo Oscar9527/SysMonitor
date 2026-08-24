@@ -256,15 +256,26 @@ public sealed class GameOverlayNativeTests
     }
 
     [Fact]
-    public void HudKeepsFrameRateRowWhenNoFramesAreTemporarilyAvailable()
+    public void HudHidesFrameRateRowWhenNoFramesAreAvailable()
     {
         var frame = new GameOverlayFrameSnapshot(
             null,
             GameOverlayFrameStatus.NoFrames,
             DateTimeOffset.UtcNow);
 
-        Assert.True(GameOverlayWindow.ShouldShowFrameRate(frame, configured: true));
+        Assert.False(GameOverlayWindow.ShouldShowFrameRate(frame, configured: true));
         Assert.False(GameOverlayWindow.HasUsableFrameRate(frame));
+    }
+
+    [Fact]
+    public void HudHidesFrameRateRowWhenFrameProviderFaults()
+    {
+        var frame = new GameOverlayFrameSnapshot(
+            null,
+            GameOverlayFrameStatus.Faulted,
+            DateTimeOffset.UtcNow);
+
+        Assert.False(GameOverlayWindow.ShouldShowFrameRate(frame, configured: true));
     }
 
     [Fact]

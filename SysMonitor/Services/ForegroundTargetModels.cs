@@ -71,7 +71,15 @@ public static class ForegroundTargetPolicy
         "conhost",
         "WindowsTerminal",
         "Antigravity",
+        "ChatGPT",
+        "codex",
+        "codex-code-mode-host",
         "SysMonitor",
+
+        // Launchers and anti-cheat helpers are not the rendering game target.
+        "DesktopMgr64",
+        "delta_force_launcher",
+        "ACE-Helper",
 
         // Web Browsers (never track as game targets)
         "chrome",

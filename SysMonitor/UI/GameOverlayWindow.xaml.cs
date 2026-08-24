@@ -493,8 +493,8 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     internal static long ApplyNoActivateStyles(long existingStyle) => GameOverlayNativeStyles.Apply(existingStyle);
 
-    internal static bool ShouldShowFrameRate(GameOverlayFrameSnapshot _, bool configured) =>
-        configured;
+    internal static bool ShouldShowFrameRate(GameOverlayFrameSnapshot frame, bool configured) =>
+        configured && HasUsableFrameRate(frame);
 
     internal static bool HasUsableFrameRate(GameOverlayFrameSnapshot frame) =>
         frame.Status == GameOverlayFrameStatus.Active &&
