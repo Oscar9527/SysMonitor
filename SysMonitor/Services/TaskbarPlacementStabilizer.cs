@@ -194,10 +194,21 @@ public static class TaskbarPlacementStabilizer
         }
 
         int desiredY = CenteredLocalY(taskbarHeight, desiredHeight);
+        double percent = double.IsFinite(positionPercent)
+            ? Math.Clamp(positionPercent, 0, 100)
+            : 100;
+        int configuredX = minimumX + (int)Math.Round(
+            (maximumX - minimumX) * percent / 100d,
+            MidpointRounding.AwayFromZero);
         if (!explicitLayoutChange && current is { } existing)
         {
             int clampedX = Math.Clamp(existing.X, minimumX, maximumX);
-            bool sameGeometry = existing.X == clampedX &&
+            bool edgeAnchored = percent <= 0 || percent >= 100;
+            int resolvedX = edgeAnchored &&
+                Math.Abs((long)configuredX - existing.X) > 2
+                    ? configuredX
+                    : clampedX;
+            bool sameGeometry = existing.X == resolvedX &&
                 existing.Y == desiredY &&
                 existing.Width == desiredWidth &&
                 existing.Height == desiredHeight;
@@ -211,20 +222,14 @@ public static class TaskbarPlacementStabilizer
             return new TaskbarPlacementDecision(
                 false,
                 true,
-                new TaskbarBandRect(clampedX, desiredY, desiredWidth, desiredHeight));
+                new TaskbarBandRect(resolvedX, desiredY, desiredWidth, desiredHeight));
         }
 
-        double percent = double.IsFinite(positionPercent)
-            ? Math.Clamp(positionPercent, 0, 100)
-            : 100;
-        int targetX = minimumX + (int)Math.Round(
-            (maximumX - minimumX) * percent / 100d,
-            MidpointRounding.AwayFromZero);
         return new TaskbarPlacementDecision(
             false,
             true,
             new TaskbarBandRect(
-                Math.Clamp(targetX, minimumX, maximumX),
+                Math.Clamp(configuredX, minimumX, maximumX),
                 desiredY,
                 desiredWidth,
                 desiredHeight));

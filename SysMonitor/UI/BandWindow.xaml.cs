@@ -874,6 +874,7 @@ public partial class BandWindow : Window
             // replacing the last trusted geometry or expanding a boundary.
             TaskbarPositioner.RejectConstraintExpansion(snapshot.Generation);
             _constraintExpansionPending = false;
+            _placementInvalidated = true;
             _layoutRetryTimer.Stop();
             return;
         }
@@ -886,6 +887,10 @@ public partial class BandWindow : Window
             _regionSnapshot is { IsValid: true } prior &&
             snapshot.TaskbarHandle == prior.TaskbarHandle)
         {
+            // Explorer can temporarily collapse an auto-hidden taskbar or emit
+            // incomplete UIA bounds. Re-anchor the next trustworthy snapshot
+            // to the configured percentage instead of preserving that stale X.
+            _placementInvalidated = true;
             return;
         }
 
@@ -906,7 +911,8 @@ public partial class BandWindow : Window
             snapshot.SafeRight == priorValid.SafeRight &&
             snapshot.TaskbarDpi == priorValid.TaskbarDpi &&
             !completesConstraintConfirmation &&
-            !_constraintExpansionPending)
+            !_constraintExpansionPending &&
+            !_placementInvalidated)
         {
             return;
         }
@@ -934,7 +940,16 @@ public partial class BandWindow : Window
 
     private void SafetyPark(string reason)
     {
-        if (!IsVisible || _explicitClose || _safetyParked)
+        if (_explicitClose)
+        {
+            return;
+        }
+
+        // The parked rectangle is deliberately outside the usable taskbar.
+        // The first valid recovery must resolve the user's configured
+        // percentage again rather than clamp and preserve this temporary X.
+        _placementInvalidated = true;
+        if (!IsVisible || _safetyParked)
         {
             return;
         }

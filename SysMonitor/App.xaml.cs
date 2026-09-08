@@ -3,7 +3,6 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
-using System.Windows.Media;
 using System.Windows.Threading;
 using SysMonitor.Models;
 using SysMonitor.Services;
@@ -69,6 +68,7 @@ public partial class App : System.Windows.Application
     private bool _sessionGameSafeMode;
     private GameOverlayTargetOption? _explicitGameOverlayTarget;
     private long _bandGeneration;
+    private long _detailPresentationGeneration;
     private nint _bandHandle;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -454,6 +454,9 @@ public partial class App : System.Windows.Application
             LogBandInvariant("click-pre", clickBand);
         }
 
+        long presentationGeneration = Interlocked.Increment(
+            ref _detailPresentationGeneration);
+
         try
         {
             DetailWindowShowPolicy showPolicy =
@@ -464,6 +467,7 @@ public partial class App : System.Windows.Application
                 BandDiagnostics.Log("detail toggle action=hide");
                 SavePanelPosition();
                 detail.Hide();
+                detail.Opacity = 1;
                 _trayIcon?.SetPanelVisible(false);
                 return;
             }
@@ -475,6 +479,7 @@ public partial class App : System.Windows.Application
 
             detail.WindowState = WindowState.Normal;
             detail.ShowActivated = showPolicy.Activate;
+            detail.Opacity = showPolicy.RevealAfterLayout ? 0 : 1;
             detail.UpdateSnapshot(_monitorService?.Latest ?? MonitorSnapshot.Empty);
             detail.UpdateHistory(_metricHistory.Snapshot());
 
@@ -489,9 +494,13 @@ public partial class App : System.Windows.Application
                 detail.Show();
             }
 
-            if (showPolicy.RaiseWithoutActivation)
+            if (showPolicy.RevealAfterLayout)
             {
-                detail.RaiseToTopWithoutActivation();
+                ScheduleDetailPresentation(
+                    detail,
+                    clickBand,
+                    showPolicy,
+                    presentationGeneration);
             }
             else if (showPolicy.Activate && !detail.IsActive)
             {
@@ -506,6 +515,70 @@ public partial class App : System.Windows.Application
             {
                 LogBandInvariant("click-post", clickBand);
             }
+        }
+    }
+
+    private void ScheduleDetailPresentation(
+        DetailWindow detail,
+        BandWindow? clickBand,
+        DetailWindowShowPolicy showPolicy,
+        long presentationGeneration)
+    {
+        try
+        {
+            _ = detail.Dispatcher.InvokeAsync(
+                () =>
+                {
+                    if (presentationGeneration !=
+                            Volatile.Read(ref _detailPresentationGeneration) ||
+                        !ReferenceEquals(_detailWindow, detail))
+                    {
+                        return;
+                    }
+
+                    if (!detail.IsVisible || detail.WindowState == WindowState.Minimized)
+                    {
+                        detail.Opacity = 1;
+                        return;
+                    }
+
+                    try
+                    {
+                        detail.UpdateLayout();
+                        BandWindow? currentBand = clickBand is not null &&
+                            IsCurrentBand(clickBand)
+                                ? clickBand
+                                : _bandWindow;
+                        PositionDetailAboveBand(detail, currentBand);
+                        detail.UpdateLayout();
+                        detail.InvalidateVisual();
+                        detail.Opacity = 1;
+
+                        if (showPolicy.RaiseWithoutActivation)
+                        {
+                            detail.RaiseToTopWithoutActivation();
+                        }
+
+                        BandDiagnostics.Log(
+                            $"detail presentation finalized width={detail.ActualWidth:0.##} " +
+                            $"height={detail.ActualHeight:0.##} left={detail.Left:0.##} " +
+                            $"top={detail.Top:0.##}");
+                    }
+                    catch (Exception exception)
+                    {
+                        detail.Opacity = 1;
+                        LogException("Detail presentation finalization failed", exception);
+                    }
+                },
+                DispatcherPriority.ContextIdle);
+        }
+        catch (InvalidOperationException)
+        {
+            detail.Opacity = 1;
+        }
+        catch (TaskCanceledException)
+        {
+            detail.Opacity = 1;
         }
     }
 
@@ -1974,16 +2047,8 @@ public partial class App : System.Windows.Application
         if (bandHandle != nint.Zero && TaskbarPositioner.IsWindowHandleAlive(bandHandle) &&
             GetWindowRect(bandHandle, out NativeRect bandRect) && bandRect.Right > bandRect.Left)
         {
-            double dpiScale = 1.0;
-            try
-            {
-                dpiScale = VisualTreeHelper.GetDpi(detail).DpiScaleX;
-                if (dpiScale <= 0) dpiScale = 1.0;
-            }
-            catch
-            {
-                dpiScale = 1.0;
-            }
+            double dpiScale = DetailWindow.ResolvePlacementDpiScale(
+                GetDpiForWindow(bandHandle));
 
             nint hMonitor = MonitorFromWindow(bandHandle, 2);
             if (hMonitor != nint.Zero)
@@ -2059,4 +2124,7 @@ public partial class App : System.Windows.Application
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowRect(nint hWnd, out NativeRect lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint hWnd);
 }

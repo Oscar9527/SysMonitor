@@ -263,6 +263,59 @@ public sealed class TaskbarPlacementStabilizerTests
         Assert.Equal(250, decision.Rect.X);
     }
 
+    [Fact]
+    public void RecoveryReanchorRestoresConfiguredInteriorPositionAfterTemporaryClamp()
+    {
+        var current = new TaskbarBandRect(500, 3, 400, 34);
+        TaskbarPlacementDecision clamped = TaskbarPlacementStabilizer.Decide(
+            Constraint(300, 700), 40, 400, 34, 50, current, false);
+
+        Assert.True(clamped.SetWindowPosition);
+        Assert.Equal(300, clamped.Rect.X);
+
+        TaskbarSafeConstraint restored = Constraint(100, 1000);
+        TaskbarPlacementDecision withoutRecoveryReanchor =
+            TaskbarPlacementStabilizer.Decide(
+                restored, 40, 400, 34, 50, clamped.Rect, false);
+        TaskbarPlacementDecision withRecoveryReanchor =
+            TaskbarPlacementStabilizer.Decide(
+                restored, 40, 400, 34, 50, clamped.Rect, true);
+
+        Assert.False(withoutRecoveryReanchor.SetWindowPosition);
+        Assert.Equal(300, withoutRecoveryReanchor.Rect.X);
+        Assert.True(withRecoveryReanchor.SetWindowPosition);
+        Assert.Equal(350, withRecoveryReanchor.Rect.X);
+    }
+
+    [Fact]
+    public void RightEdgeAnchorReturnsAfterTwoPhaseConstraintExpansion()
+    {
+        var tracker = new TaskbarSafeConstraintTracker();
+        _ = tracker.Observe(
+            Snapshot(generation: 1, safeLeft: 100, safeRight: 900));
+        var current = new TaskbarBandRect(500, 3, 400, 34);
+
+        TaskbarSafeConstraint contracted = tracker.Observe(
+            Snapshot(generation: 2, safeLeft: 300, safeRight: 700))!.Value;
+        TaskbarPlacementDecision clamped = TaskbarPlacementStabilizer.Decide(
+            contracted, 40, 400, 34, 100, current, false);
+        Assert.Equal(300, clamped.Rect.X);
+
+        TaskbarSafeConstraint pendingExpansion = tracker.Observe(
+            Snapshot(generation: 3, safeLeft: 100, safeRight: 900))!.Value;
+        TaskbarPlacementDecision stillClamped = TaskbarPlacementStabilizer.Decide(
+            pendingExpansion, 40, 400, 34, 100, clamped.Rect, false);
+        Assert.Equal(300, stillClamped.Rect.X);
+
+        TaskbarSafeConstraint confirmedExpansion = tracker.Observe(
+            Snapshot(generation: 4, safeLeft: 100, safeRight: 900))!.Value;
+        TaskbarPlacementDecision restored = TaskbarPlacementStabilizer.Decide(
+            confirmedExpansion, 40, 400, 34, 100, stillClamped.Rect, false);
+
+        Assert.True(restored.SetWindowPosition);
+        Assert.Equal(500, restored.Rect.X);
+    }
+
     private static TaskbarSafeConstraint Constraint(int left, int right) =>
         new(new TaskbarConstraintKey(1, 1000, 40, 96), left, right);
 

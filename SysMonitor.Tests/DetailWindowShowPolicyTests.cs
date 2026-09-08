@@ -12,6 +12,7 @@ public sealed class DetailWindowShowPolicyTests
 
         Assert.False(policy.Activate);
         Assert.True(policy.RaiseWithoutActivation);
+        Assert.True(policy.RevealAfterLayout);
         Assert.Equal(2, requests.Length);
         Assert.Equal(new nint(-1), requests[0].InsertAfter);
         Assert.Equal(new nint(-2), requests[1].InsertAfter);
@@ -36,5 +37,16 @@ public sealed class DetailWindowShowPolicyTests
 
         Assert.True(policy.Activate);
         Assert.False(policy.RaiseWithoutActivation);
+        Assert.False(policy.RevealAfterLayout);
+    }
+
+    [Theory]
+    [InlineData(0u, 1d)]
+    [InlineData(96u, 1d)]
+    [InlineData(144u, 1.5d)]
+    [InlineData(192u, 2d)]
+    public void PlacementDpiUsesBandWindowDpi(uint dpi, double expectedScale)
+    {
+        Assert.Equal(expectedScale, DetailWindow.ResolvePlacementDpiScale(dpi));
     }
 }

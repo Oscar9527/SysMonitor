@@ -78,7 +78,13 @@ public partial class DetailWindow : Window
     public event EventHandler? HideRequested;
 
     internal static DetailWindowShowPolicy SelectShowPolicy(bool fromBand) =>
-        new(Activate: !fromBand, RaiseWithoutActivation: fromBand);
+        new(
+            Activate: !fromBand,
+            RaiseWithoutActivation: fromBand,
+            RevealAfterLayout: fromBand);
+
+    internal static double ResolvePlacementDpiScale(uint dpi) =>
+        dpi == 0 ? 1d : dpi / 96d;
 
     internal static ImmutableArray<DetailWindowZOrderRequest> SelectBandRaiseRequests(
         bool isTopmost)
@@ -761,7 +767,8 @@ public partial class DetailWindow : Window
 
 internal readonly record struct DetailWindowShowPolicy(
     bool Activate,
-    bool RaiseWithoutActivation);
+    bool RaiseWithoutActivation,
+    bool RevealAfterLayout);
 
 internal readonly record struct DetailWindowZOrderRequest(
     nint InsertAfter,
