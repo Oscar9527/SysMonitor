@@ -4,6 +4,27 @@ namespace SysMonitor.Tests;
 
 public sealed class GpuSensorSelectorTests
 {
+    [Theory]
+    [InlineData("GPU Hot Spot Temperature")]
+    [InlineData("GPU Memory Junction Temperature")]
+    [InlineData("GPU VRM Temperature")]
+    public void NonCoreTemperatureCannotReplaceCoreTemperature(string sensorName)
+    {
+        GpuSensorSelection selected = GpuSensorSelector.Select(
+            GpuVendor.Amd,
+            new[]
+            {
+                new GpuSensorReading("GPU Core", GpuSensorKind.Temperature, 64),
+                new GpuSensorReading(sensorName, GpuSensorKind.Temperature, 105),
+            });
+
+        Assert.Equal(64, selected.TemperatureCelsius);
+        Assert.Null(GpuSensorSelector.Select(
+            GpuVendor.Amd,
+            new[] { new GpuSensorReading(sensorName, GpuSensorKind.Temperature, 105) })
+            .TemperatureCelsius);
+    }
+
     [Fact]
     public void NvidiaUsesOnlyExactGpuCoreLoadAndTemperature()
     {

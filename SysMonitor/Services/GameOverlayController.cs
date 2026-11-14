@@ -295,7 +295,8 @@ public sealed class GameOverlayController : IAsyncDisposable
                 {
                     if (currentTarget is null ||
                         candidate.WindowHandle != currentTarget.WindowHandle ||
-                        candidate.ProcessId != currentTarget.ProcessId)
+                        candidate.ProcessId != currentTarget.ProcessId ||
+                        candidate.ProcessStartedAt != currentTarget.ProcessStartedAt)
                     {
                         var newTarget = new ForegroundTarget(
                             candidate.WindowHandle,
@@ -312,7 +313,8 @@ public sealed class GameOverlayController : IAsyncDisposable
                                 break;
                             }
 
-                            bool processChanged = currentTarget?.ProcessId != newTarget.ProcessId;
+                            bool processChanged = currentTarget?.ProcessId != newTarget.ProcessId ||
+                                                  currentTarget.ProcessStartedAt != newTarget.ProcessStartedAt;
                             _targetTracker.SetManualTarget(newTarget);
                             long targetEpoch = BeginTargetTransition();
                             GameOverlayFrameSnapshot initialFrame = processChanged
@@ -340,6 +342,12 @@ public sealed class GameOverlayController : IAsyncDisposable
 
                             if (processChanged)
                             {
+                                // Providers may treat StartAsync with the same PID as a
+                                // no-op. A reused PID belongs to a new process lifetime.
+                                if (currentTarget?.ProcessId == newTarget.ProcessId)
+                                {
+                                    await _frameProvider.StopAsync().ConfigureAwait(false);
+                                }
                                 await _frameProvider.StartAsync(newTarget.ProcessId, cancellationToken).ConfigureAwait(false);
                                 RequestUiUpdate();
                             }

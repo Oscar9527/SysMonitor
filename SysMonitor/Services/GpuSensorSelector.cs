@@ -72,7 +72,7 @@ internal static class GpuSensorSelector
                     break;
 
                 case GpuSensorKind.Temperature:
-                    if ((name == "GPU CORE" || name == "GPU CORE TEMPERATURE" || name.Contains("TEMPERATURE")) && value is >= 1d and <= 150d)
+                    if ((name == "GPU CORE" || name == "GPU CORE TEMPERATURE") && value is >= 1d and <= 150d)
                     {
                         temperature = value;
                     }

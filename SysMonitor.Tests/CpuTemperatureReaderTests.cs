@@ -6,6 +6,29 @@ namespace SysMonitor.Tests;
 
 public sealed class CpuTemperatureReaderTests
 {
+    [Theory]
+    [InlineData(HardwareType.Motherboard, "System")]
+    [InlineData(HardwareType.SuperIO, "Temperature #1")]
+    [InlineData(HardwareType.SuperIO, "PCH")]
+    [InlineData(HardwareType.SuperIO, "VRM")]
+    [InlineData(HardwareType.SuperIO, "Ambient Max")]
+    public void NonCpuMotherboardTemperaturesRemainUnknown(HardwareType hardwareType, string name)
+    {
+        Assert.Null(CpuTemperatureReader.GetTemperatureSensorPriority(hardwareType, name));
+    }
+
+    [Theory]
+    [InlineData("CPU")]
+    [InlineData("CPU Package")]
+    [InlineData("Core #1")]
+    [InlineData("Tctl/Tdie")]
+    public void ExplicitCpuMotherboardSensorsRemainAvailableAsFallback(string name)
+    {
+        int primary = CpuTemperatureReader.GetTemperatureSensorPriority(HardwareType.Cpu, name)!.Value;
+        int fallback = CpuTemperatureReader.GetTemperatureSensorPriority(HardwareType.SuperIO, name)!.Value;
+        Assert.True(fallback > primary);
+    }
+
     [Fact]
     public void Start_WhenHardwareOpenBlocks_ReturnsImmediatelyAndDoesNotBlockRead()
     {

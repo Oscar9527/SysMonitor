@@ -11,6 +11,7 @@ public static class TaskbarPositioner
     private const uint SwpNoSendChanging = 0x0400;
     private static readonly nint HwndTop = nint.Zero;
     private static readonly TaskbarSafeConstraintTracker ConstraintTracker = new();
+    private static TaskbarSafeConstraint? _lastPositionedConstraint;
 
     public const double BandHeightDip = 34;
 
@@ -145,7 +146,8 @@ public static class TaskbarPositioner
             heightPixels,
             resolvedPercent,
             currentBand,
-            explicitLayoutChange);
+            explicitLayoutChange || TaskbarPlacementStabilizer.RequiresReanchor(
+                _lastPositionedConstraint, constraint));
         if (placement.HideRequested)
         {
             return TaskbarPositionResult.Hide(
@@ -175,6 +177,10 @@ public static class TaskbarPositioner
                 SwpNoActivate | SwpNoZOrder | SwpNoSendChanging);
             if (positioned)
             {
+                // Remember the geometry that actually reached the native window.
+                // A new monitor or a recovered safe gap must restore the saved
+                // percentage, including near-edge values such as 98%.
+                _lastPositionedConstraint = constraint;
                 BandDiagnostics.Log(
                     $"band positioned localX={placement.Rect.X} localY={placement.Rect.Y} " +
                     $"widthPx={widthPixels} widthDip={widthDip:0.##} " +

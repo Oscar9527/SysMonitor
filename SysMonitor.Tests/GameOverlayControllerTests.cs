@@ -5,6 +5,33 @@ namespace SysMonitor.Tests;
 
 public sealed class GameOverlayControllerTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ReusedProcessIdRestartsCollectorEvenWhenWindowHandleIsUnchanged(bool sameWindow)
+    {
+        DateTimeOffset started = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var first = new ForegroundWindowCandidate(
+            new nint(30), 300, started, "game", "GameWindow", true, true, false);
+        var replacement = first with
+        {
+            WindowHandle = sameWindow ? first.WindowHandle : new nint(40),
+            ProcessStartedAt = started.AddSeconds(30)
+        };
+        var source = new MutableSource(first);
+        var tracker = new ForegroundTargetTracker(source, 999, delay: (_, _) => Task.CompletedTask);
+        var provider = new ImmediateFrameProvider();
+        var view = new FakeView();
+        await using var controller = new GameOverlayController(
+            provider, new FakeMonitorService(), tracker, view, action => action());
+
+        await controller.ToggleFromTrayAsync();
+        source.CurrentCandidate = replacement;
+
+        await WaitUntilAsync(() => provider.StartCalls == 2);
+        Assert.Equal(replacement.ProcessStartedAt, controller.CurrentTarget?.ProcessStartedAt);
+    }
+
     [Fact]
     public async Task HideDuringStart_CancelsWaitStopsProviderAndNeverStaleReshows()
     {
@@ -244,6 +271,7 @@ public sealed class GameOverlayControllerTests
 
     private sealed class ImmediateFrameProvider : IGameOverlayFrameProvider
     {
+        private int _activeProcessId;
         public int StartCalls { get; private set; }
         public GameOverlayFrameSnapshot Latest { get; private set; } =
             GameOverlayFrameSnapshot.Unavailable;
@@ -255,6 +283,12 @@ public sealed class GameOverlayControllerTests
 
         public Task StartAsync(int processId, CancellationToken cancellationToken)
         {
+            if (_activeProcessId == processId)
+            {
+                return Task.CompletedTask;
+            }
+
+            _activeProcessId = processId;
             StartCalls++;
             Latest = new GameOverlayFrameSnapshot(
                 60,
@@ -266,6 +300,7 @@ public sealed class GameOverlayControllerTests
 
         public Task StopAsync()
         {
+            _activeProcessId = 0;
             Latest = GameOverlayFrameSnapshot.Unavailable;
             return Task.CompletedTask;
         }

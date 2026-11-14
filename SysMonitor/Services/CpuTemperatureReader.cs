@@ -391,24 +391,16 @@ internal sealed class CpuTemperatureReader : IDisposable
                         continue;
                     }
 
-                    int priority = GetSensorPriority(sensor.Name);
-                    if (!isCpuHardware)
+                    int? priority = GetTemperatureSensorPriority(hardware.HardwareType, sensor.Name);
+                    if (priority is null)
                     {
-                        // Motherboard sensors are a fallback. Only accept names that
-                        // explicitly identify a CPU/package/core sensor so chipset and
-                        // ambient temperatures are never mislabeled as CPU temperature.
-                        if (priority > 3 && !IsCpuTemperatureName(sensor.Name))
-                        {
-                            continue;
-                        }
-
-                        priority += 4;
+                        continue;
                     }
 
                     tempCandidates.Add(new TemperatureCandidate(
                         $"{hardware.Name} / {sensor.Name}",
                         temperature,
-                        priority));
+                        priority.Value));
                 }
                 else if (isCpuHardware && sensor.SensorType == SensorType.Power)
                 {
@@ -431,6 +423,22 @@ internal sealed class CpuTemperatureReader : IDisposable
         {
             CollectCpuTelemetry(subHardware, tempCandidates, powerCandidates);
         }
+    }
+
+    internal static int? GetTemperatureSensorPriority(HardwareType hardwareType, string sensorName)
+    {
+        int priority = GetSensorPriority(sensorName);
+        if (hardwareType == HardwareType.Cpu)
+        {
+            return priority;
+        }
+
+        // A broad priority (for example "Max") does not identify a CPU sensor.
+        // Motherboard chipset, VRM and ambient readings must remain unknown.
+        return hardwareType is HardwareType.Motherboard or HardwareType.SuperIO &&
+               IsCpuTemperatureName(sensorName)
+            ? priority + 4
+            : null;
     }
 
     private static int GetSensorPriority(string sensorName)

@@ -5,6 +5,62 @@ namespace SysMonitor.Tests;
 public sealed class TaskbarPlacementStabilizerTests
 {
     [Theory]
+    [InlineData(2560, 96)]
+    [InlineData(3840, 144)]
+    [InlineData(1280, 120)]
+    public void MonitorSwitchRestoresNearRightPercentage(int newWidth, uint newDpi)
+    {
+        TaskbarSafeConstraint original = new(new(1, 1920, 40, 96), 500, 1800);
+        TaskbarBandRect originalBand = TaskbarPlacementStabilizer.Decide(
+            original, 40, 400, 34, 98, null, true).Rect;
+        TaskbarSafeConstraint switched = new(new(1, newWidth, 40, newDpi), 300, newWidth - 120);
+
+        TaskbarPlacementDecision actual = TaskbarPlacementStabilizer.Decide(
+            switched, 40, 400, 34, 98, originalBand,
+            TaskbarPlacementStabilizer.RequiresReanchor(original, switched));
+        TaskbarPlacementDecision expected = TaskbarPlacementStabilizer.Decide(
+            switched, 40, 400, 34, 98, null, true);
+
+        Assert.Equal(expected.Rect, actual.Rect);
+    }
+
+    [Fact]
+    public void NearRightAnchorReturnsAfterTransientNarrowRegionExpands()
+    {
+        TaskbarSafeConstraint original = Constraint(100, 900);
+        TaskbarSafeConstraint narrowed = Constraint(300, 700);
+        TaskbarBandRect clamped = TaskbarPlacementStabilizer.Decide(
+            narrowed, 40, 400, 34, 98, new TaskbarBandRect(492, 3, 400, 34), false).Rect;
+
+        TaskbarPlacementDecision restored = TaskbarPlacementStabilizer.Decide(
+            original, 40, 400, 34, 98, clamped,
+            TaskbarPlacementStabilizer.RequiresReanchor(narrowed, original));
+
+        Assert.Equal(492, restored.Rect.X);
+    }
+
+    [Theory]
+    [InlineData(100, 900)]
+    [InlineData(99, 901)]
+    [InlineData(98, 902)]
+    public void UnchangedLayoutAndSmallBoundaryJitterDoNotRequestReanchor(int left, int right)
+    {
+        Assert.False(TaskbarPlacementStabilizer.RequiresReanchor(
+            Constraint(100, 900), Constraint(left, right)));
+    }
+
+    [Fact]
+    public void DpiOrTaskbarIdentityChangeReanchorsEvenWithMatchingPixelBounds()
+    {
+        TaskbarSafeConstraint original = Constraint(100, 900);
+        Assert.True(TaskbarPlacementStabilizer.RequiresReanchor(null, original));
+        Assert.True(TaskbarPlacementStabilizer.RequiresReanchor(
+            original, original with { Key = original.Key with { Dpi = 144 } }));
+        Assert.True(TaskbarPlacementStabilizer.RequiresReanchor(
+            original, original with { Key = original.Key with { TaskbarHandle = 2 } }));
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(1040)]
     public void HorizontalTaskbarUsesParentRelativeCenteredY(int taskbarTop)

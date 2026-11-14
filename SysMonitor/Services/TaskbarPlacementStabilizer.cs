@@ -161,6 +161,14 @@ public readonly record struct TaskbarPlacementDecision(
 
 public static class TaskbarPlacementStabilizer
 {
+    public static bool RequiresReanchor(
+        TaskbarSafeConstraint? previous,
+        TaskbarSafeConstraint current) =>
+        previous is not { } prior ||
+        prior.Key != current.Key ||
+        Math.Abs((long)prior.Left - current.Left) > 2 ||
+        Math.Abs((long)prior.Right - current.Right) > 2;
+
     public static bool IsHorizontal(int taskbarWidth, int taskbarHeight) =>
         taskbarWidth > 0 && taskbarHeight > 0 && taskbarWidth >= taskbarHeight;
 
