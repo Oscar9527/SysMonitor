@@ -717,7 +717,7 @@ public partial class BandWindow : Window
             {
                 TaskbarPositioner.Invalidate();
                 _placementInvalidated = true;
-                InvalidateRegionSnapshotAndRequestProbe();
+                InvalidateRegionSnapshotAndRequestProbe(invalidateInFlight: true);
                 Reposition();
                 _motionTracker.NotifyTaskbarStateChanged();
             });
@@ -733,7 +733,7 @@ public partial class BandWindow : Window
                 ApplySystemTheme();
                 TaskbarPositioner.Invalidate();
                 _placementInvalidated = true;
-                InvalidateRegionSnapshotAndRequestProbe();
+                InvalidateRegionSnapshotAndRequestProbe(invalidateInFlight: true);
                 Reposition();
                 _motionTracker.NotifyTaskbarStateChanged();
             });
@@ -928,14 +928,21 @@ public partial class BandWindow : Window
         // unstable UIA providers report slightly different icon rectangles.
         if (_regionSnapshot is not { IsValid: true } || _safetyParked || _degraded)
         {
-            _regionMonitor.RequestProbe();
+            _regionMonitor.RequestRecoveryProbe();
         }
     }
 
-    private void InvalidateRegionSnapshotAndRequestProbe()
+    private void InvalidateRegionSnapshotAndRequestProbe(bool invalidateInFlight = false)
     {
         _regionSnapshot = null;
-        _regionMonitor.RequestProbe();
+        if (invalidateInFlight)
+        {
+            _regionMonitor.RequestProbe();
+        }
+        else
+        {
+            _regionMonitor.RequestRecoveryProbe();
+        }
     }
 
     private void SafetyPark(string reason)
@@ -1118,7 +1125,7 @@ public partial class BandWindow : Window
     {
         if (!_explicitClose && _positionTracking && !Dispatcher.HasShutdownStarted)
         {
-            _regionMonitor.RequestProbe();
+            _regionMonitor.RequestRecoveryProbe();
             Reposition();
         }
         else
@@ -1185,6 +1192,21 @@ public partial class BandWindow : Window
         NativeIntegritySnapshot snapshot = CaptureIntegritySnapshot(handle, taskbar);
         if (IsAttachedContractValid(snapshot, taskbar))
         {
+            if (!_safetyParked &&
+                _regionSnapshot is { IsValid: true } &&
+                _effectiveLayout is { HasVisibleGroups: true } &&
+                TaskbarPositioner.NeedsVisibilityRecovery(this))
+            {
+                BandDiagnostics.LogRateLimited(
+                    $"band-display-recovery-{Generation}",
+                    $"band native display lost; restoring configured placement " +
+                    $"hwnd=0x{handle.ToInt64():X} nativeVisible={snapshot.BandVisible}",
+                    TimeSpan.FromSeconds(5));
+                _placementInvalidated = true;
+                Reposition();
+                return;
+            }
+
             MarkHealthy();
             return;
         }

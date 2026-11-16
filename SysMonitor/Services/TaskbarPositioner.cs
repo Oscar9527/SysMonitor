@@ -9,6 +9,8 @@ public static class TaskbarPositioner
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoSendChanging = 0x0400;
+    private const uint SwpShowWindow = 0x0040;
+    private const int WsVisible = 0x10000000;
     private static readonly nint HwndTop = nint.Zero;
     private static readonly TaskbarSafeConstraintTracker ConstraintTracker = new();
     private static TaskbarSafeConstraint? _lastPositionedConstraint;
@@ -38,6 +40,40 @@ public static class TaskbarPositioner
         ArgumentNullException.ThrowIfNull(window);
         return IsWindowHandleAlive(new WindowInteropHelper(window).Handle);
     }
+
+    internal static bool NeedsVisibilityRecovery(Window window)
+    {
+        nint handle = new WindowInteropHelper(window).Handle;
+        if (handle == nint.Zero || !IsWindow(handle))
+        {
+            return false;
+        }
+
+        // IsWindowVisible also reports false when the parent is hidden. Inspect
+        // our own flag so taskbar auto-hide is never treated as a missing Band.
+        if (!HasVisibleStyle(handle))
+        {
+            return true;
+        }
+
+        nint parent = GetParent(handle);
+        var origin = new NativePoint(0, 0);
+        if (parent == nint.Zero ||
+            !GetClientRect(parent, out NativeRect parentRect) ||
+            parentRect.Height <= 4 ||
+            !ClientToScreen(parent, ref origin) ||
+            !GetWindowRect(handle, out NativeRect rect))
+        {
+            return false;
+        }
+
+        return rect.Width <= 1 || rect.Height <= 1 ||
+               rect.Right <= origin.X || rect.Left >= origin.X + parentRect.Width ||
+               rect.Bottom <= origin.Y || rect.Top >= origin.Y + parentRect.Height;
+    }
+
+    private static bool HasVisibleStyle(nint handle) =>
+        (GetWindowStyle(handle, -16) & WsVisible) != 0;
 
     public static TaskbarPositionResult Position(
         Window window,
@@ -165,7 +201,7 @@ public static class TaskbarPositioner
             window.Height = BandHeightDip;
         }
 
-        if (placement.SetWindowPosition)
+        if (placement.SetWindowPosition || !HasVisibleStyle(bandHandle))
         {
             bool positioned = SetWindowPos(
                 bandHandle,
@@ -174,20 +210,26 @@ public static class TaskbarPositioner
                 placement.Rect.Y,
                 placement.Rect.Width,
                 placement.Rect.Height,
-                SwpNoActivate | SwpNoZOrder | SwpNoSendChanging);
-            if (positioned)
+                SwpNoActivate | SwpNoZOrder | SwpNoSendChanging | SwpShowWindow);
+            if (!positioned)
             {
-                // Remember the geometry that actually reached the native window.
-                // A new monitor or a recovered safe gap must restore the saved
-                // percentage, including near-edge values such as 98%.
-                _lastPositionedConstraint = constraint;
-                BandDiagnostics.Log(
-                    $"band positioned localX={placement.Rect.X} localY={placement.Rect.Y} " +
-                    $"widthPx={widthPixels} widthDip={widthDip:0.##} " +
-                    $"safeLeftLocal={constraint.Left} safeRightLocal={constraint.Right} " +
-                    $"travelPx={Math.Max(0, maximumX - constraint.Left)} " +
-                    $"position={resolvedPercent:0.##}% targetWidthDip={targetWidthDip:0.##}");
+                BandDiagnostics.LogRateLimited(
+                    "band-position-failed",
+                    $"band native placement failed error={Marshal.GetLastWin32Error()}",
+                    TimeSpan.FromSeconds(5));
+                return TaskbarPositionResult.Hide(window.Width,
+                    constraintConfirmationSuggested: constraintConfirmationSuggested);
             }
+            // Remember the geometry that actually reached the native window.
+            // A new monitor or a recovered safe gap must restore the saved
+            // percentage, including near-edge values such as 98%.
+            _lastPositionedConstraint = constraint;
+            BandDiagnostics.Log(
+                $"band positioned localX={placement.Rect.X} localY={placement.Rect.Y} " +
+                $"widthPx={widthPixels} widthDip={widthDip:0.##} " +
+                $"safeLeftLocal={constraint.Left} safeRightLocal={constraint.Right} " +
+                $"travelPx={Math.Max(0, maximumX - constraint.Left)} " +
+                $"position={resolvedPercent:0.##}% targetWidthDip={targetWidthDip:0.##}");
         }
 
         return new TaskbarPositionResult(
@@ -240,6 +282,13 @@ public static class TaskbarPositioner
 
     [DllImport("user32.dll")]
     private static extern nint GetParent(nint windowHandle);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowStyle(nint windowHandle, int index);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetClientRect(nint windowHandle, out NativeRect rect);
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(nint windowHandle);

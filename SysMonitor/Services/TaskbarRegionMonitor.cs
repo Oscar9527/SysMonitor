@@ -7,7 +7,8 @@ namespace SysMonitor.Services;
 
 public sealed class TaskbarRegionMonitor : IDisposable
 {
-    private readonly Dispatcher _dispatcher;
+    private readonly Func<long, TaskbarRegionSnapshot> _probe;
+    private readonly Action<Action> _postSnapshot;
     private readonly Action<TaskbarRegionSnapshot> _snapshotAvailable;
     private readonly AutoResetEvent _wake = new(false);
     private readonly Thread _thread;
@@ -20,8 +21,20 @@ public sealed class TaskbarRegionMonitor : IDisposable
     public TaskbarRegionMonitor(
         Dispatcher dispatcher,
         Action<TaskbarRegionSnapshot> snapshotAvailable)
+        : this(dispatcher, snapshotAvailable, Probe, null)
     {
-        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+    }
+
+    internal TaskbarRegionMonitor(
+        Dispatcher dispatcher,
+        Action<TaskbarRegionSnapshot> snapshotAvailable,
+        Func<long, TaskbarRegionSnapshot> probe,
+        Action<Action>? postSnapshot)
+    {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        _probe = probe ?? throw new ArgumentNullException(nameof(probe));
+        _postSnapshot = postSnapshot ??
+            (callback => _ = dispatcher.InvokeAsync(callback, DispatcherPriority.Render));
         _snapshotAvailable = snapshotAvailable ??
             throw new ArgumentNullException(nameof(snapshotAvailable));
         _thread = new Thread(WorkerMain)
@@ -67,6 +80,27 @@ public sealed class TaskbarRegionMonitor : IDisposable
         _wake.Set();
     }
 
+    public void RequestRecoveryProbe()
+    {
+        // Timers request progress, not a newer layout. Keep the outstanding
+        // generation valid while UIA is slow or its result awaits the dispatcher.
+        while (_started && Volatile.Read(ref _active) != 0 &&
+               Volatile.Read(ref _stopping) == 0)
+        {
+            long requested = Volatile.Read(ref _requestedGeneration);
+            if (requested != Volatile.Read(ref _publishedGeneration))
+            {
+                return;
+            }
+
+            if (Interlocked.CompareExchange(ref _requestedGeneration, requested + 1, requested) == requested)
+            {
+                _wake.Set();
+                return;
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _stopping, 1) != 0)
@@ -100,7 +134,7 @@ public sealed class TaskbarRegionMonitor : IDisposable
             TaskbarRegionSnapshot snapshot;
             try
             {
-                snapshot = Probe(generation);
+                snapshot = _probe(generation);
             }
             catch
             {
@@ -117,9 +151,7 @@ public sealed class TaskbarRegionMonitor : IDisposable
 
             try
             {
-                _ = _dispatcher.InvokeAsync(
-                    () => Publish(snapshot),
-                    DispatcherPriority.Render);
+                _postSnapshot(() => Publish(snapshot));
             }
             catch (InvalidOperationException)
             {
@@ -142,7 +174,18 @@ public sealed class TaskbarRegionMonitor : IDisposable
             return;
         }
 
-        _publishedGeneration = snapshot.Generation;
+        Volatile.Write(ref _publishedGeneration, snapshot.Generation);
+        if (!snapshot.IsValid)
+        {
+            BandDiagnostics.LogRateLimited(
+                "band-region-unavailable",
+                $"band region unavailable generation={snapshot.Generation} " +
+                $"taskbar=0x{snapshot.TaskbarHandle.ToInt64():X} " +
+                $"bounds={snapshot.TaskbarLeft},{snapshot.TaskbarTop},{snapshot.TaskbarRight},{snapshot.TaskbarBottom} " +
+                $"safe={snapshot.SafeLeft},{snapshot.SafeRight} " +
+                $"dpi={snapshot.TaskbarDpi} trusted={snapshot.HasTrustedBounds}",
+                TimeSpan.FromSeconds(5));
+        }
         _snapshotAvailable(snapshot);
     }
 
