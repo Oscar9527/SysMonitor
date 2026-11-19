@@ -169,7 +169,7 @@ public sealed class TaskbarRegionMonitor : IDisposable
         if (Volatile.Read(ref _stopping) != 0 ||
             Volatile.Read(ref _active) == 0 ||
             snapshot.Generation < Volatile.Read(ref _requestedGeneration) ||
-            snapshot.Generation <= _publishedGeneration)
+            snapshot.Generation <= Volatile.Read(ref _publishedGeneration))
         {
             return;
         }
@@ -295,16 +295,10 @@ public sealed class TaskbarRegionMonitor : IDisposable
                     }
 
                     System.Windows.Rect bounds = element.Current.BoundingRectangle;
-                    if (bounds.IsEmpty || bounds.Width <= 0 || bounds.Height <= 0)
+                    if (!TryToNativeRect(bounds, out NativeRect rect))
                     {
                         continue;
                     }
-
-                    var rect = new NativeRect(
-                        (int)Math.Floor(bounds.Left),
-                        (int)Math.Floor(bounds.Top),
-                        (int)Math.Ceiling(bounds.Right),
-                        (int)Math.Ceiling(bounds.Bottom));
                     if (!Contains(taskbarRect, rect) ||
                         rect.Top > verticalMidpoint ||
                         rect.Bottom < verticalMidpoint)
@@ -459,6 +453,59 @@ public sealed class TaskbarRegionMonitor : IDisposable
     private static bool Intersects(NativeRect first, NativeRect second) =>
         first.Left < second.Right && first.Right > second.Left &&
         first.Top < second.Bottom && first.Bottom > second.Top;
+
+    private static bool TryToNativeRect(System.Windows.Rect bounds, out NativeRect rect)
+    {
+        if (TryConvertBounds(bounds, out int left, out int top, out int right, out int bottom))
+        {
+            rect = new NativeRect(left, top, right, bottom);
+            return true;
+        }
+
+        rect = default;
+        return false;
+    }
+
+    internal static bool TryConvertBounds(
+        System.Windows.Rect bounds,
+        out int left,
+        out int top,
+        out int right,
+        out int bottom)
+    {
+        if (bounds.IsEmpty ||
+            !double.IsFinite(bounds.Left) ||
+            !double.IsFinite(bounds.Top) ||
+            !double.IsFinite(bounds.Width) ||
+            !double.IsFinite(bounds.Height) ||
+            bounds.Width <= 0 ||
+            bounds.Height <= 0)
+        {
+            left = top = right = bottom = 0;
+            return false;
+        }
+
+        double floorLeft = Math.Floor(bounds.Left);
+        double floorTop = Math.Floor(bounds.Top);
+        double ceilRight = Math.Ceiling(bounds.Right);
+        double ceilBottom = Math.Ceiling(bounds.Bottom);
+        if (!double.IsFinite(ceilRight) ||
+            !double.IsFinite(ceilBottom) ||
+            floorLeft < int.MinValue || floorLeft > int.MaxValue ||
+            floorTop < int.MinValue || floorTop > int.MaxValue ||
+            ceilRight < int.MinValue || ceilRight > int.MaxValue ||
+            ceilBottom < int.MinValue || ceilBottom > int.MaxValue)
+        {
+            left = top = right = bottom = 0;
+            return false;
+        }
+
+        left = (int)floorLeft;
+        top = (int)floorTop;
+        right = (int)ceilRight;
+        bottom = (int)ceilBottom;
+        return true;
+    }
 
     private sealed record AutomationInfo(
         NativeRect Rect,

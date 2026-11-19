@@ -78,6 +78,7 @@ public partial class GameOverlaySettingsWindow : Window
     private readonly ObservableCollection<LegacyFpsTargetView> _legacyTargets = [];
     private readonly HudPreviewScheduler _previewScheduler;
     private bool _allowClose;
+    private bool _closed;
     private bool _loadingLegacy;
     private bool _loadedLegacyEnabled;
     private bool _loadingCoordinates;
@@ -110,6 +111,7 @@ public partial class GameOverlaySettingsWindow : Window
         };
         Closed += (_, _) =>
         {
+            _closed = true;
             _previewScheduler.Dispose();
             LocalizationService.Current.CultureChanged -= OnCultureChanged;
         };
@@ -338,6 +340,17 @@ public partial class GameOverlaySettingsWindow : Window
 
     public void CloseForExit()
     {
+        if (_closed)
+        {
+            return;
+        }
+
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.InvokeAsync(CloseForExit);
+            return;
+        }
+
         FinalizePreviewSession(committed: false);
         _allowClose = true;
         Close();
@@ -568,6 +581,17 @@ public partial class GameOverlaySettingsWindow : Window
 
     private void OnCultureChanged(object? sender, EventArgs e)
     {
+        if (_closed)
+        {
+            return;
+        }
+
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.InvokeAsync(() => OnCultureChanged(sender, e));
+            return;
+        }
+
         bool previous = _suppressPreview;
         _suppressPreview = true;
         try
@@ -963,9 +987,18 @@ public partial class GameOverlaySettingsWindow : Window
 
     private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
+        if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        try
         {
             DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // The mouse button can be released between the event and DragMove.
         }
     }
 

@@ -84,31 +84,50 @@ if ($sdkLine -notmatch '^(\S+)\s+\[(.+)\]$')
 
 $sdkVersion = $Matches[1]
 $sdkRoot = $Matches[2]
-if ([version]$sdkVersion -lt [version]'8.0.100')
+$sdkComparableVersion = ($sdkVersion -split '-', 2)[0]
+if ([version]$sdkComparableVersion -lt [version]'8.0.100')
 {
     throw "Building SysMonitor requires .NET 8 SDK or newer; selected SDK is $sdkVersion."
 }
 
 $compiler = Join-Path $sdkRoot "$sdkVersion\Roslyn\bincore\csc.dll"
-$framework = 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319'
+if (-not (Test-Path -LiteralPath $compiler -PathType Leaf))
+{
+    throw "Unable to locate Roslyn compiler: $compiler"
+}
 
-dotnet $compiler `
-    /noconfig /nostdlib+ /langversion:latest /nullable:enable `
-    /target:winexe /platform:anycpu /optimize+ /deterministic+ `
-    "/out:$launcherPath" `
-    "/win32icon:$iconPath" `
-    "/resource:$corePath,SysMonitor.Core.exe" `
-    "/reference:$framework\mscorlib.dll" `
-    "/reference:$framework\System.dll" `
-    "/reference:$framework\System.Core.dll" `
-    "/reference:$framework\System.Windows.Forms.dll" `
-    $sourcePath `
-    $versionSourcePath
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$systemRoot = if ([string]::IsNullOrWhiteSpace($env:SystemRoot)) { 'C:\Windows' } else { $env:SystemRoot }
+$framework = Join-Path $systemRoot 'Microsoft.NET\Framework64\v4.0.30319'
+if (-not (Test-Path -LiteralPath "$framework\mscorlib.dll" -PathType Leaf))
+{
+    throw "Unable to locate .NET Framework 4.x reference assemblies under: $framework"
+}
 
-# The core is embedded as a resource in the launcher. Keep the distributable
-# artifact directory genuinely single-file after compilation succeeds.
-Remove-Item -LiteralPath $corePath -Force
+try
+{
+    dotnet $compiler `
+        /noconfig /nostdlib+ /langversion:latest /nullable:enable `
+        /target:winexe /platform:anycpu /optimize+ /deterministic+ `
+        "/out:$launcherPath" `
+        "/win32icon:$iconPath" `
+        "/resource:$corePath,SysMonitor.Core.exe" `
+        "/reference:$framework\mscorlib.dll" `
+        "/reference:$framework\System.dll" `
+        "/reference:$framework\System.Core.dll" `
+        "/reference:$framework\System.Windows.Forms.dll" `
+        $sourcePath `
+        $versionSourcePath
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+finally
+{
+    # The core is embedded as a resource in the launcher. Keep the distributable
+    # artifact directory genuinely single-file even if compilation fails.
+    if (Test-Path -LiteralPath $corePath -PathType Leaf)
+    {
+        Remove-Item -LiteralPath $corePath -Force
+    }
+}
 
 Get-Item -LiteralPath $launcherPath | Select-Object FullName, Length
 Get-FileHash -Algorithm SHA256 -LiteralPath $launcherPath

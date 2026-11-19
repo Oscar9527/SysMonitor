@@ -162,6 +162,7 @@ internal sealed class RtssSharedMemoryReader : IRtssFrameSource
             !SharedMemoryParsing.TryReadUInt32(header, 8, out uint entrySize) ||
             !SharedMemoryParsing.TryReadUInt32(header, 12, out uint arrayOffset) ||
             !SharedMemoryParsing.TryReadUInt32(header, 16, out uint entryCount) ||
+            arrayOffset < RtssSharedMemoryParser.HeaderSize ||
             entrySize < RtssSharedMemoryParser.MinimumEntrySize ||
             entrySize > RtssSharedMemoryParser.MaximumEntrySize ||
             entryCount > RtssSharedMemoryParser.MaximumEntries ||

@@ -15,23 +15,26 @@
   <Window.Resources>
     <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
       <Setter Property="Width" Value="32" />
-      <Setter Property="Height" Value="28" />
+      <Setter Property="Height" Value="32" />
       <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Focusable" Value="False" />
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="CloseBg" Background="{TemplateBinding Background}" CornerRadius="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Border x:Name="CloseBg" Background="{TemplateBinding Background}" CornerRadius="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="CloseBg" Property="Background" Value="#E81123" />
+                <Setter TargetName="CloseBg" Property="Background" Value="#E53935" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="CloseBg" Property="Background" Value="#C4101E" />
+                <Setter TargetName="CloseBg" Property="Background" Value="#C62828" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -120,40 +123,42 @@
     </Style>
   </Window.Resources>
 
-  <!-- Outer container with macOS 16px corner radius and smooth shadow -->
+  <!-- Telegram-style outer shell -->
   <Border Margin="14"
           Background="{DynamicResource AppBackgroundBrush}"
           BorderBrush="{DynamicResource AppSeparatorBrush}"
           BorderThickness="1"
-          CornerRadius="16"
+          CornerRadius="14"
           ClipToBounds="True">
     <Border.Effect>
-      <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.16" />
+      <DropShadowEffect BlurRadius="24" ShadowDepth="5" Direction="270" Color="#000000" Opacity="0.16" />
     </Border.Effect>
 
     <Grid>
       <Grid.RowDefinitions>
-        <RowDefinition Height="50"/>
+        <RowDefinition Height="54"/>
         <RowDefinition Height="*"/>
       </Grid.RowDefinitions>
 
-      <!-- Title Bar -->
-      <Grid Grid.Row="0" Background="{DynamicResource AppBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <TextBlock Margin="18,0,0,0" VerticalAlignment="Center" Text="HUD 外观与配色 (MSI 纯色风格)"
-                   FontSize="13.5" FontWeight="Bold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AppTextBrush}"/>
-        <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
-          <Button Style="{StaticResource WindowCloseButtonStyle}" Click="Cancel_Click" ToolTip="关闭">
-            <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AppSecondaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          </Button>
-        </StackPanel>
-      </Grid>
+      <!-- Telegram-style Surface Title Bar -->
+      <Border Grid.Row="0" Background="{DynamicResource AppSurfaceBrush}" BorderBrush="{DynamicResource AppSeparatorBrush}" BorderThickness="0,0,0,1">
+        <Grid Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Margin="18,0,0,0" VerticalAlignment="Center" Text="HUD 外观与配色"
+                     FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AppTextBrush}"/>
+          <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
+            <Button Style="{StaticResource WindowCloseButtonStyle}" Click="Cancel_Click" ToolTip="关闭">
+              <TextBlock Text="&#xE8BB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol" FontSize="10.5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
 
       <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="20,4,20,18">
+        <Grid Margin="18,12,18,18">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>

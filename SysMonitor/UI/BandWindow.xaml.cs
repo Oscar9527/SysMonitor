@@ -51,6 +51,8 @@ public partial class BandWindow : Window
     private const int WmDpiChanged = 0x02E0;
     private const int WmNcDestroy = 0x0082;
     private const int MaNoActivate = 3;
+    private static readonly int TaskbarCreatedMessage =
+        unchecked((int)RegisterWindowMessage("TaskbarCreated"));
     private readonly TaskbarMotionTracker _motionTracker;
     private readonly TaskbarRegionMonitor _regionMonitor;
     private readonly DispatcherTimer _layoutRetryTimer;
@@ -59,6 +61,7 @@ public partial class BandWindow : Window
     private SolidColorBrush _warningBrush = CreateBrush(ColorFrom("#FFB340"));
     private SolidColorBrush _criticalBrush = CreateBrush(ColorFrom("#FF6961"));
     private ResolvedTheme? _activeTheme;
+    private MonitorSnapshot _latestSnapshot = MonitorSnapshot.Empty;
     private bool _positionTracking;
     private bool _highContrast;
     private bool _systemUsesLightTheme;
@@ -179,10 +182,15 @@ public partial class BandWindow : Window
             DiskValueText
         };
 
+        double valueLineHeight = Math.Max(10, Math.Round(valueSize * 1.12, 1));
+        double labelLineHeight = Math.Max(9, Math.Round(labelSize * 1.12, 1));
         foreach (TextBlock textBlock in EnumerateTextBlocks(BandRoot))
         {
+            bool isValue = valueBlocks.Contains(textBlock);
             textBlock.FontFamily = fontFamily;
-            textBlock.FontSize = valueBlocks.Contains(textBlock) ? valueSize : labelSize;
+            textBlock.FontSize = isValue ? valueSize : labelSize;
+            textBlock.LineHeight = isValue ? valueLineHeight : labelLineHeight;
+            textBlock.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
         }
 
         double? priorPosition = _horizontalPositionPercent;
@@ -203,6 +211,7 @@ public partial class BandWindow : Window
             : 0;
         _metricVisibility = appearance.EffectiveMetricVisibility;
         bool layoutChanged = ApplyEffectiveLayout(CreateEffectiveLayout());
+        RenderSnapshot(_latestSnapshot);
         bool placementChanged = priorPosition != _horizontalPositionPercent ||
             priorLegacyOffset != _legacyHorizontalOffsetDip;
         if (layoutChanged || placementChanged)
@@ -225,15 +234,34 @@ public partial class BandWindow : Window
             return;
         }
 
+        _latestSnapshot = snapshot;
+        bool gpuCapabilityChanged = _gpuCapability.Observe(snapshot.Gpu is not null);
+        RenderSnapshot(snapshot);
+
+        if (gpuCapabilityChanged && _metricVisibility.Gpu &&
+            ApplyEffectiveLayout(CreateEffectiveLayout()))
+        {
+            _placementInvalidated = true;
+            if (_positionTracking)
+            {
+                Reposition();
+            }
+        }
+    }
+
+    private void RenderSnapshot(MonitorSnapshot snapshot)
+    {
         // CPU
         if (_metricVisibility.CpuUsage)
         {
             CpuValueText.Text = FormatPercent(snapshot.CpuUsagePercent);
             CpuValueText.Foreground = GetUsageBrush(snapshot.CpuUsagePercent);
         }
-        else if (_metricVisibility.CpuPower && snapshot.CpuPowerWatts is double cpuPower)
+        else if (_metricVisibility.CpuPower &&
+                 snapshot.CpuPowerWatts is double cpuOnlyPower &&
+                 double.IsFinite(cpuOnlyPower))
         {
-            CpuValueText.Text = $"{cpuPower:0}W";
+            CpuValueText.Text = $"{cpuOnlyPower:0}W";
             CpuValueText.Foreground = _mainTextBrush;
         }
         else
@@ -242,26 +270,34 @@ public partial class BandWindow : Window
             CpuValueText.Foreground = GetUsageBrush(snapshot.CpuUsagePercent);
         }
 
+        bool showCpuSubMetric = _effectiveLayout?.Compact != true;
         if (_metricVisibility.CpuTemperature && _metricVisibility.CpuPower)
         {
-            string t = snapshot.CpuTemperatureCelsius is double temp ? $"{temp:0}°" : "--°";
-            string p = snapshot.CpuPowerWatts is double pow && pow > 0.5 ? $"{pow:0}W" : "--W";
+            string t = snapshot.CpuTemperatureCelsius is double temp && double.IsFinite(temp)
+                ? $"{temp:0}°"
+                : "--°";
+            string p = snapshot.CpuPowerWatts is double pow && double.IsFinite(pow) && pow > 0.5
+                ? $"{pow:0}W"
+                : "--W";
             CpuTemperatureText.Text = $"{t} {p}";
-            CpuTemperatureText.Visibility = Visibility.Visible;
+            CpuTemperatureText.Visibility = showCpuSubMetric ? Visibility.Visible : Visibility.Collapsed;
         }
         else if (_metricVisibility.CpuTemperature)
         {
-            CpuTemperatureText.Text = snapshot.CpuTemperatureCelsius is double cpuTemperature
+            CpuTemperatureText.Text = snapshot.CpuTemperatureCelsius is double cpuTemperature &&
+                                      double.IsFinite(cpuTemperature)
                 ? $"{cpuTemperature:0}°"
                 : "--°";
-            CpuTemperatureText.Visibility = Visibility.Visible;
+            CpuTemperatureText.Visibility = showCpuSubMetric ? Visibility.Visible : Visibility.Collapsed;
         }
         else if (_metricVisibility.CpuPower)
         {
-            CpuTemperatureText.Text = snapshot.CpuPowerWatts is double cpuPower && cpuPower > 0.5
+            CpuTemperatureText.Text = snapshot.CpuPowerWatts is double cpuPower &&
+                                      double.IsFinite(cpuPower) &&
+                                      cpuPower > 0.5
                 ? $"{cpuPower:0}W"
                 : "--W";
-            CpuTemperatureText.Visibility = Visibility.Visible;
+            CpuTemperatureText.Visibility = showCpuSubMetric ? Visibility.Visible : Visibility.Collapsed;
         }
         else
         {
@@ -271,7 +307,7 @@ public partial class BandWindow : Window
         CpuTemperatureText.Foreground = _mainTextBrush;
 
         // Memory
-        double usedGb = snapshot.MemoryUsedBytes / (1024d * 1024d * 1024d);
+        double usedGb = Math.Max(0L, snapshot.MemoryUsedBytes) / (1024d * 1024d * 1024d);
         if (_metricVisibility.MemoryUsage && _metricVisibility.MemoryUsedCapacity)
         {
             MemoryCapacityText.Text = $"{usedGb:0.0}G";
@@ -296,7 +332,6 @@ public partial class BandWindow : Window
         MemoryCapacityText.Foreground = _mainTextBrush;
 
         // GPU
-        bool gpuCapabilityChanged = _gpuCapability.Observe(snapshot.Gpu is not null);
         if (snapshot.Gpu is { } gpu)
         {
             if (_metricVisibility.GpuUsage)
@@ -312,7 +347,10 @@ public partial class BandWindow : Window
                     GpuValueText.Foreground = _mainTextBrush;
                 }
             }
-            else if (_metricVisibility.GpuPower && gpu.PowerWatts is double gpuPower && gpuPower > 0.5)
+            else if (_metricVisibility.GpuPower &&
+                     gpu.PowerWatts is double gpuPower &&
+                     double.IsFinite(gpuPower) &&
+                     gpuPower > 0.5)
             {
                 GpuValueText.Text = $"{gpuPower:0}W";
                 GpuValueText.Foreground = _mainTextBrush;
@@ -350,6 +388,7 @@ public partial class BandWindow : Window
                 GpuTemperatureText.Text = string.Empty;
                 GpuTemperatureText.Visibility = Visibility.Collapsed;
             }
+            GpuTemperatureText.Foreground = _mainTextBrush;
 
             string tooltip = gpu.Name;
             if (gpu.TemperatureCelsius is { } tooltipTemperature && double.IsFinite(tooltipTemperature))
@@ -366,9 +405,30 @@ public partial class BandWindow : Window
         {
             // Keep the slot stable during the five-sample disappearance grace
             // period, but never leave stale telemetry on screen.
-            GpuValueText.Text = "--%";
+            GpuValueText.Text = !_metricVisibility.GpuUsage && _metricVisibility.GpuPower ? "--W" : "--%";
             GpuValueText.Foreground = _mainTextBrush;
-            GpuTemperatureText.Text = "--℃";
+            if (_metricVisibility.GpuTemperature && _metricVisibility.GpuPower)
+            {
+                GpuTemperatureText.Text = "--° --W";
+                GpuTemperatureText.Visibility = Visibility.Visible;
+            }
+            else if (_metricVisibility.GpuTemperature)
+            {
+                GpuTemperatureText.Text = "--°";
+                GpuTemperatureText.Visibility = Visibility.Visible;
+            }
+            else if (_metricVisibility.GpuPower)
+            {
+                GpuTemperatureText.Text = "--W";
+                GpuTemperatureText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                GpuTemperatureText.Text = string.Empty;
+                GpuTemperatureText.Visibility = Visibility.Collapsed;
+            }
+
+            GpuTemperatureText.Foreground = _mainTextBrush;
             GpuValueText.ToolTip = null;
         }
 
@@ -387,16 +447,6 @@ public partial class BandWindow : Window
         DiskValueText.Foreground = hasSystemDriveTelemetry
             ? GetUsageBrush(snapshot.SystemDriveUsagePercent)
             : _mainTextBrush;
-
-        if (gpuCapabilityChanged && _metricVisibility.Gpu &&
-            ApplyEffectiveLayout(CreateEffectiveLayout()))
-        {
-            _placementInvalidated = true;
-            if (_positionTracking)
-            {
-                Reposition();
-            }
-        }
     }
 
     public void StartPositionTracking()
@@ -511,9 +561,10 @@ public partial class BandWindow : Window
             precedingSeparators[metric].Visibility = Visibility.Visible;
         }
 
-        CpuTemperatureText.Visibility = layout.Compact
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        CpuTemperatureText.Visibility = !layout.Compact &&
+            (_metricVisibility.CpuTemperature || _metricVisibility.CpuPower)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         return true;
     }
 
@@ -556,6 +607,7 @@ public partial class BandWindow : Window
             $"band WPF closed generation={Generation} hwnd=0x{_nativeHandle.ToInt64():X} " +
             $"explicit={_explicitClose}");
         StopPositionTracking();
+        TaskbarPositioner.Reset();
         _motionTracker.Dispose();
         _regionMonitor.Dispose();
         _layoutRetryTimer.Stop();
@@ -625,6 +677,12 @@ public partial class BandWindow : Window
             BandDiagnostics.Log(
                 $"band WM_NCDESTROY generation={Generation} hwnd=0x{windowHandle.ToInt64():X}");
             NotifyNativeDestroyed(windowHandle, "WM_NCDESTROY");
+            return nint.Zero;
+        }
+
+        if (TaskbarCreatedMessage != 0 && message == TaskbarCreatedMessage)
+        {
+            ScheduleTaskbarCreatedRecovery();
             return nint.Zero;
         }
 
@@ -709,34 +767,69 @@ public partial class BandWindow : Window
         }
     }
 
-    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    private void ScheduleTaskbarCreatedRecovery()
     {
-        if (!Dispatcher.HasShutdownStarted)
+        if (!_positionTracking || _explicitClose)
         {
-            Dispatcher.InvokeAsync(() =>
-            {
-                TaskbarPositioner.Invalidate();
-                _placementInvalidated = true;
-                InvalidateRegionSnapshotAndRequestProbe(invalidateInFlight: true);
-                Reposition();
-                _motionTracker.NotifyTaskbarStateChanged();
-            });
+            return;
         }
+
+        DispatchWhileTracking(() =>
+        {
+            BandDiagnostics.Log(
+                $"band TaskbarCreated received generation={Generation} hwnd=0x{_nativeHandle.ToInt64():X}");
+            TaskbarPositioner.Reset();
+            RefreshPlacementAfterEnvironmentChange();
+        });
     }
 
-    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e) =>
+        DispatchWhileTracking(() =>
+        {
+            TaskbarPositioner.Invalidate();
+            RefreshPlacementAfterEnvironmentChange();
+        });
+
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e) =>
+        DispatchWhileTracking(() =>
+        {
+            ApplySystemTheme();
+            TaskbarPositioner.Invalidate();
+            RefreshPlacementAfterEnvironmentChange();
+        });
+
+    private void RefreshPlacementAfterEnvironmentChange()
     {
-        if (!Dispatcher.HasShutdownStarted)
+        _placementInvalidated = true;
+        InvalidateRegionSnapshotAndRequestProbe(invalidateInFlight: true);
+        Reposition();
+        _motionTracker.NotifyTaskbarStateChanged();
+    }
+
+    private void DispatchWhileTracking(Action action)
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+        {
+            return;
+        }
+
+        try
         {
             Dispatcher.InvokeAsync(() =>
             {
-                ApplySystemTheme();
-                TaskbarPositioner.Invalidate();
-                _placementInvalidated = true;
-                InvalidateRegionSnapshotAndRequestProbe(invalidateInFlight: true);
-                Reposition();
-                _motionTracker.NotifyTaskbarStateChanged();
+                if (_explicitClose || !_positionTracking || Dispatcher.HasShutdownStarted)
+                {
+                    return;
+                }
+
+                action();
             });
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (TaskCanceledException)
+        {
         }
     }
 
@@ -1470,7 +1563,7 @@ public partial class BandWindow : Window
             critical = ColorFrom("#FF6961");
         }
 
-        if (_activeTheme is { } theme)
+        if (!_highContrast && _activeTheme is { } theme)
         {
             ThemeBandStyle band = theme.Definition.Band;
             main = string.IsNullOrWhiteSpace(band.TextColor) ? main : ColorFrom(band.TextColor);
@@ -1502,6 +1595,10 @@ public partial class BandWindow : Window
         _criticalBrush = CreateBrush(critical);
         Resources["BandTextBrush"] = _mainTextBrush;
         Resources["BandSeparatorBrush"] = _separatorBrush;
+        Resources["BandHoverBrush"] = _highContrast
+            ? System.Windows.Media.Brushes.Transparent
+            : CreateBrush(_systemUsesLightTheme ? ColorFrom("#183390EC") : ColorFrom("#245EB5F7"));
+        RenderSnapshot(_latestSnapshot);
     }
 
     private static bool ReadSystemUsesLightTheme()
@@ -1612,6 +1709,9 @@ public partial class BandWindow : Window
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)]
     private static extern nint SetWindowLongPtr64(nint windowHandle, int index, nint value);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string message);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -1,5 +1,6 @@
-using System.IO;
 using System.Collections.Concurrent;
+using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -13,6 +14,7 @@ namespace SysMonitor.Services;
 public sealed class SettingsService
 {
     private const string RevisionPropertyName = "__SettingsRevision";
+    private static readonly MediaColorConverter ColorConverterInstance = new();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -517,62 +519,48 @@ public sealed class SettingsService
     {
         settings = null;
         revision = 0;
-        for (int attempt = 0; attempt < 3; attempt++)
+        if (!TryReadSharedText(path, out string json))
         {
-            try
-            {
-                if (!File.Exists(path))
-                {
-                    return false;
-                }
-
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                using var reader = new StreamReader(stream, Encoding.UTF8);
-                string json = reader.ReadToEnd();
-                using JsonDocument document = JsonDocument.Parse(json);
-                settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
-                if (settings is null)
-                {
-                    return false;
-                }
-
-                if (document.RootElement.ValueKind == JsonValueKind.Object &&
-                    document.RootElement.TryGetProperty(RevisionPropertyName, out JsonElement revisionElement) &&
-                    revisionElement.TryGetInt64(out long persistedRevision))
-                {
-                    revision = NormalizePersistedRevision(persistedRevision);
-                }
-
-                return true;
-            }
-            catch (IOException) when (attempt < 2)
-            {
-                Thread.Sleep(20);
-            }
-            catch
-            {
-                settings = null;
-                revision = 0;
-                return false;
-            }
+            return false;
         }
 
-        settings = null;
-        revision = 0;
-        return false;
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(json);
+            settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
+            if (settings is null)
+            {
+                return false;
+            }
+
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty(RevisionPropertyName, out JsonElement revisionElement) &&
+                revisionElement.TryGetInt64(out long persistedRevision))
+            {
+                revision = NormalizePersistedRevision(persistedRevision);
+            }
+
+            return true;
+        }
+        catch
+        {
+            settings = null;
+            revision = 0;
+            return false;
+        }
     }
 
     private static bool TryReadPersistedRevision(string path, out long revision)
     {
         revision = 0;
+        if (!TryReadSharedText(path, out string json))
+        {
+            return false;
+        }
+
         try
         {
-            if (!File.Exists(path))
-            {
-                return false;
-            }
-
-            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+            using JsonDocument document = JsonDocument.Parse(json);
             if (document.RootElement.ValueKind != JsonValueKind.Object ||
                 !document.RootElement.TryGetProperty(RevisionPropertyName, out JsonElement value) ||
                 !value.TryGetInt64(out long parsed))
@@ -587,6 +575,42 @@ public sealed class SettingsService
         {
             return false;
         }
+    }
+
+    private static bool TryReadSharedText(string path, out string json)
+    {
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    json = string.Empty;
+                    return false;
+                }
+
+                using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                json = reader.ReadToEnd();
+                return true;
+            }
+            catch (IOException) when (attempt < 2)
+            {
+                Thread.Sleep(20);
+            }
+            catch
+            {
+                json = string.Empty;
+                return false;
+            }
+        }
+
+        json = string.Empty;
+        return false;
     }
 
     private static long NormalizePersistedRevision(long revision)
@@ -698,23 +722,7 @@ public sealed class SettingsService
         string mem = NormalizeColor(value.MemoryColor, "#FFFFD600");
         string net = NormalizeColor(value.NetworkColor, "#FFE040FB");
 
-        // Automatically upgrade older purple/blue/dracula/pastel default schemes to iconic MSI Afterburner colors
-        string[] oldGpu = ["#FF7E57C2", "#FF66D9FF", "#FFFFA94D", "#FF7043", "#FFF4F5F7", "#FFFFE6C7"];
-        string[] oldCpu = ["#FF1976D2", "#FF8BE9FD", "#FFFFD166", "#FF42A5F5"];
-        string[] oldFps = ["#FF1B9A5A", "#FF50FA7B", "#FF95D5B2", "#FF66BB6A"];
-        string[] oldMem = ["#FFD97706", "#FFF1FA8C", "#FFFF8E72", "#FFA726"];
-        string[] oldNet = ["#FF0097A7", "#FFFFB86C", "#FFE4B1FF", "#AB47BC"];
-
-        if (oldGpu.Any(c => string.Equals(gpu, c, StringComparison.OrdinalIgnoreCase))) gpu = "#FFFF8C00";
-        if (oldCpu.Any(c => string.Equals(cpu, c, StringComparison.OrdinalIgnoreCase))) cpu = "#FF00E5FF";
-        if (oldFps.Any(c => string.Equals(fps, c, StringComparison.OrdinalIgnoreCase))) fps = "#FF00E676";
-        if (oldMem.Any(c => string.Equals(mem, c, StringComparison.OrdinalIgnoreCase))) mem = "#FFFFD600";
-        if (oldNet.Any(c => string.Equals(net, c, StringComparison.OrdinalIgnoreCase))) net = "#FFE040FB";
-
-        string font = string.IsNullOrWhiteSpace(value.FontFamily) ||
-                      string.Equals(value.FontFamily, "Segoe UI Variable Text", StringComparison.OrdinalIgnoreCase) ||
-                      string.Equals(value.FontFamily, "Microsoft JhengHei UI", StringComparison.OrdinalIgnoreCase) ||
-                      string.Equals(value.FontFamily, "Segoe UI", StringComparison.OrdinalIgnoreCase)
+        string font = string.IsNullOrWhiteSpace(value.FontFamily)
             ? "Consolas"
             : value.FontFamily.Trim();
 
@@ -782,8 +790,12 @@ public sealed class SettingsService
     {
         try
         {
-            MediaColor color = (MediaColor)MediaColorConverter.ConvertFromString(value ?? fallback)!;
-            return color.ToString();
+            string candidate = string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+            MediaColor color = (MediaColor)ColorConverterInstance.ConvertFrom(
+                null,
+                CultureInfo.InvariantCulture,
+                candidate)!;
+            return color.ToString(CultureInfo.InvariantCulture);
         }
         catch
         {

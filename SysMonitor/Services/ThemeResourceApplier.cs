@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -48,20 +49,21 @@ public sealed class ThemeResourceApplier
             ["AppTertiaryTextBrush"] = CreateBrush(colors.Tertiary),
             ["AppSeparatorBrush"] = CreateBrush(colors.Separator),
             ["AppControlBrush"] = CreateBrush(colors.Control),
-            ["AppControlHoverBrush"] = isMidnight ? CreateBrush("#32353E") : CreateBrush("#E8EAEF"),
+            ["AppControlHoverBrush"] = isMidnight ? CreateBrush("#2B384A") : CreateBrush("#E8EEF4"),
             ["AppAccentBrush"] = CreateBrush(colors.Accent),
+            ["AppAccentForegroundBrush"] = CreateBrush("#FFFFFF"),
             ["CpuMetricBrush"] = CreateBrush(metrics.Cpu),
             ["MemoryMetricBrush"] = CreateBrush(metrics.Memory),
             ["GpuMetricBrush"] = CreateBrush(metrics.Gpu),
             ["WarningMetricBrush"] = CreateBrush(metrics.Warning),
             ["CriticalMetricBrush"] = CreateBrush(metrics.Critical),
-            ["CpuMetricSoftBrush"] = isDefault ? CreateBrush("#E3F0FD") : (isMidnight ? CreateBrush("#1E2D3D") : CreateSoftBrush(metrics.Cpu)),
-            ["MemoryMetricSoftBrush"] = isDefault ? CreateBrush("#FFF0DC") : (isMidnight ? CreateBrush("#382E1E") : CreateSoftBrush(metrics.Memory)),
-            ["GpuMetricSoftBrush"] = isDefault ? CreateBrush("#EFE8FA") : (isMidnight ? CreateBrush("#30243C") : CreateSoftBrush(metrics.Gpu)),
-            ["DetailPinBackgroundBrush"] = isDefault ? CreateBrush("#DCEBFF") : (isMidnight ? CreateBrush("#253346") : CreateSoftBrush(colors.Accent)),
+            ["CpuMetricSoftBrush"] = isDefault ? CreateBrush("#E8F4FD") : (isMidnight ? CreateBrush("#1D3145") : CreateSoftBrush(metrics.Cpu)),
+            ["MemoryMetricSoftBrush"] = isDefault ? CreateBrush("#F2EFFE") : (isMidnight ? CreateBrush("#2A2542") : CreateSoftBrush(metrics.Memory)),
+            ["GpuMetricSoftBrush"] = isDefault ? CreateBrush("#EAF8EC") : (isMidnight ? CreateBrush("#1C3426") : CreateSoftBrush(metrics.Gpu)),
+            ["DetailPinBackgroundBrush"] = isDefault ? CreateBrush("#E8F4FD") : (isMidnight ? CreateBrush("#1D3145") : CreateSoftBrush(colors.Accent)),
             ["DetailPinForegroundBrush"] = CreateBrush(colors.Accent),
             ["DetailUnpinnedForegroundBrush"] = CreateBrush(colors.Secondary),
-            ["MetricTrackBrush"] = isDefault ? CreateBrush("#F0F1F4") : (isMidnight ? CreateBrush("#2E3038") : CreateBrush(colors.Separator)),
+            ["MetricTrackBrush"] = isDefault ? CreateBrush("#F0F1F4") : (isMidnight ? CreateBrush("#283342") : CreateBrush(colors.Separator)),
             ["AppGroupCornerRadius"] = new CornerRadius(definition.Shape.GroupCornerRadius),
             ["AppShadowOpacity"] = definition.Shape.ShadowOpacity,
             ["BandCornerRadius"] = new CornerRadius(definition.Band.CornerRadius),
@@ -76,14 +78,19 @@ public sealed class ThemeResourceApplier
         return true;
     }
 
-    private static MediaBrush CreateBandBackground(ResolvedTheme theme)
+    internal static MediaBrush CreateBandBackground(ResolvedTheme theme)
     {
         if (!string.IsNullOrWhiteSpace(theme.BandBackgroundPath))
         {
+            using var stream = new FileStream(
+                theme.BandBackgroundPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
             var image = new BitmapImage();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
-            image.UriSource = new Uri(theme.BandBackgroundPath, UriKind.Absolute);
+            image.StreamSource = stream;
             image.EndInit();
             image.Freeze();
             var imageBrush = new ImageBrush(image)

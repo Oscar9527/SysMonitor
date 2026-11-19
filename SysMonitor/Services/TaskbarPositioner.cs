@@ -23,6 +23,12 @@ public static class TaskbarPositioner
         // also request a fresh asynchronous snapshot after invalidation.
     }
 
+    internal static void Reset()
+    {
+        ConstraintTracker.Reset();
+        _lastPositionedConstraint = null;
+    }
+
     public static bool IsTaskbarAvailable() => FindTaskbarWindow() != nint.Zero;
 
     public static void RejectConstraintExpansion(long observedGeneration)
@@ -155,7 +161,9 @@ public static class TaskbarPositioner
                 constraintConfirmationSuggested: constraintConfirmationSuggested);
         }
 
-        int heightPixels = Math.Max(1, (int)Math.Round(BandHeightDip * bandScale));
+        int desiredHeightPixels = Math.Max(1, (int)Math.Round(BandHeightDip * bandScale));
+        int heightPixels = Math.Min(desiredHeightPixels, Math.Max(1, taskbarHeight));
+        double effectiveHeightDip = heightPixels / bandScale;
         int maximumX = constraint.Right - widthPixels;
         double travelDip = Math.Max(0, maximumX - constraint.Left) / bandScale;
         double resolvedPercent = ResolvePositionPercent(
@@ -196,9 +204,9 @@ public static class TaskbarPositioner
             window.Width = widthDip;
         }
 
-        if (Math.Abs(window.Height - BandHeightDip) > 0.1)
+        if (Math.Abs(window.Height - effectiveHeightDip) > 0.1)
         {
-            window.Height = BandHeightDip;
+            window.Height = effectiveHeightDip;
         }
 
         if (placement.SetWindowPosition || !HasVisibleStyle(bandHandle))

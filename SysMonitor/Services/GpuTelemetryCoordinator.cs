@@ -8,6 +8,7 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
     private static readonly TimeSpan NvidiaSmiFreshness = TimeSpan.FromSeconds(2.5);
     private static readonly TimeSpan LibreHardwareMonitorFreshness = TimeSpan.FromSeconds(3.5);
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly object _readGate = new();
     private readonly IGpuTelemetryProvider _nvidiaSmi;
     private readonly IGpuTelemetryProvider _libreHardwareMonitor;
     private readonly Dictionary<GpuTelemetrySource, GpuProviderCycle> _acceptedCycles = new();
@@ -75,16 +76,7 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (!_started)
-            {
-                return;
-            }
-
-            await _nvidiaSmi.StopAsync().ConfigureAwait(false);
-            await _libreHardwareMonitor.StopAsync().ConfigureAwait(false);
-            _acceptedCycles.Clear();
-            ResetSelection();
-            _started = false;
+            await StopCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -96,23 +88,27 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
 
     internal GpuSnapshot? Read(long nowTimestamp)
     {
-        AcceptNewest(_nvidiaSmi.LatestCycle);
-        AcceptNewest(_libreHardwareMonitor.LatestCycle);
-
-        GpuProviderCycle? nvidiaCycle = FreshCycle(
-            GpuTelemetrySource.NvidiaSmi,
-            nowTimestamp,
-            NvidiaSmiFreshness);
-        GpuProviderCycle? lhmCycle = FreshCycle(
-            GpuTelemetrySource.LibreHardwareMonitor,
-            nowTimestamp,
-            LibreHardwareMonitorFreshness);
-
-        IReadOnlyList<GpuProviderSample> candidates = BuildCandidates(nvidiaCycle, lhmCycle);
-        GpuProviderSample? selected = Select(candidates);
-        if (selected is not null)
+        GpuProviderSample? selected;
+        lock (_readGate)
         {
-            LogSelection(selected);
+            AcceptNewest(_nvidiaSmi.LatestCycle);
+            AcceptNewest(_libreHardwareMonitor.LatestCycle);
+
+            GpuProviderCycle? nvidiaCycle = FreshCycle(
+                GpuTelemetrySource.NvidiaSmi,
+                nowTimestamp,
+                NvidiaSmiFreshness);
+            GpuProviderCycle? lhmCycle = FreshCycle(
+                GpuTelemetrySource.LibreHardwareMonitor,
+                nowTimestamp,
+                LibreHardwareMonitorFreshness);
+
+            IReadOnlyList<GpuProviderSample> candidates = BuildCandidates(nvidiaCycle, lhmCycle);
+            selected = Select(candidates);
+            if (selected is not null)
+            {
+                LogSelection(selected);
+            }
         }
 
         return selected is null
@@ -143,15 +139,56 @@ internal sealed class GpuTelemetryCoordinator : IAsyncDisposable
             }
 
             _disposed = true;
+            try
+            {
+                await StopCoreAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                try
+                {
+                    await _nvidiaSmi.DisposeAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    await _libreHardwareMonitor.DisposeAsync().ConfigureAwait(false);
+                }
+            }
         }
         finally
         {
             _lifecycle.Release();
         }
+    }
 
-        await StopAsync().ConfigureAwait(false);
-        await _nvidiaSmi.DisposeAsync().ConfigureAwait(false);
-        await _libreHardwareMonitor.DisposeAsync().ConfigureAwait(false);
+    private async Task StopCoreAsync()
+    {
+        if (!_started)
+        {
+            return;
+        }
+
+        try
+        {
+            await _nvidiaSmi.StopAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                await _libreHardwareMonitor.StopAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (_readGate)
+                {
+                    _acceptedCycles.Clear();
+                    ResetSelection();
+                }
+
+                _started = false;
+            }
+        }
     }
 
     private void AcceptNewest(GpuProviderCycle? cycle)

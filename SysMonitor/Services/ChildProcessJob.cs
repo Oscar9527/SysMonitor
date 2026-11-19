@@ -8,27 +8,30 @@ namespace SysMonitor.Services;
 internal sealed class ChildProcessJob : IDisposable
 {
     private readonly SafeJobHandle _handle;
-    private bool _disposed;
+    private int _disposed;
 
     internal ChildProcessJob()
     {
         _handle = CreateJobObject(IntPtr.Zero, null);
         if (_handle.IsInvalid)
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error());
+            int error = Marshal.GetLastWin32Error();
+            _handle.Dispose();
+            throw new Win32Exception(error);
         }
 
-        var information = new JobObjectExtendedLimitInformation
-        {
-            BasicLimitInformation = new JobObjectBasicLimitInformation
-            {
-                LimitFlags = JobObjectLimitKillOnJobClose,
-            },
-        };
-        int size = Marshal.SizeOf<JobObjectExtendedLimitInformation>();
-        IntPtr pointer = Marshal.AllocHGlobal(size);
+        IntPtr pointer = IntPtr.Zero;
         try
         {
+            var information = new JobObjectExtendedLimitInformation
+            {
+                BasicLimitInformation = new JobObjectBasicLimitInformation
+                {
+                    LimitFlags = JobObjectLimitKillOnJobClose,
+                },
+            };
+            int size = Marshal.SizeOf<JobObjectExtendedLimitInformation>();
+            pointer = Marshal.AllocHGlobal(size);
             Marshal.StructureToPtr(information, pointer, false);
             if (!SetInformationJobObject(
                     _handle,
@@ -39,15 +42,24 @@ internal sealed class ChildProcessJob : IDisposable
                 throw new Win32Exception(Marshal.GetLastWin32Error());
             }
         }
+        catch
+        {
+            _handle.Dispose();
+            throw;
+        }
         finally
         {
-            Marshal.FreeHGlobal(pointer);
+            if (pointer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(pointer);
+            }
         }
     }
 
     internal void Assign(Process process)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentNullException.ThrowIfNull(process);
         if (!AssignProcessToJobObject(_handle, process.SafeHandle))
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -56,12 +68,11 @@ internal sealed class ChildProcessJob : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        _disposed = true;
         _handle.Dispose();
     }
 

@@ -83,6 +83,7 @@ public sealed class RtssLegacyCompatibilityService
         AllowTrailingCommas = false
     };
 
+    private static readonly object ProfileSyncGate = new();
     private readonly string _profilesDirectory;
     private readonly string _backupDirectory;
 
@@ -148,20 +149,30 @@ public sealed class RtssLegacyCompatibilityService
             }
 
             // 2. Check running RTSS processes
-            foreach (var process in Process.GetProcessesByName("RTSS"))
+            Process[] runningProcesses = Process.GetProcessesByName("RTSS");
+            try
             {
-                try
+                foreach (var process in runningProcesses)
                 {
-                    var image = ProcessExecutablePathResolver.TryResolve(process.Id);
-                    if (!string.IsNullOrWhiteSpace(image) && File.Exists(image))
+                    try
                     {
-                        rtssExePath = image;
-                        rtssRootDirectory = Path.GetDirectoryName(image);
-                        return true;
+                        var image = ProcessExecutablePathResolver.TryResolve(process.Id);
+                        if (!string.IsNullOrWhiteSpace(image) && File.Exists(image))
+                        {
+                            rtssExePath = image;
+                            rtssRootDirectory = Path.GetDirectoryName(image);
+                            return true;
+                        }
                     }
+                    catch { }
                 }
-                catch { }
-                finally { process.Dispose(); }
+            }
+            finally
+            {
+                foreach (var process in runningProcesses)
+                {
+                    process.Dispose();
+                }
             }
 
             // 3. Check well-known directories across all available fixed drives
@@ -228,38 +239,41 @@ public sealed class RtssLegacyCompatibilityService
     {
         if (!TryValidateExecutable(executablePath, requireExisting: true, out var exe, out var name, out var error))
             return Fail(error.code, error.message, executablePath, name);
-        try
+        lock (ProfileSyncGate)
         {
-            var profile = ResolveProfile(name!, allowMissing: true, out var profileCode, out var profileDiagnostic);
-            var manifest = LoadManifest(name!, out var manifestCode, out var manifestDiagnostic);
-            if (manifestCode == RtssCompatibilityCode.InvalidManifest)
-                return Fail(RtssCompatibilityCode.CorruptManifest, manifestDiagnostic, exe, name, profile?.Path);
-            if (manifestCode != RtssCompatibilityCode.Success)
-                return Fail(manifestCode, manifestDiagnostic, exe, name, profile?.Path);
-            if (manifest is not null)
+            try
             {
-                if (!TryValidateManifest(manifest, out var mError))
-                    return Fail(RtssCompatibilityCode.CorruptManifest, mError, exe, name, profile?.Path);
-                if (!PathEquals(manifest.ExecutablePath, exe!))
-                    return Fail(RtssCompatibilityCode.SameBasenameConflict, "A different executable already owns this basename.", exe, name, manifest.ProfilePath);
-                var current = File.Exists(manifest.ProfilePath) ? HashFile(manifest.ProfilePath) : null;
-                bool enabled = manifest.Phase == RtssManifestPhase.Applied && current == manifest.AppliedHash;
-                return Result(true, enabled, true, false, enabled, enabled ? RtssCompatibilityCode.Success : RtssCompatibilityCode.Conflict,
-                    enabled ? "Compatibility is enabled." : "Managed profile requires reconciliation.", exe, name, manifest.ProfilePath);
+                var profile = ResolveProfile(name!, allowMissing: true, out var profileCode, out var profileDiagnostic);
+                var manifest = LoadManifest(name!, out var manifestCode, out var manifestDiagnostic);
+                if (manifestCode == RtssCompatibilityCode.InvalidManifest)
+                    return Fail(RtssCompatibilityCode.CorruptManifest, manifestDiagnostic, exe, name, profile?.Path);
+                if (manifestCode != RtssCompatibilityCode.Success)
+                    return Fail(manifestCode, manifestDiagnostic, exe, name, profile?.Path);
+                if (manifest is not null)
+                {
+                    if (!TryValidateManifest(manifest, out var mError))
+                        return Fail(RtssCompatibilityCode.CorruptManifest, mError, exe, name, profile?.Path);
+                    if (!PathEquals(manifest.ExecutablePath, exe!))
+                        return Fail(RtssCompatibilityCode.SameBasenameConflict, "A different executable already owns this basename.", exe, name, manifest.ProfilePath);
+                    var current = File.Exists(manifest.ProfilePath) ? HashFile(manifest.ProfilePath) : null;
+                    bool enabled = manifest.Phase == RtssManifestPhase.Applied && current == manifest.AppliedHash;
+                    return Result(true, enabled, true, false, enabled, enabled ? RtssCompatibilityCode.Success : RtssCompatibilityCode.Conflict,
+                        enabled ? "Compatibility is enabled." : "Managed profile requires reconciliation.", exe, name, manifest.ProfilePath);
+                }
+                if (profileCode != RtssCompatibilityCode.Success && profileCode != RtssCompatibilityCode.ProfileNotFound)
+                    return Fail(profileCode, profileDiagnostic, exe, name, profile?.Path);
+                bool existingEnabled = false;
+                if (profile is not null)
+                {
+                    try { existingEnabled = PatchProfile(File.ReadAllBytes(profile.Path)).SequenceEqual(File.ReadAllBytes(profile.Path)); }
+                    catch (IniAmbiguousException ex) { return Fail(RtssCompatibilityCode.AmbiguousIni, ex.Message, exe, name, profile.Path); }
+                }
+                return Result(true, existingEnabled, false, true, false,
+                    existingEnabled ? RtssCompatibilityCode.Success : RtssCompatibilityCode.Success,
+                    existingEnabled ? "Profile already contains compatibility keys." : "Profile can be enabled.", exe, name, profile?.Path);
             }
-            if (profileCode != RtssCompatibilityCode.Success && profileCode != RtssCompatibilityCode.ProfileNotFound)
-                return Fail(profileCode, profileDiagnostic, exe, name, profile?.Path);
-            bool existingEnabled = false;
-            if (profile is not null)
-            {
-                try { existingEnabled = PatchProfile(File.ReadAllBytes(profile.Path)).SequenceEqual(File.ReadAllBytes(profile.Path)); }
-                catch (IniAmbiguousException ex) { return Fail(RtssCompatibilityCode.AmbiguousIni, ex.Message, exe, name, profile.Path); }
-            }
-            return Result(true, existingEnabled, false, true, false,
-                existingEnabled ? RtssCompatibilityCode.Success : RtssCompatibilityCode.Success,
-                existingEnabled ? "Profile already contains compatibility keys." : "Profile can be enabled.", exe, name, profile?.Path);
+            catch (Exception ex) { return Fail(RtssCompatibilityCode.IoError, ex.Message, exe, name); }
         }
-        catch (Exception ex) { return Fail(RtssCompatibilityCode.IoError, ex.Message, exe, name); }
     }
 
     public bool TryAutoEnableForExecutable(string executablePath, out string? diagnostic)
@@ -267,28 +281,37 @@ public sealed class RtssLegacyCompatibilityService
         diagnostic = null;
         try
         {
-            RtssCompatibilityResult status = GetStatus(executablePath);
-            if (status.Enabled)
+            RtssCompatibilityResult result;
+            bool shouldEnsureRunning;
+            lock (ProfileSyncGate)
             {
-                // Profile is ready — ensure RTSS is running so the hook takes effect.
-                _ = TryEnsureRtssRunning(out _);
-                return true;
+                RtssCompatibilityResult status = GetStatus(executablePath);
+                if (status.Enabled)
+                {
+                    shouldEnsureRunning = true;
+                    result = status;
+                }
+                else if (!status.CanEnable)
+                {
+                    diagnostic = status.Diagnostic;
+                    return false;
+                }
+                else
+                {
+                    result = Enable(executablePath);
+                    diagnostic = result.Diagnostic;
+                    shouldEnsureRunning = result.Success;
+                }
             }
 
-            if (!status.CanEnable)
-            {
-                diagnostic = status.Diagnostic;
-                return false;
-            }
-
-            RtssCompatibilityResult result = Enable(executablePath);
-            diagnostic = result.Diagnostic;
-            if (result.Success)
+            if (shouldEnsureRunning)
             {
                 // Auto-start RTSS in the background so the user never needs to
                 // launch it manually. This is the key to zero-config old-game support.
                 _ = TryEnsureRtssRunning(out _);
+                return true;
             }
+
             return result.Success;
         }
         catch (Exception ex)
@@ -325,7 +348,7 @@ public sealed class RtssLegacyCompatibilityService
         {
             if (TryFindRtssInstallation(out string? exePath, out _) && !string.IsNullOrWhiteSpace(exePath) && File.Exists(exePath))
             {
-                Process.Start(new ProcessStartInfo
+                using Process? started = Process.Start(new ProcessStartInfo
                 {
                     FileName = exePath,
                     UseShellExecute = true,
@@ -352,119 +375,128 @@ public sealed class RtssLegacyCompatibilityService
     {
         if (!TryValidateExecutable(executablePath, requireExisting: true, out var exe, out var name, out var error))
             return Fail(error.code, error.message, executablePath, name);
-        try
+        lock (ProfileSyncGate)
         {
-            if (!Directory.Exists(_profilesDirectory)) return Fail(RtssCompatibilityCode.ProfilesUnavailable, "RTSS Profiles directory does not exist.", exe, name);
-            if (!ValidateDirectory(_profilesDirectory, out var dirError)) return Fail(RtssCompatibilityCode.UnsafePath, dirError, exe, name);
-            ReconcilePending();
-            var existingManifest = LoadManifest(name!, out var manifestCode, out var manifestDiagnostic);
-            if (manifestCode == RtssCompatibilityCode.InvalidManifest || existingManifest is not null && !TryValidateManifest(existingManifest, out _))
-                return Fail(RtssCompatibilityCode.CorruptManifest, manifestDiagnostic.Length == 0 ? "Corrupt manifest." : manifestDiagnostic, exe, name);
-            if (existingManifest is not null)
+            try
             {
-                if (!PathEquals(existingManifest.ExecutablePath, exe!))
-                    return Fail(RtssCompatibilityCode.SameBasenameConflict, "A different executable already owns this basename.", exe, name, existingManifest.ProfilePath);
-                if (existingManifest.Phase == RtssManifestPhase.Pending)
-                    return Fail(RtssCompatibilityCode.Conflict, "A pending compatibility operation requires reconciliation.", exe, name, existingManifest.ProfilePath);
-                if (existingManifest.Phase == RtssManifestPhase.Applied)
+                if (!Directory.Exists(_profilesDirectory)) return Fail(RtssCompatibilityCode.ProfilesUnavailable, "RTSS Profiles directory does not exist.", exe, name);
+                if (!ValidateDirectory(_profilesDirectory, out var dirError)) return Fail(RtssCompatibilityCode.UnsafePath, dirError, exe, name);
+                ReconcilePending();
+                var existingManifest = LoadManifest(name!, out var manifestCode, out var manifestDiagnostic);
+                if (manifestCode == RtssCompatibilityCode.InvalidManifest || existingManifest is not null && !TryValidateManifest(existingManifest, out _))
+                    return Fail(RtssCompatibilityCode.CorruptManifest, manifestDiagnostic.Length == 0 ? "Corrupt manifest." : manifestDiagnostic, exe, name);
+                if (existingManifest is not null)
                 {
-                    if (!File.Exists(existingManifest.ProfilePath) || HashFile(existingManifest.ProfilePath) != existingManifest.AppliedHash)
-                        return Fail(RtssCompatibilityCode.Conflict, "The managed profile was modified or removed externally.", exe, name, existingManifest.ProfilePath);
-                    return Result(true, true, true, false, true, RtssCompatibilityCode.AlreadyEnabled, "Compatibility is already enabled.", exe, name, existingManifest.ProfilePath);
+                    if (!PathEquals(existingManifest.ExecutablePath, exe!))
+                        return Fail(RtssCompatibilityCode.SameBasenameConflict, "A different executable already owns this basename.", exe, name, existingManifest.ProfilePath);
+                    if (existingManifest.Phase == RtssManifestPhase.Pending)
+                        return Fail(RtssCompatibilityCode.Conflict, "A pending compatibility operation requires reconciliation.", exe, name, existingManifest.ProfilePath);
+                    if (existingManifest.Phase == RtssManifestPhase.Applied)
+                    {
+                        if (!File.Exists(existingManifest.ProfilePath) || HashFile(existingManifest.ProfilePath) != existingManifest.AppliedHash)
+                            return Fail(RtssCompatibilityCode.Conflict, "The managed profile was modified or removed externally.", exe, name, existingManifest.ProfilePath);
+                        return Result(true, true, true, false, true, RtssCompatibilityCode.AlreadyEnabled, "Compatibility is already enabled.", exe, name, existingManifest.ProfilePath);
+                    }
                 }
-            }
-            foreach (var m in ReadValidManifests())
-                if (!string.Equals(m.ExecutableName, name, StringComparison.OrdinalIgnoreCase) || PathEquals(m.ExecutablePath, exe!)) continue;
-                else return Fail(RtssCompatibilityCode.SameBasenameConflict, "The basename is already managed for another executable.", exe, name);
+                foreach (var m in ReadValidManifests())
+                    if (!string.Equals(m.ExecutableName, name, StringComparison.OrdinalIgnoreCase) || PathEquals(m.ExecutablePath, exe!)) continue;
+                    else return Fail(RtssCompatibilityCode.SameBasenameConflict, "The basename is already managed for another executable.", exe, name);
 
-            var profile = ResolveProfile(name!, allowMissing: true, out var profileCode, out var profileDiagnostic);
-            if (profileCode is RtssCompatibilityCode.ProfileAmbiguous or RtssCompatibilityCode.UnsafePath)
-                return Fail(profileCode, profileDiagnostic, exe, name);
-            byte[] original = profile is null ? Array.Empty<byte>() : File.ReadAllBytes(profile.Path);
-            bool originalExists = profile is not null;
-            byte[] applied;
-            try { applied = originalExists ? PatchProfile(original) : Encoding.ASCII.GetBytes(NewProfile); }
-            catch (IniAmbiguousException ex) { return Fail(RtssCompatibilityCode.AmbiguousIni, ex.Message, exe, name, profile?.Path); }
-            var manifest = new RtssManifest
-            {
-                Version = 1, ExecutablePath = exe!, ExecutableName = name!, ProfilesDirectory = _profilesDirectory,
-                ProfilePath = profile?.Path ?? Path.Combine(_profilesDirectory, name + ".cfg"),
-                OriginalExisted = originalExists, OriginalBytes = Convert.ToBase64String(original),
-                OriginalHash = HashBytes(original), AppliedHash = HashBytes(applied), Phase = RtssManifestPhase.Pending
-            };
-            WriteManifestAtomic(manifest);
-            // The pending marker protects against a crash, but never permits us to
-            // overwrite a profile that changed between the initial read and write.
-            var beforeApply = ResolveProfile(name!, allowMissing: true, out var beforeCode, out _);
-            if (beforeCode is RtssCompatibilityCode.ProfileAmbiguous or RtssCompatibilityCode.UnsafePath ||
-                (originalExists && (beforeApply is null || HashFile(beforeApply.Path) != manifest.OriginalHash)) ||
-                (!originalExists && beforeApply is not null))
-                return Fail(RtssCompatibilityCode.Conflict, "Profile changed while preparing compatibility.", exe, name, manifest.ProfilePath);
-            if (!ValidateManifestMutationPaths(manifest, out var mutationError))
-                return Fail(RtssCompatibilityCode.UnsafePath, mutationError, exe, name, manifest.ProfilePath);
-            WriteProfileAtomic(manifest.ProfilePath, applied);
-            if (HashFile(manifest.ProfilePath) != manifest.AppliedHash) throw new IOException("Applied profile hash verification failed.");
-            manifest.Phase = RtssManifestPhase.Applied;
-            WriteManifestAtomic(manifest);
-            return Result(true, true, true, false, true, RtssCompatibilityCode.Success, "Compatibility enabled.", exe, name, manifest.ProfilePath, true);
+                var profile = ResolveProfile(name!, allowMissing: true, out var profileCode, out var profileDiagnostic);
+                if (profileCode is RtssCompatibilityCode.ProfileAmbiguous or RtssCompatibilityCode.UnsafePath)
+                    return Fail(profileCode, profileDiagnostic, exe, name);
+                byte[] original = profile is null ? Array.Empty<byte>() : File.ReadAllBytes(profile.Path);
+                bool originalExists = profile is not null;
+                byte[] applied;
+                try { applied = originalExists ? PatchProfile(original) : Encoding.ASCII.GetBytes(NewProfile); }
+                catch (IniAmbiguousException ex) { return Fail(RtssCompatibilityCode.AmbiguousIni, ex.Message, exe, name, profile?.Path); }
+                var manifest = new RtssManifest
+                {
+                    Version = 1, ExecutablePath = exe!, ExecutableName = name!, ProfilesDirectory = _profilesDirectory,
+                    ProfilePath = profile?.Path ?? Path.Combine(_profilesDirectory, name + ".cfg"),
+                    OriginalExisted = originalExists, OriginalBytes = Convert.ToBase64String(original),
+                    OriginalHash = HashBytes(original), AppliedHash = HashBytes(applied), Phase = RtssManifestPhase.Pending
+                };
+                WriteManifestAtomic(manifest);
+                // The pending marker protects against a crash, but never permits us to
+                // overwrite a profile that changed between the initial read and write.
+                var beforeApply = ResolveProfile(name!, allowMissing: true, out var beforeCode, out _);
+                if (beforeCode is RtssCompatibilityCode.ProfileAmbiguous or RtssCompatibilityCode.UnsafePath ||
+                    (originalExists && (beforeApply is null || HashFile(beforeApply.Path) != manifest.OriginalHash)) ||
+                    (!originalExists && beforeApply is not null))
+                    return Fail(RtssCompatibilityCode.Conflict, "Profile changed while preparing compatibility.", exe, name, manifest.ProfilePath);
+                if (!ValidateManifestMutationPaths(manifest, out var mutationError))
+                    return Fail(RtssCompatibilityCode.UnsafePath, mutationError, exe, name, manifest.ProfilePath);
+                WriteProfileAtomic(manifest.ProfilePath, applied);
+                if (HashFile(manifest.ProfilePath) != manifest.AppliedHash) throw new IOException("Applied profile hash verification failed.");
+                manifest.Phase = RtssManifestPhase.Applied;
+                WriteManifestAtomic(manifest);
+                return Result(true, true, true, false, true, RtssCompatibilityCode.Success, "Compatibility enabled.", exe, name, manifest.ProfilePath, true);
+            }
+            catch (Exception ex) { return Fail(RtssCompatibilityCode.IoError, ex.Message, exe, name); }
         }
-        catch (Exception ex) { return Fail(RtssCompatibilityCode.IoError, ex.Message, exe, name); }
     }
 
     public RtssCompatibilityResult Disable(string executablePath)
     {
         if (!TryValidateExecutable(executablePath, requireExisting: false, out var exe, out var name, out var error))
             return Fail(error.code, error.message, executablePath, name);
-        try
+        lock (ProfileSyncGate)
         {
-            var manifest = LoadManifest(name!, out var code, out var diagnostic);
-            if (manifest is null) return Fail(RtssCompatibilityCode.Success, "No managed profile exists.", exe, name);
-            string mError;
-            bool manifestValid = TryValidateManifest(manifest, out mError);
-            if (code == RtssCompatibilityCode.InvalidManifest || !manifestValid)
-                return Fail(RtssCompatibilityCode.CorruptManifest, string.IsNullOrEmpty(mError) ? diagnostic : mError, exe, name);
-            if (!PathEquals(manifest.ExecutablePath, exe!)) return Fail(RtssCompatibilityCode.SameBasenameConflict, "Executable does not match managed target.", exe, name, manifest.ProfilePath);
-            if (!File.Exists(manifest.ProfilePath) || HashFile(manifest.ProfilePath) != manifest.AppliedHash)
-                return Fail(RtssCompatibilityCode.Conflict, "Current profile is missing or has been modified.", exe, name, manifest.ProfilePath);
-            if (!ValidateManifestMutationPaths(manifest, out var mutationError))
-                return Fail(RtssCompatibilityCode.UnsafePath, mutationError, exe, name, manifest.ProfilePath);
-            if (manifest.OriginalExisted)
-                WriteProfileAtomic(manifest.ProfilePath, Convert.FromBase64String(manifest.OriginalBytes));
-            else
-                File.Delete(manifest.ProfilePath);
-            if (manifest.OriginalExisted && (!File.Exists(manifest.ProfilePath) || HashFile(manifest.ProfilePath) != manifest.OriginalHash) || !manifest.OriginalExisted && File.Exists(manifest.ProfilePath))
-                throw new IOException("Restore verification failed.");
-            if (!DeleteManifest(name!))
-                return Fail(RtssCompatibilityCode.IoError, "Profile was restored but the manifest could not be removed.", exe, name, manifest.ProfilePath);
-            return Result(true, false, false, true, false, RtssCompatibilityCode.Disabled, "Compatibility disabled and original profile restored.", exe, name, manifest.ProfilePath, true);
+            try
+            {
+                var manifest = LoadManifest(name!, out var code, out var diagnostic);
+                if (manifest is null) return Fail(RtssCompatibilityCode.Success, "No managed profile exists.", exe, name);
+                string mError;
+                bool manifestValid = TryValidateManifest(manifest, out mError);
+                if (code == RtssCompatibilityCode.InvalidManifest || !manifestValid)
+                    return Fail(RtssCompatibilityCode.CorruptManifest, string.IsNullOrEmpty(mError) ? diagnostic : mError, exe, name);
+                if (!PathEquals(manifest.ExecutablePath, exe!)) return Fail(RtssCompatibilityCode.SameBasenameConflict, "Executable does not match managed target.", exe, name, manifest.ProfilePath);
+                if (!File.Exists(manifest.ProfilePath) || HashFile(manifest.ProfilePath) != manifest.AppliedHash)
+                    return Fail(RtssCompatibilityCode.Conflict, "Current profile is missing or has been modified.", exe, name, manifest.ProfilePath);
+                if (!ValidateManifestMutationPaths(manifest, out var mutationError))
+                    return Fail(RtssCompatibilityCode.UnsafePath, mutationError, exe, name, manifest.ProfilePath);
+                if (manifest.OriginalExisted)
+                    WriteProfileAtomic(manifest.ProfilePath, Convert.FromBase64String(manifest.OriginalBytes));
+                else
+                    File.Delete(manifest.ProfilePath);
+                if (manifest.OriginalExisted && (!File.Exists(manifest.ProfilePath) || HashFile(manifest.ProfilePath) != manifest.OriginalHash) || !manifest.OriginalExisted && File.Exists(manifest.ProfilePath))
+                    throw new IOException("Restore verification failed.");
+                if (!DeleteManifest(name!))
+                    return Fail(RtssCompatibilityCode.IoError, "Profile was restored but the manifest could not be removed.", exe, name, manifest.ProfilePath);
+                return Result(true, false, false, true, false, RtssCompatibilityCode.Disabled, "Compatibility disabled and original profile restored.", exe, name, manifest.ProfilePath, true);
+            }
+            catch (Exception ex) { return Fail(RtssCompatibilityCode.IoError, ex.Message, exe, name); }
         }
-        catch (Exception ex) { return Fail(RtssCompatibilityCode.IoError, ex.Message, exe, name); }
     }
 
     public IReadOnlyList<RtssManagedTargetSummary> EnumerateManagedTargets()
     {
-        var result = new List<RtssManagedTargetSummary>();
-        if (!Directory.Exists(_backupDirectory) || !ValidateDirectoryMetadata(_backupDirectory)) return result;
-        foreach (var path in Directory.EnumerateFiles(_backupDirectory, "*.json", SearchOption.TopDirectoryOnly))
+        lock (ProfileSyncGate)
         {
-            if (!IsSafeDirectChild(path, _backupDirectory, out var unsafeManifestError))
+            var result = new List<RtssManagedTargetSummary>();
+            if (!Directory.Exists(_backupDirectory) || !ValidateDirectoryMetadata(_backupDirectory)) return result;
+            foreach (var path in Directory.EnumerateFiles(_backupDirectory, "*.json", SearchOption.TopDirectoryOnly))
             {
-                result.Add(new(false, false, false, false, RtssCompatibilityCode.CorruptManifest, unsafeManifestError, null, Path.GetFileNameWithoutExtension(path), null, null, false, null, null));
-                continue;
+                if (!IsSafeDirectChild(path, _backupDirectory, out var unsafeManifestError))
+                {
+                    result.Add(new(false, false, false, false, RtssCompatibilityCode.CorruptManifest, unsafeManifestError, null, Path.GetFileNameWithoutExtension(path), null, null, false, null, null));
+                    continue;
+                }
+                RtssManifest? m = null;
+                string err = string.Empty;
+                try { m = JsonSerializer.Deserialize<RtssManifest>(File.ReadAllText(path), JsonOptions); }
+                catch { }
+                if (m is null || !TryValidateManifest(m, out err))
+                {
+                    result.Add(new(false, false, false, false, RtssCompatibilityCode.CorruptManifest, err.Length == 0 ? "Corrupt manifest." : err, m?.ExecutablePath, m?.ExecutableName, m?.ProfilePath, m?.Phase, m?.OriginalExisted ?? false, m?.OriginalHash, m?.AppliedHash));
+                    continue;
+                }
+                bool enabled = m.Phase == RtssManifestPhase.Applied && File.Exists(m.ProfilePath) && HashFile(m.ProfilePath) == m.AppliedHash;
+                result.Add(new(true, enabled, !enabled, enabled, enabled ? RtssCompatibilityCode.Success : RtssCompatibilityCode.Conflict, enabled ? "Applied." : "Conflict or pending.", m.ExecutablePath, m.ExecutableName, m.ProfilePath, m.Phase, m.OriginalExisted, m.OriginalHash, m.AppliedHash));
             }
-            RtssManifest? m = null;
-            string err = string.Empty;
-            try { m = JsonSerializer.Deserialize<RtssManifest>(File.ReadAllText(path), JsonOptions); }
-            catch { }
-            if (m is null || !TryValidateManifest(m, out err))
-            {
-                result.Add(new(false, false, false, false, RtssCompatibilityCode.CorruptManifest, err.Length == 0 ? "Corrupt manifest." : err, m?.ExecutablePath, m?.ExecutableName, m?.ProfilePath, m?.Phase, m?.OriginalExisted ?? false, m?.OriginalHash, m?.AppliedHash));
-                continue;
-            }
-            bool enabled = m.Phase == RtssManifestPhase.Applied && File.Exists(m.ProfilePath) && HashFile(m.ProfilePath) == m.AppliedHash;
-            result.Add(new(true, enabled, !enabled, enabled, enabled ? RtssCompatibilityCode.Success : RtssCompatibilityCode.Conflict, enabled ? "Applied." : "Conflict or pending.", m.ExecutablePath, m.ExecutableName, m.ProfilePath, m.Phase, m.OriginalExisted, m.OriginalHash, m.AppliedHash));
+            return result;
         }
-        return result;
     }
 
     public IReadOnlyList<RtssManagedTargetSummary> GetManagedTargets() => EnumerateManagedTargets();

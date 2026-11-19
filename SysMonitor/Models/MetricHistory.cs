@@ -48,13 +48,16 @@ public sealed class MetricHistoryBuffer
             throw new ArgumentOutOfRangeException(nameof(capacity));
         }
 
-        double windowTicks = window.TotalSeconds * frequency;
-        if (!double.IsFinite(windowTicks) || windowTicks > long.MaxValue)
+        // In IEEE-754 double, (double)long.MaxValue rounds up to 2^63 (9223372036854775808.0),
+        // which overflows Int64 if checked-cast after Ceiling. Reject anything >= 2^63 here.
+        const double FirstUnrepresentableInt64 = 9223372036854775808.0;
+        double ceiledWindowTicks = Math.Ceiling(window.TotalSeconds * frequency);
+        if (!double.IsFinite(ceiledWindowTicks) || ceiledWindowTicks >= FirstUnrepresentableInt64)
         {
             throw new ArgumentOutOfRangeException(nameof(window));
         }
 
-        _windowTicks = Math.Max(1, checked((long)Math.Ceiling(windowTicks)));
+        _windowTicks = Math.Max(1, checked((long)ceiledWindowTicks));
         _points = new MetricHistoryPoint[capacity];
     }
 

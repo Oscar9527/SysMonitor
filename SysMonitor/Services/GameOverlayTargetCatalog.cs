@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -82,27 +83,51 @@ public static class GameOverlayTargetCatalog
             return null;
         }
 
+        int processId = (int)processIdValue;
+        string? executablePath = ProcessExecutablePathResolver.TryResolve(processId);
+        bool identityResolved = ProcessExecutablePathResolver.TryReadProcessIdentity(
+            processId,
+            out DateTimeOffset startedAt,
+            out bool hasExited);
+        if (identityResolved && hasExited)
+        {
+            return null;
+        }
+
+        string processName = string.Empty;
         try
         {
-            using Process process = Process.GetProcessById((int)processIdValue);
-            if (process.HasExited)
+            using Process process = Process.GetProcessById(processId);
+            processName = process.ProcessName;
+            if (!identityResolved)
             {
-                return null;
+                startedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
+                hasExited = process.HasExited;
+                identityResolved = !hasExited;
             }
-
-            return new GameOverlayTargetOption(
-                window,
-                process.Id,
-                new DateTimeOffset(process.StartTime.ToUniversalTime()),
-                process.ProcessName,
-                title.ToString(),
-                ProcessExecutablePathResolver.TryResolve(process.Id));
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or
             System.ComponentModel.Win32Exception)
         {
+        }
+
+        if (!identityResolved || hasExited)
+        {
             return null;
         }
+
+        if (string.IsNullOrWhiteSpace(processName) && !string.IsNullOrWhiteSpace(executablePath))
+        {
+            processName = Path.GetFileNameWithoutExtension(executablePath);
+        }
+
+        return new GameOverlayTargetOption(
+            window,
+            processId,
+            startedAt,
+            processName,
+            title.ToString(),
+            executablePath);
     }
 
     private static bool IsCurrent(GameOverlayTargetOption target)
@@ -116,6 +141,14 @@ public static class GameOverlayTargetCatalog
         if (processId != target.ProcessId)
         {
             return false;
+        }
+
+        if (ProcessExecutablePathResolver.TryReadProcessIdentity(
+                target.ProcessId,
+                out DateTimeOffset startedAt,
+                out bool hasExited))
+        {
+            return !hasExited && startedAt == target.ProcessStartedAt;
         }
 
         try

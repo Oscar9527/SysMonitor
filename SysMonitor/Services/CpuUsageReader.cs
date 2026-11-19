@@ -13,57 +13,92 @@ internal sealed class CpuUsageReader : IDisposable
     private const string ProcessorTimeCounter =
         @"\Processor Information(_Total)\% Processor Time";
 
+    private readonly object _gate = new();
     private nint _query;
     private nint _counter;
+    private bool _disposed;
 
     public void Start()
     {
-        Stop();
-        if (TryStart(UtilityCounter))
+        lock (_gate)
         {
-            BandDiagnostics.Log("CPU source=PDH Processor Utility (Task Manager semantics)");
-            return;
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        if (TryStart(ProcessorTimeCounter))
-        {
-            BandDiagnostics.Log("CPU source=PDH Processor Time fallback");
-            return;
-        }
+            StopLocked();
+            if (TryStartLocked(UtilityCounter))
+            {
+                BandDiagnostics.Log("CPU source=PDH Processor Utility (Task Manager semantics)");
+                return;
+            }
 
-        BandDiagnostics.Log("CPU source=GetSystemTimes fallback");
+            if (TryStartLocked(ProcessorTimeCounter))
+            {
+                BandDiagnostics.Log("CPU source=PDH Processor Time fallback");
+                return;
+            }
+
+            BandDiagnostics.Log("CPU source=GetSystemTimes fallback");
+        }
     }
 
     public double? Read()
     {
-        if (_query == nint.Zero || _counter == nint.Zero)
+        lock (_gate)
         {
-            return null;
-        }
-
-        try
-        {
-            if (PdhCollectQueryData(_query) != ErrorSuccess ||
-                PdhGetFormattedCounterValue(
-                    _counter,
-                    PdhFormatDouble,
-                    out _,
-                    out PdhFormattedCounterValue value) != ErrorSuccess ||
-                value.Status is not (PdhCstatusValidData or PdhCstatusNewData) ||
-                !double.IsFinite(value.DoubleValue))
+            if (_disposed || _query == nint.Zero || _counter == nint.Zero)
             {
                 return null;
             }
 
-            return Math.Clamp(value.DoubleValue, 0d, 100d);
-        }
-        catch
-        {
-            return null;
+            try
+            {
+                if (PdhCollectQueryData(_query) != ErrorSuccess ||
+                    PdhGetFormattedCounterValue(
+                        _counter,
+                        PdhFormatDouble,
+                        out _,
+                        out PdhFormattedCounterValue value) != ErrorSuccess ||
+                    value.Status is not (PdhCstatusValidData or PdhCstatusNewData) ||
+                    !double.IsFinite(value.DoubleValue))
+                {
+                    return null;
+                }
+
+                return Math.Clamp(value.DoubleValue, 0d, 100d);
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 
     public void Stop()
+    {
+        lock (_gate)
+        {
+            StopLocked();
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            StopLocked();
+        }
+    }
+
+    private void StopLocked()
     {
         nint query = _query;
         _query = nint.Zero;
@@ -74,9 +109,7 @@ internal sealed class CpuUsageReader : IDisposable
         }
     }
 
-    public void Dispose() => Stop();
-
-    private bool TryStart(string counterPath)
+    private bool TryStartLocked(string counterPath)
     {
         nint query = nint.Zero;
         try

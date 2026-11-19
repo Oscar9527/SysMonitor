@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using Microsoft.Win32;
 using System.Windows.Forms;
@@ -101,7 +103,8 @@ internal static class SysMonitorLauncher
 
         try
         {
-            string launcherPath = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+            using Process currentProcess = Process.GetCurrentProcess();
+            string launcherPath = currentProcess.MainModule?.FileName ?? string.Empty;
             var startInfo = new ProcessStartInfo
             {
                 FileName = corePath,
@@ -116,7 +119,7 @@ internal static class SysMonitorLauncher
 
             startInfo.Arguments = string.Join(" ", launchArguments.Select(QuoteArgument));
 
-            Process.Start(startInfo);
+            using Process? coreProcess = Process.Start(startInfo);
             return 0;
         }
         catch (Exception exception)
@@ -145,7 +148,11 @@ internal static class SysMonitorLauncher
         error = null;
         string normalizedRuntimeDirectory = Path.GetFullPath(runtimeDirectory)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        int currentProcessId = Process.GetCurrentProcess().Id;
+        int currentProcessId;
+        using (Process currentProcess = Process.GetCurrentProcess())
+        {
+            currentProcessId = currentProcess.Id;
+        }
 
         foreach (Process process in Process.GetProcesses())
         {
@@ -276,29 +283,54 @@ internal static class SysMonitorLauncher
                 return false;
             }
 
-            string temporaryPath = corePath + $".new.{Process.GetCurrentProcess().Id}";
-            if (File.Exists(temporaryPath))
+            int processId;
+            using (Process currentProcess = Process.GetCurrentProcess())
             {
-                File.Delete(temporaryPath);
+                processId = currentProcess.Id;
             }
 
-            using (FileStream destination = File.Create(temporaryPath))
+            string temporaryPath = corePath + $".new.{processId}.{Guid.NewGuid():N}";
+            try
             {
-                source.CopyTo(destination);
-            }
+                using (FileStream destination = File.Create(temporaryPath))
+                {
+                    source.CopyTo(destination);
+                }
 
-            if (File.Exists(corePath))
+                if (File.Exists(corePath))
+                {
+                    File.Replace(temporaryPath, corePath, null);
+                }
+                else
+                {
+                    File.Move(temporaryPath, corePath);
+                }
+
+                return true;
+            }
+            finally
             {
-                File.Delete(corePath);
+                TryDeleteQuietly(temporaryPath);
             }
-
-            File.Move(temporaryPath, corePath);
-            return true;
         }
         catch (Exception exception)
         {
             error = $"无法准备核心文件：{exception.Message}";
             return false;
+        }
+    }
+
+    private static void TryDeleteQuietly(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
         }
     }
 
@@ -341,50 +373,181 @@ internal static class SysMonitorLauncher
 
     private static bool HasRequiredWindowsDesktopRuntime()
     {
+        var candidateRoots = new List<string>();
+        foreach (RegistryView view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
+        {
+            try
+            {
+                using RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view);
+                using RegistryKey? installedKey = baseKey.OpenSubKey(
+                    @"SOFTWARE\dotnet\Setup\InstalledVersions\x64");
+                string? installLocation = installedKey?.GetValue("InstallLocation") as string;
+                if (!string.IsNullOrWhiteSpace(installLocation))
+                {
+                    candidateRoots.Add(installLocation!);
+                }
+
+                using RegistryKey? sharedHostKey = installedKey?.OpenSubKey("sharedhost");
+                string? sharedHostPath = sharedHostKey?.GetValue("Path") as string;
+                if (!string.IsNullOrWhiteSpace(sharedHostPath))
+                {
+                    candidateRoots.Add(sharedHostPath!);
+                }
+
+                using RegistryKey? runtimeKey = installedKey?.OpenSubKey(
+                    @"sharedfx\Microsoft.WindowsDesktop.App");
+                if (runtimeKey is not null)
+                {
+                    IEnumerable<string> registeredVersions = runtimeKey
+                        .GetValueNames()
+                        .Where(name => !string.IsNullOrWhiteSpace(name) &&
+                            (runtimeKey.GetValue(name) is not int flag || flag != 0))
+                        .Concat(runtimeKey.GetSubKeyNames());
+                    foreach (string versionName in registeredVersions)
+                    {
+                        if (!IsNet8Version(versionName))
+                        {
+                            continue;
+                        }
+
+                        if (installLocation is not string rootLocation ||
+                            string.IsNullOrWhiteSpace(rootLocation) ||
+                            HasValidDesktopRuntimeDirectory(
+                                Path.Combine(
+                                    rootLocation,
+                                    "shared",
+                                    "Microsoft.WindowsDesktop.App",
+                                    versionName),
+                                rootLocation))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
         try
         {
-            using RegistryKey baseKey = RegistryKey.OpenBaseKey(
-                RegistryHive.LocalMachine,
-                RegistryView.Registry64);
-            using RegistryKey? runtimeKey = baseKey.OpenSubKey(
-                @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App");
-            if (runtimeKey is not null && runtimeKey.GetSubKeyNames().Any(name =>
-                    Version.TryParse(name, out Version? version) && version.Major == 8))
+            AddIfPresent(candidateRoots, Environment.GetEnvironmentVariable("DOTNET_ROOT_X64"));
+            AddIfPresent(candidateRoots, Environment.GetEnvironmentVariable("DOTNET_ROOT"));
+            AddIfPresent(candidateRoots, Environment.GetEnvironmentVariable("ProgramW6432"), "dotnet");
+            if (!Environment.Is64BitOperatingSystem || Environment.Is64BitProcess)
             {
-                return true;
+                AddIfPresent(
+                    candidateRoots,
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                    "dotnet");
             }
+
+            candidateRoots.Add(@"C:\Program Files\dotnet");
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string rawRoot in candidateRoots)
+            {
+                string trimmed = rawRoot.Trim().TrimEnd(
+                    Path.DirectorySeparatorChar,
+                    Path.AltDirectorySeparatorChar);
+                if (trimmed.Length == 0 || !seen.Add(trimmed))
+                {
+                    continue;
+                }
+
+                string runtimeDirectory = Path.Combine(
+                    trimmed,
+                    "shared",
+                    "Microsoft.WindowsDesktop.App");
+                if (!Directory.Exists(runtimeDirectory))
+                {
+                    continue;
+                }
+
+                if (Directory.GetDirectories(runtimeDirectory).Any(directory =>
+                        IsNet8Version(Path.GetFileName(directory)) &&
+                        HasValidDesktopRuntimeDirectory(directory, trimmed)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
         catch
         {
+            return false;
+        }
+    }
+
+    private static void AddIfPresent(List<string> roots, string? basePath, string? subFolder = null)
+    {
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            return;
         }
 
+        roots.Add(subFolder is null ? basePath! : Path.Combine(basePath!, subFolder));
+    }
+
+    private static bool IsNet8Version(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        string trimmed = raw!.Trim();
+        int dash = trimmed.IndexOf('-');
+        string numeric = dash >= 0 ? trimmed.Substring(0, dash) : trimmed;
+        return Version.TryParse(numeric, out Version? version) && version.Major == 8;
+    }
+
+    private static bool HasValidDesktopRuntimeDirectory(string versionDirectory, string dotnetRoot)
+    {
         try
         {
-            string? configuredRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT_X64");
-            string[] roots = string.IsNullOrWhiteSpace(configuredRoot)
-                ? new[]
-                {
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
-                    @"C:\Program Files\dotnet",
-                }
-                : new[]
-                {
-                    configuredRoot,
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
-                    @"C:\Program Files\dotnet",
-                };
-
-            return roots.Any(dotnetRoot =>
+            if (!Directory.Exists(versionDirectory) ||
+                !File.Exists(Path.Combine(versionDirectory, "Microsoft.WindowsDesktop.App.deps.json")))
             {
-                string runtimeDirectory = Path.Combine(
-                    dotnetRoot,
-                    "shared",
-                    "Microsoft.WindowsDesktop.App");
-                return Directory.Exists(runtimeDirectory) &&
-                    Directory.GetDirectories(runtimeDirectory).Any(directory =>
-                        Version.TryParse(Path.GetFileName(directory), out Version? version) &&
-                        version.Major == 8);
-            });
+                return false;
+            }
+
+            string dotnetHost = Path.Combine(dotnetRoot, "dotnet.exe");
+            if (File.Exists(dotnetHost))
+            {
+                return IsX64PortableExecutable(dotnetHost);
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsX64PortableExecutable(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new BinaryReader(stream);
+            if (stream.Length < 0x40 || reader.ReadUInt16() != 0x5A4D)
+            {
+                return false;
+            }
+
+            stream.Seek(0x3C, SeekOrigin.Begin);
+            int peOffset = reader.ReadInt32();
+            if (peOffset <= 0 || peOffset > stream.Length - 6)
+            {
+                return false;
+            }
+
+            stream.Seek(peOffset, SeekOrigin.Begin);
+            return reader.ReadUInt32() == 0x00004550 && reader.ReadUInt16() == 0x8664;
         }
         catch
         {
@@ -396,7 +559,7 @@ internal static class SysMonitorLauncher
     {
         try
         {
-            Process.Start(new ProcessStartInfo
+            using Process? browserProcess = Process.Start(new ProcessStartInfo
             {
                 FileName = RuntimeDownloadUrl,
                 UseShellExecute = true,
@@ -416,8 +579,54 @@ internal static class SysMonitorLauncher
             return "\"\"";
         }
 
-        return argument.IndexOfAny(new[] { ' ', '\t', '"' }) < 0
-            ? argument
-            : "\"" + argument.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        bool needsQuotes = false;
+        foreach (char ch in argument)
+        {
+            if (char.IsWhiteSpace(ch) || ch == '"')
+            {
+                needsQuotes = true;
+                break;
+            }
+        }
+
+        if (!needsQuotes)
+        {
+            return argument;
+        }
+
+        var builder = new StringBuilder(argument.Length + 4);
+        builder.Append('"');
+        int backslashes = 0;
+        foreach (char ch in argument)
+        {
+            if (ch == '\\')
+            {
+                backslashes++;
+            }
+            else if (ch == '"')
+            {
+                builder.Append('\\', (backslashes * 2) + 1);
+                builder.Append('"');
+                backslashes = 0;
+            }
+            else
+            {
+                if (backslashes > 0)
+                {
+                    builder.Append('\\', backslashes);
+                    backslashes = 0;
+                }
+
+                builder.Append(ch);
+            }
+        }
+
+        if (backslashes > 0)
+        {
+            builder.Append('\\', backslashes * 2);
+        }
+
+        builder.Append('"');
+        return builder.ToString();
     }
 }

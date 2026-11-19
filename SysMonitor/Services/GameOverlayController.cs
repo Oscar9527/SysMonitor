@@ -129,6 +129,11 @@ public sealed class GameOverlayController : IAsyncDisposable
     public Task ShowForTargetAsync(ForegroundTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
+        lock (_stateGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+        }
+
         _targetTracker.SetManualTarget(target);
         return RequestVisibilityAsync(true, GameOverlayActivationSource.Tray, null);
     }
@@ -370,7 +375,9 @@ public sealed class GameOverlayController : IAsyncDisposable
                 }
                 else if (currentTarget is not null)
                 {
-                    bool isSameProcess = candidate is not null && candidate.ProcessId == currentTarget.ProcessId;
+                    bool isSameProcess = candidate is not null &&
+                                         candidate.ProcessId == currentTarget.ProcessId &&
+                                         candidate.ProcessStartedAt == currentTarget.ProcessStartedAt;
                     if (!isSameProcess)
                     {
                         RunOnUi(() =>
@@ -378,6 +385,16 @@ public sealed class GameOverlayController : IAsyncDisposable
                             if (IsCurrent(generation, visible: true) && _view.OverlayVisible)
                             {
                                 _view.HideOverlay();
+                            }
+                        });
+                    }
+                    else
+                    {
+                        RunOnUi(() =>
+                        {
+                            if (IsCurrent(generation, visible: true) && !_view.OverlayVisible)
+                            {
+                                _view.ShowWithoutActivation();
                             }
                         });
                     }
@@ -507,8 +524,13 @@ public sealed class GameOverlayController : IAsyncDisposable
         await _operations.WaitAsync().ConfigureAwait(false);
         try
         {
+            if (!IsCurrent(generation, visible: true) || cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
             await _frameProvider.StopAsync().ConfigureAwait(false);
-            if (!IsCurrent(generation, visible: true))
+            if (!IsCurrent(generation, visible: true) || cancellationToken.IsCancellationRequested)
             {
                 return;
             }
@@ -542,6 +564,13 @@ public sealed class GameOverlayController : IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+        catch (Exception exception)
+        {
+            BandDiagnostics.LogRateLimited(
+                "overlay-retarget",
+                $"overlay retarget failed error={exception.GetType().Name}",
+                TimeSpan.FromSeconds(10));
         }
         finally
         {
@@ -602,7 +631,6 @@ public sealed class GameOverlayController : IAsyncDisposable
         finally
         {
             _operations.Release();
-            _operations.Dispose();
             _targetCancellation?.Dispose();
             _targetCancellation = null;
         }

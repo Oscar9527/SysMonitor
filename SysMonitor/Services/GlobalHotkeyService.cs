@@ -69,7 +69,7 @@ public sealed class GlobalHotkeyService : IDisposable
 
     internal bool ProcessMessage(int message, nint wParam)
     {
-        if (!_disposed && message == WmHotkey && wParam.ToInt32() == HotkeyId)
+        if (!_disposed && message == WmHotkey && wParam == new nint(HotkeyId))
         {
             Pressed?.Invoke(this, EventArgs.Empty);
             return true;

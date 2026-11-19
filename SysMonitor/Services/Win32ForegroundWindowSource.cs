@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -22,14 +23,20 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
 
         int processId = (int)processIdValue;
         string processName = string.Empty;
-        DateTimeOffset processStartedAt = default;
-        bool hasExited = true;
+        string? executablePath = ProcessExecutablePathResolver.TryResolve(processId);
+        bool identityResolved = ProcessExecutablePathResolver.TryReadProcessIdentity(
+            processId,
+            out DateTimeOffset processStartedAt,
+            out bool hasExited);
         try
         {
             using Process process = Process.GetProcessById(processId);
             processName = process.ProcessName;
-            processStartedAt = process.StartTime.ToUniversalTime();
-            hasExited = process.HasExited;
+            if (!identityResolved)
+            {
+                processStartedAt = new DateTimeOffset(process.StartTime.ToUniversalTime());
+                hasExited = process.HasExited;
+            }
         }
         catch (ArgumentException)
         {
@@ -40,6 +47,11 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
         }
         catch (System.ComponentModel.Win32Exception)
         {
+        }
+
+        if (string.IsNullOrWhiteSpace(processName) && !string.IsNullOrWhiteSpace(executablePath))
+        {
+            processName = Path.GetFileNameWithoutExtension(executablePath);
         }
 
         var className = new StringBuilder(256);
@@ -56,7 +68,7 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
             IsWindowVisible(window),
             hasExited,
             windowTitle.ToString(),
-            ProcessExecutablePathResolver.TryResolve(processId));
+            executablePath);
     }
 
     public bool IsCurrentIdentity(ForegroundTarget target)
@@ -70,6 +82,14 @@ public sealed class Win32ForegroundWindowSource : IForegroundWindowSource
         if (processId != target.ProcessId)
         {
             return false;
+        }
+
+        if (ProcessExecutablePathResolver.TryReadProcessIdentity(
+                target.ProcessId,
+                out DateTimeOffset startedAt,
+                out bool hasExited))
+        {
+            return !hasExited && startedAt == target.ProcessStartedAt;
         }
 
         try

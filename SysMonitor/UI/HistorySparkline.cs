@@ -134,7 +134,9 @@ public sealed class HistorySparkline : FrameworkElement
         }
 
         DpiScale dpi = VisualTreeHelper.GetDpi(this);
-        DrawGrid(drawingContext, width, height, dpi);
+        double dpiScaleX = double.IsFinite(dpi.DpiScaleX) && dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1.0;
+        double dpiScaleY = double.IsFinite(dpi.DpiScaleY) && dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1.0;
+        DrawGrid(drawingContext, width, height, dpiScaleY);
 
         HistorySparklineGeometry geometry = HistorySparklineGeometry.Build(
             Series,
@@ -149,7 +151,7 @@ public sealed class HistorySparkline : FrameworkElement
             return;
         }
 
-        Pen? strokePen = CreateSmoothPen(Stroke, 1.6 / dpi.DpiScaleY);
+        Pen? strokePen = CreateFrozenPen(Stroke, 1.6 / dpiScaleY);
         Brush fillBrush = CreateGradientFill(Stroke, Fill);
         foreach (ImmutableArray<Point> segment in geometry.Segments)
         {
@@ -162,22 +164,9 @@ public sealed class HistorySparkline : FrameworkElement
 
         if (geometry.LatestValidPoint is Point latest && Stroke is Brush markerBrush)
         {
-            double radius = Math.Max(2.5, 2.5 / Math.Min(dpi.DpiScaleX, dpi.DpiScaleY));
+            double radius = Math.Max(2.5, 2.5 / Math.Min(dpiScaleX, dpiScaleY));
             drawingContext.DrawEllipse(markerBrush, null, latest, radius, radius);
         }
-    }
-
-    private static Pen? CreateSmoothPen(Brush? brush, double thickness)
-    {
-        if (brush is null) return null;
-        var pen = new Pen(brush, thickness)
-        {
-            StartLineCap = PenLineCap.Round,
-            EndLineCap = PenLineCap.Round,
-            LineJoin = PenLineJoin.Round
-        };
-        pen.Freeze();
-        return pen;
     }
 
     private static Brush CreateGradientFill(Brush? stroke, Brush? fallbackFill)
@@ -197,9 +186,9 @@ public sealed class HistorySparkline : FrameworkElement
         return fallbackFill ?? System.Windows.Media.Brushes.Transparent;
     }
 
-    private void DrawGrid(DrawingContext drawingContext, double width, double height, DpiScale dpi)
+    private void DrawGrid(DrawingContext drawingContext, double width, double height, double dpiScaleY)
     {
-        double thickness = 1 / dpi.DpiScaleY;
+        double thickness = 1 / dpiScaleY;
         Pen? pen = CreateFrozenPen(GridLine, thickness);
         if (pen is null)
         {
@@ -208,7 +197,7 @@ public sealed class HistorySparkline : FrameworkElement
 
         for (int index = 1; index <= 3; index++)
         {
-            double y = AlignOnePixelLine(height * index / 4, dpi.DpiScaleY);
+            double y = AlignOnePixelLine(height * index / 4, dpiScaleY);
             drawingContext.DrawLine(pen, new Point(0, y), new Point(width, y));
         }
     }
@@ -265,7 +254,7 @@ public sealed class HistorySparkline : FrameworkElement
         drawingContext.DrawGeometry(null, pen, geometry);
     }
 
-    private static Pen? CreateFrozenPen(Brush? brush, double thickness)
+    internal static Pen? CreateFrozenPen(Brush? brush, double thickness)
     {
         if (brush is null)
         {

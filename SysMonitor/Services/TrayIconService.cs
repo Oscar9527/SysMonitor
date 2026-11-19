@@ -41,6 +41,8 @@ public sealed class TrayIconService : IDisposable
     private readonly Forms.ToolStripMenuItem _startupItem;
     private readonly Forms.ToolStripMenuItem _exitItem;
     private readonly Icon _defaultIcon;
+    private readonly Font _menuFont;
+    private GameOverlayMetricVisibility _gameOverlayMetrics = new();
     private Icon? _themedIcon;
     private bool _syncingState;
     private bool _panelVisible;
@@ -131,16 +133,15 @@ public sealed class TrayIconService : IDisposable
         _exitItem = new Forms.ToolStripMenuItem();
         _exitItem.Click += OnExitItemClick;
 
+        _menuFont = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point);
         _contextMenu = new Forms.ContextMenuStrip
         {
             AutoSize = true,
-            Font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
+            Font = _menuFont,
             Padding = new Forms.Padding(4, 6, 4, 6),
             ShowImageMargin = false,
             ShowCheckMargin = true,
-            Renderer = Forms.SystemInformation.HighContrast
-                ? new Forms.ToolStripSystemRenderer()
-                : new ModernToolStripRenderer()
+            Renderer = CreateMenuRenderer()
         };
         _contextMenu.Items.AddRange(new Forms.ToolStripItem[]
         {
@@ -187,6 +188,8 @@ public sealed class TrayIconService : IDisposable
     public bool GameOverlayVisible => _gameOverlayVisible;
 
     public bool GameOverlayAvailable => _gameOverlayAvailable;
+
+    internal Forms.ContextMenuStrip ContextMenuForTests => _contextMenu;
 
     public bool GameSafeModeEnabled => _gameSafeModeItem.Checked;
 
@@ -240,6 +243,7 @@ public sealed class TrayIconService : IDisposable
 
     public void SetGameOverlayMetrics(GameOverlayMetricVisibility metrics)
     {
+        _gameOverlayMetrics = metrics;
         SetCheckedWithoutNotification(_gameOverlayFpsMetricItem, metrics.FrameRate);
         SetCheckedWithoutNotification(_gameOverlayCpuMetricItem, metrics.Cpu);
         SetCheckedWithoutNotification(_gameOverlayCpuPowerMetricItem, metrics.CpuPower);
@@ -335,8 +339,12 @@ public sealed class TrayIconService : IDisposable
         _startupItem.CheckedChanged -= OnStartupCheckedChanged;
         _exitItem.Click -= OnExitItemClick;
         _contextMenu.Opening -= OnContextMenuOpening;
+        DetachSubMenuHandlers(_contextMenu.Items);
+        _notifyIcon.ContextMenuStrip = null;
+        _notifyIcon.Icon = null;
         _notifyIcon.Dispose();
         _contextMenu.Dispose();
+        _menuFont.Dispose();
         _themedIcon?.Dispose();
         _themedIcon = null;
         _defaultIcon.Dispose();
@@ -411,9 +419,7 @@ public sealed class TrayIconService : IDisposable
 
     private void OnContextMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        _contextMenu.Renderer = Forms.SystemInformation.HighContrast
-            ? new Forms.ToolStripSystemRenderer()
-            : new ModernToolStripRenderer();
+        ApplyMenuRenderer(_contextMenu);
         PrepareDropDownLayout(_contextMenu, Forms.Screen.FromPoint(Forms.Cursor.Position).WorkingArea);
     }
 
@@ -429,10 +435,8 @@ public sealed class TrayIconService : IDisposable
     {
         if (e.Button == Forms.MouseButtons.Right)
         {
-            // Respect a high-contrast switch made while the process is running.
-            _contextMenu.Renderer = Forms.SystemInformation.HighContrast
-                ? new Forms.ToolStripSystemRenderer()
-                : new ModernToolStripRenderer();
+            // Respect a theme or high-contrast switch made while the process is running.
+            ApplyMenuRenderer(_contextMenu);
         }
 
         if (e.Button == Forms.MouseButtons.Left)
@@ -472,14 +476,17 @@ public sealed class TrayIconService : IDisposable
     {
         if (!_syncingState)
         {
-            GameOverlayMetricsChanged?.Invoke(new GameOverlayMetricVisibility(
-                _gameOverlayFpsMetricItem.Checked,
-                _gameOverlayCpuMetricItem.Checked,
-                _gameOverlayGpuMetricItem.Checked,
-                _gameOverlayMemoryMetricItem.Checked,
-                _gameOverlayNetworkMetricItem.Checked,
-                _gameOverlayCpuPowerMetricItem.Checked,
-                _gameOverlayGpuPowerMetricItem.Checked));
+            _gameOverlayMetrics = _gameOverlayMetrics with
+            {
+                FrameRate = _gameOverlayFpsMetricItem.Checked,
+                Cpu = _gameOverlayCpuMetricItem.Checked,
+                Gpu = _gameOverlayGpuMetricItem.Checked,
+                Memory = _gameOverlayMemoryMetricItem.Checked,
+                Network = _gameOverlayNetworkMetricItem.Checked,
+                CpuPower = _gameOverlayCpuPowerMetricItem.Checked,
+                GpuPower = _gameOverlayGpuPowerMetricItem.Checked,
+            };
+            GameOverlayMetricsChanged?.Invoke(_gameOverlayMetrics);
         }
     }
 
@@ -565,9 +572,7 @@ public sealed class TrayIconService : IDisposable
                 dropDownMenu.ShowImageMargin = false;
                 dropDownMenu.ShowCheckMargin = true;
                 dropDownMenu.Padding = new Forms.Padding(4, 6, 4, 6);
-                dropDownMenu.Renderer = Forms.SystemInformation.HighContrast
-                    ? new Forms.ToolStripSystemRenderer()
-                    : new ModernToolStripRenderer();
+                dropDownMenu.Renderer = CreateMenuRenderer();
                 dropDownMenu.Opened -= OnSubMenuOpenedSnap;
                 dropDownMenu.Opened += OnSubMenuOpenedSnap;
             }
@@ -575,6 +580,59 @@ public sealed class TrayIconService : IDisposable
             ConfigureMenuItems(menuItem.DropDownItems);
         }
     }
+
+    internal static void ApplyMenuRenderer(Forms.ToolStripDropDown rootMenu)
+    {
+        Forms.ToolStripRenderer renderer = CreateMenuRenderer();
+        rootMenu.Renderer = renderer;
+        ApplyMenuRendererRecursive(rootMenu.Items, renderer);
+    }
+
+    private static void ApplyMenuRendererRecursive(
+        Forms.ToolStripItemCollection items,
+        Forms.ToolStripRenderer renderer)
+    {
+        foreach (Forms.ToolStripItem item in items)
+        {
+            if (item is not Forms.ToolStripMenuItem menuItem || !menuItem.HasDropDownItems)
+            {
+                continue;
+            }
+
+            if (menuItem.DropDown is Forms.ToolStripDropDownMenu dropDownMenu)
+            {
+                dropDownMenu.Renderer = renderer;
+            }
+
+            ApplyMenuRendererRecursive(menuItem.DropDownItems, renderer);
+        }
+    }
+
+    private static void DetachSubMenuHandlers(Forms.ToolStripItemCollection items)
+    {
+        foreach (Forms.ToolStripItem item in items)
+        {
+            if (item is not Forms.ToolStripMenuItem menuItem)
+            {
+                continue;
+            }
+
+            if (menuItem.HasDropDown && menuItem.DropDown is Forms.ToolStripDropDownMenu dropDownMenu)
+            {
+                dropDownMenu.Opened -= OnSubMenuOpenedSnap;
+            }
+
+            if (menuItem.HasDropDownItems)
+            {
+                DetachSubMenuHandlers(menuItem.DropDownItems);
+            }
+        }
+    }
+
+    private static Forms.ToolStripRenderer CreateMenuRenderer() =>
+        Forms.SystemInformation.HighContrast
+            ? new Forms.ToolStripSystemRenderer()
+            : new ModernToolStripRenderer();
 
     [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);

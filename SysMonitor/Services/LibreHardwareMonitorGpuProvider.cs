@@ -36,39 +36,10 @@ internal sealed class LibreHardwareMonitorGpuProvider : IGpuTelemetryProvider
 
     public async Task StopAsync()
     {
-        Task? worker;
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
-            _cancellation?.Cancel();
-            worker = _worker;
-        }
-        finally
-        {
-            _lifecycle.Release();
-        }
-
-        if (worker is not null)
-        {
-            try
-            {
-                await worker.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (ReferenceEquals(worker, _worker))
-            {
-                _worker = null;
-                _cancellation?.Dispose();
-                _cancellation = null;
-                Volatile.Write(ref _latestCycle, null);
-            }
+            await StopCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -87,13 +58,37 @@ internal sealed class LibreHardwareMonitorGpuProvider : IGpuTelemetryProvider
             }
 
             _disposed = true;
+            await StopCoreAsync().ConfigureAwait(false);
         }
         finally
         {
             _lifecycle.Release();
         }
+    }
 
-        await StopAsync().ConfigureAwait(false);
+    private async Task StopCoreAsync()
+    {
+        _cancellation?.Cancel();
+        Task? worker = _worker;
+
+        if (worker is not null)
+        {
+            try
+            {
+                await worker.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        if (ReferenceEquals(worker, _worker))
+        {
+            _worker = null;
+            _cancellation?.Dispose();
+            _cancellation = null;
+            Volatile.Write(ref _latestCycle, null);
+        }
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)

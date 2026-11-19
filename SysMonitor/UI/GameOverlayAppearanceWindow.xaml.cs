@@ -15,6 +15,8 @@ namespace SysMonitor.UI;
 
 public partial class GameOverlayAppearanceWindow : Window
 {
+    private bool _allowClose;
+    private bool _closed;
     private bool _loading;
     private GameOverlayAppearance _applied = new();
     private GameOverlayAppearance _editing = new();
@@ -36,9 +38,36 @@ public partial class GameOverlayAppearanceWindow : Window
         InitializeComponent();
         FontBox.ItemsSource = Fonts.SystemFontFamilies.OrderBy(font => font.Source, StringComparer.CurrentCultureIgnoreCase).ToArray();
         SkinBox.ItemsSource = _skins;
-        Closing += (_, e) => { e.Cancel = true; CancelAndHide(); };
+        Closing += (_, e) =>
+        {
+            if (_allowClose)
+            {
+                return;
+            }
+
+            e.Cancel = true;
+            CancelAndHide();
+        };
+        Closed += (_, _) => _closed = true;
         _loading = false;
         LoadAppearance(_applied);
+    }
+
+    public void ForceClose()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.InvokeAsync(ForceClose);
+            return;
+        }
+
+        _allowClose = true;
+        Close();
     }
 
     public void LoadAppearance(GameOverlayAppearance appearance)
@@ -147,9 +176,18 @@ public partial class GameOverlayAppearanceWindow : Window
     private static DrawingColor ToDrawingColor(string hex) { MediaColor color = (MediaColor)MediaColorConverter.ConvertFromString(hex)!; return DrawingColor.FromArgb(color.A, color.R, color.G, color.B); }
     private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
+        if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        try
         {
             DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // The mouse button can be released between the event and DragMove.
         }
     }
 

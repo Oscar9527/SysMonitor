@@ -94,7 +94,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
             string pipeName = $"SysMonitor.PresentMon.{Guid.NewGuid():N}";
             var pipe = new NamedPipeServerStream(
                 pipeName,
-                PipeDirection.In,
+                PipeDirection.InOut,
                 1,
                 PipeTransmissionMode.Byte,
                 PipeOptions.Asynchronous | PipeOptions.WriteThrough | PipeOptions.CurrentUserOnly);
@@ -222,11 +222,6 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         readCancellation?.Cancel();
         pipe?.Dispose();
 
-        if (executablePath is not null && sessionName is not null)
-        {
-            await TerminateOwnedSessionAsync(executablePath, sessionName).ConfigureAwait(false);
-        }
-
         bool exited = await WaitForExitAsync(collector, CollectorExitTimeout).ConfigureAwait(false);
         if (!exited)
         {
@@ -261,7 +256,6 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
 
         readCancellation?.Dispose();
         collector?.Dispose();
-        pipe?.Dispose();
         _collector = null;
         _collectorPipe = null;
         _readCancellation = null;
@@ -283,12 +277,13 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         NamedPipeServerStream pipe,
         CancellationToken cancellationToken)
     {
-        var reader = new PresentMonBoundedLineReader(new StreamReader(
+        using var pipeReader = new StreamReader(
             pipe,
             System.Text.Encoding.UTF8,
             detectEncodingFromByteOrderMarks: false,
             bufferSize: 4096,
-            leaveOpen: true));
+            leaveOpen: true);
+        var reader = new PresentMonBoundedLineReader(pipeReader);
         var aggregator = new FrameRateAggregator();
         DateTimeOffset startedAt = DateTimeOffset.UtcNow;
         bool headerReceived = false;
@@ -301,14 +296,19 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
             await pipe.WaitForConnectionAsync(connectionTimeout.Token).ConfigureAwait(false);
             BandDiagnostics.Log($"presentmon pipe connected targetPid={processId}");
             Task<string?> lineTask = reader.ReadLineAsync(cancellationToken);
+            Task delayTask = Task.Delay(PollInterval, cancellationToken);
             while (!cancellationToken.IsCancellationRequested)
             {
-                Task completed = await Task.WhenAny(
-                        lineTask,
-                        Task.Delay(PollInterval, cancellationToken))
+                Task completed = await Task.WhenAny(lineTask, delayTask)
                     .ConfigureAwait(false);
                 if (completed != lineTask)
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    delayTask = Task.Delay(PollInterval, cancellationToken);
                     DateTimeOffset now = DateTimeOffset.UtcNow;
                     double? fps = aggregator.Read(now);
                     if (aggregator.HasReceivedFrames)
@@ -329,6 +329,11 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
                     }
 
                     continue;
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
                 }
 
                 string? line = await lineTask.ConfigureAwait(false);
@@ -396,7 +401,7 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
                 lineTask = reader.ReadLineAsync(cancellationToken);
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
             return;
         }
@@ -461,7 +466,9 @@ internal sealed class PresentMonFrameRateProvider : IFrameRateProvider
         EventHandler<FrameRateSnapshot>? handler;
         lock (_publishLock)
         {
-            if (throttle && snapshot.SampledAt - _lastTelemetryPublishedAt < PollInterval)
+            if (throttle &&
+                snapshot.SampledAt >= _lastTelemetryPublishedAt &&
+                snapshot.SampledAt - _lastTelemetryPublishedAt < PollInterval)
             {
                 return;
             }

@@ -28,6 +28,7 @@ public partial class AppearanceSettingsWindow : Window
     private readonly DispatcherTimer _previewTimer;
     private readonly string _displayVersion;
     private bool _allowClose;
+    private bool _closed;
     private bool _controlsReady;
     private bool _loading;
     private bool _loadingLanguage;
@@ -85,6 +86,11 @@ public partial class AppearanceSettingsWindow : Window
     public void LoadAppearance(BandAppearanceSettings value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(() => LoadAppearance(value));
@@ -96,6 +102,11 @@ public partial class AppearanceSettingsWindow : Window
 
     public void LoadUiCulture(string? culturePreference)
     {
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(() => LoadUiCulture(culturePreference));
@@ -122,6 +133,11 @@ public partial class AppearanceSettingsWindow : Window
         bool markApplied = true)
     {
         ArgumentNullException.ThrowIfNull(themes);
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             ThemeCatalogItem[] copy = themes.ToArray();
@@ -406,7 +422,7 @@ public partial class AppearanceSettingsWindow : Window
 
     private void ScheduleLivePreview()
     {
-        if (!_controlsReady || _loading)
+        if (!_controlsReady || _loading || _closed)
         {
             return;
         }
@@ -421,6 +437,11 @@ public partial class AppearanceSettingsWindow : Window
     private void OnPreviewTimerTick(object? sender, EventArgs e)
     {
         _previewTimer.Stop();
+        if (_closed)
+        {
+            return;
+        }
+
         AppearancePreviewChanged?.Invoke(this, ReadControls());
     }
 
@@ -678,7 +699,7 @@ public partial class AppearanceSettingsWindow : Window
         ThemePreviewImage.Source = LoadPreview(item.PreviewPath);
     }
 
-    private static BitmapSource? LoadPreview(string? path)
+    internal static BitmapSource? LoadPreview(string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -687,11 +708,16 @@ public partial class AppearanceSettingsWindow : Window
 
         try
         {
+            using var stream = new FileStream(
+                path!,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
             var image = new BitmapImage();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
             image.DecodePixelWidth = 176;
-            image.UriSource = new Uri(path!, UriKind.Absolute);
+            image.StreamSource = stream;
             image.EndInit();
             image.Freeze();
             return image;
@@ -746,6 +772,11 @@ public partial class AppearanceSettingsWindow : Window
 
     private void OnCultureChanged(object? sender, EventArgs e)
     {
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(() => OnCultureChanged(sender, e));
@@ -757,9 +788,15 @@ public partial class AppearanceSettingsWindow : Window
 
     private void FontFamilyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_controlsReady)
+        if (_controlsReady && !_loading && !_closed)
         {
-            _ = Dispatcher.InvokeAsync(ScheduleLivePreview);
+            _ = Dispatcher.InvokeAsync(() =>
+            {
+                if (!_loading && !_closed)
+                {
+                    ScheduleLivePreview();
+                }
+            });
         }
     }
 
@@ -828,6 +865,9 @@ public partial class AppearanceSettingsWindow : Window
 
     private void AppearanceSettingsWindow_Closed(object? sender, EventArgs e)
     {
+        _closed = true;
+        _previewTimer.Stop();
+        _previewTimer.Tick -= OnPreviewTimerTick;
         CancelThemeImport();
         LocalizationService.Current.CultureChanged -= OnCultureChanged;
     }

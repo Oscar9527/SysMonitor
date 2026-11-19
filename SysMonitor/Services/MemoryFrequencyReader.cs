@@ -10,22 +10,26 @@ namespace SysMonitor.Services;
 internal sealed class MemoryFrequencyReader
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(5);
+    private readonly object _gate = new();
     private DateTimeOffset _nextRefresh;
     private double? _cachedMhz;
     private bool _hasCachedResult;
 
     internal double? ReadConfiguredMhz()
     {
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (_hasCachedResult && now < _nextRefresh)
+        lock (_gate)
         {
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (_hasCachedResult && now < _nextRefresh)
+            {
+                return _cachedMhz;
+            }
+
+            _cachedMhz = ReadConfiguredMhzFromCim();
+            _hasCachedResult = true;
+            _nextRefresh = now + RefreshInterval;
             return _cachedMhz;
         }
-
-        _cachedMhz = ReadConfiguredMhzFromCim();
-        _hasCachedResult = true;
-        _nextRefresh = now + RefreshInterval;
-        return _cachedMhz;
     }
 
     internal static double? SelectConfiguredMhz(IEnumerable<uint?> configuredClockSpeeds, IEnumerable<uint?> fallbackSpeeds)
@@ -49,10 +53,13 @@ internal sealed class MemoryFrequencyReader
                 "root\\CIMV2",
                 "SELECT ConfiguredClockSpeed, Speed FROM Win32_PhysicalMemory");
             using ManagementObjectCollection modules = searcher.Get();
-            foreach (ManagementObject module in modules)
+            foreach (ManagementBaseObject module in modules)
             {
-                configured.Add(ToMhz(module["ConfiguredClockSpeed"]));
-                fallback.Add(ToMhz(module["Speed"]));
+                using (module)
+                {
+                    configured.Add(ToMhz(module["ConfiguredClockSpeed"]));
+                    fallback.Add(ToMhz(module["Speed"]));
+                }
             }
 
             return SelectConfiguredMhz(configured, fallback);

@@ -64,6 +64,7 @@ internal static class NvidiaSmiCsv
         }
 
         double? powerWatts = fields.Count > 11 ? PositiveMetric(fields[11]) : null;
+        double? memoryTotalMiB = ParseMetric(fields[8]);
 
         row = new NvidiaSmiRow(
             timestampKey,
@@ -75,7 +76,7 @@ internal static class NvidiaSmiCsv
             usage,
             temperature,
             GpuSensorSelector.MiBToBytes(ParseMetric(fields[7])),
-            GpuSensorSelector.MiBToBytes(ParseMetric(fields[8])),
+            memoryTotalMiB is > 0d ? GpuSensorSelector.MiBToBytes(memoryTotalMiB) : null,
             PositiveMetric(fields[9]),
             PositiveMetric(fields[10]),
             powerWatts);
@@ -151,7 +152,8 @@ internal static class NvidiaSmiCsv
         value.Equals("N/A", StringComparison.OrdinalIgnoreCase) ||
         value.Equals("[N/A]", StringComparison.OrdinalIgnoreCase) ||
         value.Equals("NA", StringComparison.OrdinalIgnoreCase) ||
-        value.Equals("NOT SUPPORTED", StringComparison.OrdinalIgnoreCase);
+        value.Equals("NOT SUPPORTED", StringComparison.OrdinalIgnoreCase) ||
+        value.Equals("[NOT SUPPORTED]", StringComparison.OrdinalIgnoreCase);
 }
 
 internal sealed class NvidiaSmiCycleAccumulator
@@ -246,6 +248,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
     private static readonly TimeSpan OutputTimeout = TimeSpan.FromSeconds(4);
     private static readonly int[] RetrySeconds = { 1, 2, 4, 8, 15, 30 };
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
+    private readonly object _processGate = new();
     // Ensures the driver telemetry process cannot survive an unexpected
     // SysMonitor termination and accumulate in the background.
     private readonly ChildProcessJob? _childProcessJob = TryCreateChildProcessJob();
@@ -280,41 +283,10 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
 
     public async Task StopAsync()
     {
-        Task? worker;
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
-            _cancellation?.Cancel();
-            TryTerminate(_process);
-            worker = _worker;
-        }
-        finally
-        {
-            _lifecycle.Release();
-        }
-
-        if (worker is not null)
-        {
-            try
-            {
-                await worker.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-
-        await _lifecycle.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            if (ReferenceEquals(worker, _worker))
-            {
-                _worker = null;
-                _process = null;
-                _cancellation?.Dispose();
-                _cancellation = null;
-                Volatile.Write(ref _latestCycle, null);
-            }
+            await StopCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -333,14 +305,53 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             }
 
             _disposed = true;
+            try
+            {
+                await StopCoreAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                _childProcessJob?.Dispose();
+            }
         }
         finally
         {
             _lifecycle.Release();
         }
+    }
 
-        await StopAsync().ConfigureAwait(false);
-        _childProcessJob?.Dispose();
+    private async Task StopCoreAsync()
+    {
+        _cancellation?.Cancel();
+        lock (_processGate)
+        {
+            TryTerminate(_process);
+        }
+
+        Task? worker = _worker;
+        if (worker is not null)
+        {
+            try
+            {
+                await worker.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        if (ReferenceEquals(worker, _worker))
+        {
+            _worker = null;
+            lock (_processGate)
+            {
+                _process = null;
+            }
+
+            _cancellation?.Dispose();
+            _cancellation = null;
+            Volatile.Write(ref _latestCycle, null);
+        }
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -354,8 +365,12 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             {
                 process = StartProcess();
                 TryAssignToJob(process);
-                _process = process;
-                published = await ReadSessionAsync(process, cancellationToken).ConfigureAwait(false);
+                lock (_processGate)
+                {
+                    _process = process;
+                }
+
+                await ReadSessionAsync(process, () => published = true, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -370,11 +385,15 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             }
             finally
             {
-                TryTerminate(process);
-                process?.Dispose();
-                if (ReferenceEquals(_process, process))
+                lock (_processGate)
                 {
-                    _process = null;
+                    if (ReferenceEquals(_process, process))
+                    {
+                        _process = null;
+                    }
+
+                    TryTerminate(process);
+                    process?.Dispose();
                 }
             }
 
@@ -405,18 +424,26 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
         }
     }
 
-    private async Task<bool> ReadSessionAsync(Process process, CancellationToken cancellationToken)
+    private async Task ReadSessionAsync(
+        Process process,
+        Action onCyclePublished,
+        CancellationToken cancellationToken)
     {
         Task stderrDrain = DrainStderrAsync(process.StandardError);
         var accumulator = new NvidiaSmiCycleAccumulator();
         int consecutiveCorruptRows = 0;
-        bool published = false;
 
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                string? line = await process.StandardOutput.ReadLineAsync()
+                Task<string?> readLineTask = process.StandardOutput.ReadLineAsync();
+                _ = readLineTask.ContinueWith(
+                    static task => _ = task.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+                string? line = await readLineTask
                     .WaitAsync(OutputTimeout, cancellationToken)
                     .ConfigureAwait(false);
                 if (line is null)
@@ -446,7 +473,7 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
                 if (completedCycle is not null)
                 {
                     Volatile.Write(ref _latestCycle, completedCycle);
-                    published = true;
+                    onCyclePublished();
                 }
             }
         }
@@ -461,8 +488,6 @@ internal sealed class NvidiaSmiGpuProvider : IGpuTelemetryProvider
             {
             }
         }
-
-        return published;
     }
 
     private static Process StartProcess()

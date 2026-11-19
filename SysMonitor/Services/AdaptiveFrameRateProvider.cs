@@ -65,7 +65,6 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
                 return;
             }
 
-            _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             try
             {
                 string? exePath = ProcessExecutablePathResolver.TryResolve(processId);
@@ -94,6 +93,8 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
             {
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+            _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             Publish(new FrameRateSnapshot(
                 null,
                 FrameRateStatus.Starting,
@@ -140,8 +141,6 @@ internal sealed class AdaptiveFrameRateProvider : IFrameRateProvider
         {
             _lifecycle.Release();
         }
-
-        _lifecycle.Dispose();
     }
 
     private async Task StopCoreAsync(bool publishDisabled)

@@ -4,8 +4,8 @@
         Title="SysMonitor"
         Width="450"
         Height="34"
-        MinHeight="34"
-        MaxHeight="34"
+        MinHeight="24"
+        MaxHeight="48"
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="True"
@@ -20,8 +20,10 @@
             <Setter Property="Foreground" Value="{DynamicResource BandTextBrush}" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, -apple-system" />
             <Setter Property="FontSize" Value="9.5" />
-            <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Opacity" Value="0.85" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Opacity" Value="0.72" />
+            <Setter Property="LineHeight" Value="11" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextAlignment" Value="Center" />
             <Setter Property="ClipToBounds" Value="True" />
@@ -32,6 +34,9 @@
             <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI, -apple-system" />
             <Setter Property="FontSize" Value="12.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,1,0,0" />
+            <Setter Property="LineHeight" Value="14" />
+            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
             <Setter Property="TextAlignment" Value="Center" />
             <Setter Property="ClipToBounds" Value="True" />
@@ -46,25 +51,35 @@
         </Style>
         <Style x:Key="MetricSeparator" TargetType="Border">
             <Setter Property="Width" Value="1" />
-            <Setter Property="Height" Value="16" />
+            <Setter Property="Height" Value="14" />
             <Setter Property="Background" Value="{DynamicResource BandSeparatorBrush}" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Opacity" Value="0.5" />
+            <Setter Property="Opacity" Value="0.28" />
+        </Style>
+        <SolidColorBrush x:Key="BandHoverBrush" Color="#183390EC" />
+        <Style x:Key="BandHoverPillStyle" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="4,0" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource BandHoverBrush}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
 
     <Grid x:Name="BandHitTarget"
-          Background="#01000000">
+          Background="#01000000"
+          Cursor="Hand">
         <Border x:Name="BandRoot"
                 Background="{DynamicResource BandBackgroundBrush}"
                 CornerRadius="{DynamicResource BandCornerRadius}"
                 BorderThickness="0">
-        <StackPanel Orientation="Horizontal"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-            <StackPanel.RenderTransform>
-                <TranslateTransform Y="-1" />
-            </StackPanel.RenderTransform>
+            <Border Style="{StaticResource BandHoverPillStyle}">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
             <Grid x:Name="CpuGroup" Style="{StaticResource MetricGroup}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -117,8 +132,8 @@
                     <TextBlock x:Name="GpuTemperatureText"
                                Margin="3,0,0,0"
                                Style="{StaticResource MetricLabel}"
-                               Opacity="0.75"
-                               Text="--℃" />
+                               Opacity="0.68"
+                               Text="--°" />
                 </StackPanel>
                 <TextBlock x:Name="GpuValueText"
                            Grid.Row="1"
@@ -171,6 +186,7 @@
                            Text="0%" />
             </Grid>
             </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </Window>

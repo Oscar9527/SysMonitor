@@ -256,6 +256,11 @@ public sealed class ThemePackageService
         {
             cancellationToken.ThrowIfCancellationRequested();
             string normalized = NormalizeArchivePath(entry.FullName, out bool directory);
+            if (HasUnsafeArchiveAttributes(entry.ExternalAttributes, directory))
+            {
+                throw new ThemeValidationException(ThemeImportErrorCode.InvalidPath);
+            }
+
             string collisionKey = WindowsCollisionKey(normalized);
             if (!normalizedKeys.Add(collisionKey))
             {
@@ -390,15 +395,8 @@ public sealed class ThemePackageService
         RejectBuiltInOrInvalidId(manifest.Id);
         RequireText(manifest.Name, 128, ThemeImportErrorCode.InvalidManifest);
         RequireText(manifest.Author, 128, ThemeImportErrorCode.InvalidManifest);
-        if (!Version.TryParse(manifest.Version, out _))
-        {
-            throw new ThemeValidationException(ThemeImportErrorCode.InvalidManifest);
-        }
-
-        if (!Version.TryParse(manifest.MinSysMonitorVersion, out Version? minimum))
-        {
-            throw new ThemeValidationException(ThemeImportErrorCode.InvalidManifest);
-        }
+        _ = ValidateVersionText(manifest.Version);
+        Version minimum = ValidateVersionText(manifest.MinSysMonitorVersion);
 
         if (minimum > _applicationVersion)
         {
@@ -1003,6 +1001,32 @@ public sealed class ThemePackageService
         {
             throw new ThemeValidationException(error);
         }
+    }
+
+    internal static bool HasUnsafeArchiveAttributes(int externalAttributes, bool directory)
+    {
+        uint attrs = unchecked((uint)externalAttributes);
+        uint unixFileType = (attrs >> 16) & 0xF000u;
+        if (unixFileType != 0u && unixFileType != (directory ? 0x4000u : 0x8000u))
+        {
+            return true;
+        }
+
+        const uint disallowedDosAttributes = (uint)(FileAttributes.ReparsePoint | FileAttributes.Device);
+        return (attrs & disallowedDosAttributes) != 0u;
+    }
+
+    private static Version ValidateVersionText(string? value)
+    {
+        RequireText(value, 64, ThemeImportErrorCode.InvalidManifest);
+        if (value is null ||
+            !string.Equals(value, value.Trim(), StringComparison.Ordinal) ||
+            !Version.TryParse(value, out Version? parsed))
+        {
+            throw new ThemeValidationException(ThemeImportErrorCode.InvalidManifest);
+        }
+
+        return parsed;
     }
 
     private static void RequireText(string? value, int maximum, ThemeImportErrorCode error)

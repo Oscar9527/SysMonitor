@@ -19,6 +19,14 @@ internal sealed class FrameRateAggregator
 
     internal bool Add(PresentMonFrame frame, DateTimeOffset receivedAt)
     {
+        if (!double.IsFinite(frame.TimeInSeconds) ||
+            !double.IsFinite(frame.MillisecondsBetweenPresents) ||
+            frame.TimeInSeconds < 0d ||
+            frame.MillisecondsBetweenPresents < 0d)
+        {
+            return false;
+        }
+
         PruneChains(receivedAt);
 
         if (!_chains.TryGetValue(frame.SwapChainAddress, out ChainState? chain))

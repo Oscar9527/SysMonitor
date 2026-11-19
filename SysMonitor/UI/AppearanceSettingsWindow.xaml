@@ -17,31 +17,59 @@
         DpiChanged="AppearanceSettingsWindow_DpiChanged"
         Style="{DynamicResource AppWindowStyle}">
     <Window.Resources>
-    <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
-      <Setter Property="Width" Value="32" />
-      <Setter Property="Height" Value="28" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="Focusable" Value="False" />
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="Button">
-            <Border x:Name="CloseBg" Background="{TemplateBinding Background}" CornerRadius="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="CloseBg" Property="Background" Value="#E81123" />
-              </Trigger>
-              <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="CloseBg" Property="Background" Value="#C4101E" />
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="5" />
+            <Setter Property="MinWidth" Value="5" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent" Margin="0,4,2,4">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="{DynamicResource AppTertiaryTextBrush}" Opacity="0.45" CornerRadius="2.5" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="WindowCloseButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="CloseBg" Background="{TemplateBinding Background}" CornerRadius="16" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CloseBg" Property="Background" Value="#E53935" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="CloseBg" Property="Background" Value="#C62828" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="34" />
@@ -58,11 +86,11 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Surface" Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
+                                CornerRadius="10">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppControlBrush}" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppControlHoverBrush}" /></Trigger>
                             <Trigger Property="IsPressed" Value="True"><Setter TargetName="Surface" Property="Background" Value="{DynamicResource AppSeparatorBrush}" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -72,7 +100,7 @@
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Padding" Value="16,0" />
             <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource AppAccentForegroundBrush}" />
             <Setter Property="BorderThickness" Value="0" />
@@ -83,7 +111,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Surface" Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
+                                CornerRadius="10">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -96,39 +124,41 @@
         </Style>
     </Window.Resources>
 
-    <!-- Outer container providing 16px corner radius and smooth shadow -->
+    <!-- Telegram-style outer shell -->
     <Border Margin="14"
             Background="{DynamicResource AppBackgroundBrush}"
             BorderBrush="{DynamicResource AppSeparatorBrush}"
             BorderThickness="1"
-            CornerRadius="16"
+            CornerRadius="14"
             ClipToBounds="True">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.16" />
+            <DropShadowEffect BlurRadius="24" ShadowDepth="5" Direction="270" Color="#000000" Opacity="0.16" />
         </Border.Effect>
 
         <Grid>
-            <Grid.RowDefinitions><RowDefinition Height="50" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-            <!-- Title Bar -->
-            <Grid Grid.Row="0" Background="{DynamicResource AppBackgroundBrush}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock x:Name="WindowTitleText" Margin="18,0,0,0" VerticalAlignment="Center"
-                           FontSize="13.5" FontWeight="Bold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AppTextBrush}"/>
-                <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="TitleCloseButton" Style="{StaticResource WindowCloseButtonStyle}" Click="CloseButton_Click" ToolTip="关闭">
-                        <TextBlock Text="✕" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AppSecondaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Button>
-                </StackPanel>
-            </Grid>
+            <Grid.RowDefinitions><RowDefinition Height="54" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <!-- Telegram-style Surface Title Bar -->
+            <Border Grid.Row="0" Background="{DynamicResource AppSurfaceBrush}" BorderBrush="{DynamicResource AppSeparatorBrush}" BorderThickness="0,0,0,1">
+                <Grid Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="WindowTitleText" Margin="18,0,0,0" VerticalAlignment="Center"
+                               FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource AppTextBrush}"/>
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="TitleCloseButton" Style="{StaticResource WindowCloseButtonStyle}" Click="CloseButton_Click" ToolTip="关闭">
+                            <TextBlock Text="&#xE8BB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol" FontSize="10.5" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
             <ScrollViewer Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           PanningMode="VerticalFirst">
-            <StackPanel Margin="18,0,18,16">
+            <StackPanel Margin="16,12,16,16">
                 <!-- Card 1: 字体与位置排版 -->
                 <Border Margin="0,0,0,12" Padding="16,12" Style="{StaticResource AppGroupStyle}">
                     <Grid>

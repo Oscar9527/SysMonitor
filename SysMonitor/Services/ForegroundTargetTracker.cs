@@ -12,6 +12,8 @@ public sealed class ForegroundTargetTracker
     private readonly int _currentProcessId;
     private readonly Func<DateTimeOffset> _clock;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly object _stateGate = new();
+    private ForegroundTargetState _state;
     private ForegroundTarget? _lastQualified;
 
     public ForegroundTargetTracker(
@@ -28,9 +30,18 @@ public sealed class ForegroundTargetTracker
 
     public event EventHandler? StateChanged;
 
-    public ForegroundTargetState State { get; private set; }
+    public ForegroundTargetState State
+    {
+        get
+        {
+            lock (_stateGate)
+            {
+                return _state;
+            }
+        }
+    }
 
-    public ForegroundTarget? LastQualified => _lastQualified;
+    public ForegroundTarget? LastQualified => Volatile.Read(ref _lastQualified);
 
     public ForegroundTarget? SnapshotTriggerCandidate() => CaptureQualified(record: false);
 
@@ -42,13 +53,13 @@ public sealed class ForegroundTargetTracker
     public void SetManualTarget(ForegroundTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        _lastQualified = target with { QualifiedAt = _clock() };
+        Volatile.Write(ref _lastQualified, target with { QualifiedAt = _clock() });
         SetState(ForegroundTargetState.Ready);
     }
 
     public ForegroundTarget? TryGetRecentTarget()
     {
-        ForegroundTarget? target = _lastQualified;
+        ForegroundTarget? target = Volatile.Read(ref _lastQualified);
         if (target is null ||
             _clock() - target.QualifiedAt > RecentTargetLifetime ||
             !_source.IsCurrentIdentity(target))
@@ -116,7 +127,7 @@ public sealed class ForegroundTargetTracker
 
     public void MarkTargetExited()
     {
-        _lastQualified = null;
+        Volatile.Write(ref _lastQualified, null);
         SetState(ForegroundTargetState.WaitingForTarget);
     }
 
@@ -141,19 +152,24 @@ public sealed class ForegroundTargetTracker
 
     private ForegroundTarget Record(ForegroundTarget target)
     {
-        _lastQualified = target with { QualifiedAt = _clock() };
+        ForegroundTarget recorded = target with { QualifiedAt = _clock() };
+        Volatile.Write(ref _lastQualified, recorded);
         SetState(ForegroundTargetState.Ready);
-        return _lastQualified;
+        return recorded;
     }
 
     private void SetState(ForegroundTargetState state)
     {
-        if (State == state)
+        lock (_stateGate)
         {
-            return;
+            if (_state == state)
+            {
+                return;
+            }
+
+            _state = state;
         }
 
-        State = state;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 }

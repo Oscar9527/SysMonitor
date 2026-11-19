@@ -179,6 +179,8 @@
   <data name="HudPositionInvalidMessage" xml:space="preserve"><value>Enter whole-number X and Y coordinates between -1,000,000 and 1,000,000. Decimals and blank values are not accepted.</value></data>
   <data name="HudPositionStaleTitle" xml:space="preserve"><value>Monitor changed</value></data>
   <data name="HudPositionStaleMessage" xml:space="preserve"><value>The selected monitor or its bounds changed before the position was applied. Review the current monitor coordinates and try again.</value></data>
+  <data name="HudSettingsSaveFailedTitle" xml:space="preserve"><value>Could not save HUD settings</value></data>
+  <data name="HudSettingsSaveFailedMessage" xml:space="preserve"><value>SysMonitor could not write the HUD configuration to settings.json. Check permissions or disk space and try again.</value></data>
   <data name="HudPreviewNoMonitor" xml:space="preserve"><value>Preview unavailable until a monitor is selected.</value></data>
   <data name="HudPreviewInvalid" xml:space="preserve"><value>Enter valid coordinates to preview this position.</value></data>
   <data name="HudPreviewActive" xml:space="preserve"><value>Live preview active. Select Save to keep these changes.</value></data>

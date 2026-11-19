@@ -35,7 +35,7 @@ public sealed class MonitorService : IMonitorService
     private readonly CpuTemperatureReader? _cpuTemperatureReader;
     private readonly CpuFrequencyReader _cpuFrequencyReader = new();
     private readonly MemoryFrequencyReader _memoryFrequencyReader = new();
-    private TimeSpan _samplingInterval;
+    private long _samplingIntervalTicks;
     private readonly GpuTelemetryCoordinator _gpuCoordinator;
     private readonly DriveTelemetryCache _driveTelemetry = new(GetSystemDriveRoot());
     private readonly List<NetworkCounter> _networkCounters = new();
@@ -61,7 +61,7 @@ public sealed class MonitorService : IMonitorService
     public void SetSamplingInterval(TimeSpan interval)
     {
         if (interval >= TimeSpan.FromMilliseconds(250) && interval <= TimeSpan.FromSeconds(10))
-            _samplingInterval = interval;
+            Interlocked.Exchange(ref _samplingIntervalTicks, interval.Ticks);
     }
 
     /// <summary>Enables clock reads required only by the detailed game HUD.</summary>
@@ -91,9 +91,10 @@ public sealed class MonitorService : IMonitorService
         {
             _cpuTemperatureReader.ReaderReady += OnCpuTemperatureReaderReady;
         }
-        _samplingInterval = options.SamplingInterval is { } interval && interval >= TimeSpan.FromMilliseconds(250)
+        TimeSpan samplingInterval = options.SamplingInterval is { } interval && interval >= TimeSpan.FromMilliseconds(250)
             ? interval
             : TimeSpan.FromSeconds(1);
+        _samplingIntervalTicks = samplingInterval.Ticks;
         _gpuCoordinator = gpuCoordinator ?? new GpuTelemetryCoordinator(options.EnableLibreHardwareMonitor);
         BandDiagnostics.Log(
             $"monitor options gpuCompatibility={options.EnableLibreHardwareMonitor} " +
@@ -146,25 +147,12 @@ public sealed class MonitorService : IMonitorService
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
         {
-            _runCancellation?.Cancel();
-            Task? samplingTask = _samplingTask;
-            if (samplingTask is not null)
+            if (_disposed)
             {
-                try
-                {
-                    await samplingTask.ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                }
+                return;
             }
 
-            await _gpuCoordinator.StopAsync().ConfigureAwait(false);
-            _cpuTemperatureReader?.Stop();
-            _cpuReader.Stop();
-            _samplingTask = null;
-            _runCancellation?.Dispose();
-            _runCancellation = null;
+            await StopCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -183,22 +171,68 @@ public sealed class MonitorService : IMonitorService
             }
 
             _disposed = true;
+            try
+            {
+                await StopCoreAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                try
+                {
+                    await _gpuCoordinator.DisposeAsync().ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (_cpuTemperatureReader is not null)
+                    {
+                        _cpuTemperatureReader.ReaderReady -= OnCpuTemperatureReaderReady;
+                        _cpuTemperatureReader.Dispose();
+                    }
+
+                    _cpuReader.Dispose();
+                    _samplingWakeup.Dispose();
+                }
+            }
         }
         finally
         {
             _lifecycle.Release();
         }
+    }
 
-        await StopAsync().ConfigureAwait(false);
-        await _gpuCoordinator.DisposeAsync().ConfigureAwait(false);
-        if (_cpuTemperatureReader is not null)
+    private async Task StopCoreAsync()
+    {
+        _runCancellation?.Cancel();
+        Task? samplingTask = _samplingTask;
+        if (samplingTask is not null)
         {
-            _cpuTemperatureReader.ReaderReady -= OnCpuTemperatureReaderReady;
+            try
+            {
+                await samplingTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
         }
-        _cpuTemperatureReader?.Dispose();
-        _cpuReader.Dispose();
-        _samplingWakeup.Dispose();
-        _lifecycle.Dispose();
+
+        try
+        {
+            await _gpuCoordinator.StopAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                _cpuTemperatureReader?.Stop();
+            }
+            finally
+            {
+                _cpuReader.Stop();
+                _samplingTask = null;
+                _runCancellation?.Dispose();
+                _runCancellation = null;
+            }
+        }
     }
 
     private async Task SamplingLoopAsync(CancellationToken cancellationToken)
@@ -259,7 +293,7 @@ public sealed class MonitorService : IMonitorService
                     TimeSpan.FromSeconds(5));
             }
 
-            TimeSpan delay = _samplingInterval;
+            TimeSpan delay = TimeSpan.FromTicks(Interlocked.Read(ref _samplingIntervalTicks));
             if (_cpuTemperatureReader is not null &&
                 (_cpuTemperatureReader.OpenInProgress || _cpuTemperatureReader.HelperLaunchInProgress) &&
                 _latest.CpuTemperatureCelsius is null)
@@ -386,7 +420,13 @@ public sealed class MonitorService : IMonitorService
 
     private double ReadCpuUsage()
     {
-        return _cpuReader.Read() ?? ReadCpuBusyTimeUsage();
+        if (_cpuReader.Read() is double usage)
+        {
+            _cpuPrimed = false;
+            return usage;
+        }
+
+        return ReadCpuBusyTimeUsage();
     }
 
     private double ReadCpuBusyTimeUsage()
@@ -495,10 +535,27 @@ public sealed class MonitorService : IMonitorService
             }
 
             bool isFixed;
-            bool isReady;
             try
             {
                 isFixed = drive.DriveType == DriveType.Fixed;
+            }
+            catch
+            {
+                observations.Add(new DriveTelemetryObservation(
+                    name, true, true, false, string.Empty, 0, 0));
+                continue;
+            }
+
+            if (!isFixed)
+            {
+                observations.Add(new DriveTelemetryObservation(
+                    name, false, false, true, string.Empty, 0, 0));
+                continue;
+            }
+
+            bool isReady;
+            try
+            {
                 isReady = drive.IsReady;
             }
             catch
@@ -508,10 +565,10 @@ public sealed class MonitorService : IMonitorService
                 continue;
             }
 
-            if (!isFixed || !isReady)
+            if (!isReady)
             {
                 observations.Add(new DriveTelemetryObservation(
-                    name, isFixed, isReady, true, string.Empty, 0, 0));
+                    name, true, false, true, string.Empty, 0, 0));
                 continue;
             }
 
@@ -613,9 +670,14 @@ public sealed class MonitorService : IMonitorService
 
     private void RebuildNetworkCounters(bool preserveExisting)
     {
-        var existing = preserveExisting
-            ? _networkCounters.ToDictionary(counter => counter.Interface.Id, StringComparer.OrdinalIgnoreCase)
-            : new Dictionary<string, NetworkCounter>(StringComparer.OrdinalIgnoreCase);
+        var existing = new Dictionary<string, NetworkCounter>(StringComparer.OrdinalIgnoreCase);
+        if (preserveExisting)
+        {
+            foreach (NetworkCounter counter in _networkCounters)
+            {
+                existing[counter.Interface.Id] = counter;
+            }
+        }
         var rebuilt = new List<NetworkCounter>();
 
         try

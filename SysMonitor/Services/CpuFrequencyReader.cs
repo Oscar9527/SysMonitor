@@ -26,6 +26,18 @@ internal sealed class CpuFrequencyReader
         IntPtr buffer = Marshal.AllocHGlobal(bufferSize);
         try
         {
+            // Zero-fill so partial writes (e.g., multi-group systems) leave trailing CurrentMhz == 0.
+            int offset = 0;
+            for (; offset + sizeof(long) <= bufferSize; offset += sizeof(long))
+            {
+                Marshal.WriteInt64(buffer, offset, 0);
+            }
+
+            for (; offset < bufferSize; offset++)
+            {
+                Marshal.WriteByte(buffer, offset, 0);
+            }
+
             uint status = CallNtPowerInformation(
                 PowerInformationLevel.ProcessorInformation,
                 IntPtr.Zero,

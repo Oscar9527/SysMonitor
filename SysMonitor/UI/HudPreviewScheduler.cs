@@ -52,7 +52,7 @@ internal sealed class HudPreviewScheduler : IDisposable
         {
             _dispatcher.InvokeAsync(Run, _priority);
         }
-        catch (InvalidOperationException)
+        catch (Exception exception) when (exception is InvalidOperationException or TaskCanceledException)
         {
             lock (_gate)
             {

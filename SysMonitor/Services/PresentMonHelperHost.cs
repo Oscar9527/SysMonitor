@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
@@ -26,7 +27,7 @@ internal static class PresentMonHelperHost
         sessionName = string.Empty;
         if (arguments.Count != 4 ||
             !string.Equals(arguments[0], HelperArgument, StringComparison.OrdinalIgnoreCase) ||
-            !int.TryParse(arguments[2], out processId) ||
+            !int.TryParse(arguments[2], NumberStyles.None, CultureInfo.InvariantCulture, out processId) ||
             processId <= 0)
         {
             return false;
@@ -51,7 +52,7 @@ internal static class PresentMonHelperHost
         using var pipe = new NamedPipeClientStream(
             ".",
             pipeName,
-            PipeDirection.Out,
+            PipeDirection.InOut,
             PipeOptions.Asynchronous | PipeOptions.WriteThrough);
         // A helper that cannot connect promptly is stale; terminate only the
         // process/job/session owned by this request and let the caller retry.
@@ -59,13 +60,27 @@ internal static class PresentMonHelperHost
         await pipe.ConnectAsync(connectionTimeout.Token).ConfigureAwait(false);
         BandDiagnostics.Log($"presentmon helper pipe connected targetPid={processId}");
 
+        using var extractionTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         string executablePath = await PresentMonBinaryManager
-            .GetExecutablePathAsync(connectionTimeout.Token)
+            .GetExecutablePathAsync(extractionTimeout.Token)
             .ConfigureAwait(false);
         // This helper is elevated while the desktop app deliberately is not.
         // Owning the collector job here guarantees that an elevated PresentMon
         // process is released if the pipe closes or the helper exits unexpectedly.
         using var collectorJob = new ChildProcessJob();
+        using var watcherCts = new CancellationTokenSource();
+        Task? disconnectWatcher = null;
+        Task? terminateTask = null;
+        object terminateGate = new();
+
+        Task EnsureSessionTerminatedAsync()
+        {
+            lock (terminateGate)
+            {
+                return terminateTask ??= TerminateOwnedSessionAsync(executablePath, sessionName);
+            }
+        }
+
         Process? collector = null;
         try
         {
@@ -81,40 +96,79 @@ internal static class PresentMonHelperHost
             collectorJob.Assign(collector);
             BandDiagnostics.Log($"presentmon collector started pid={collector.Id} targetPid={processId}");
 
-            using var writer = new StreamWriter(
+            disconnectWatcher = WatchParentDisconnectAsync(
                 pipe,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-                bufferSize: 4096,
-                leaveOpen: true)
-            {
-                AutoFlush = true,
-            };
+                collector,
+                processId,
+                EnsureSessionTerminatedAsync,
+                watcherCts.Token);
+
             Task<string> stderr = PresentMonProcessSupport.CaptureBoundedAsync(
                 collector.StandardError,
                 CancellationToken.None);
             using var reader = collector.StandardOutput;
-            while (true)
+            try
             {
-                string? line = await reader.ReadLineAsync().ConfigureAwait(false);
-                if (line is null)
+                using var writer = new StreamWriter(
+                    pipe,
+                    new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+                    bufferSize: 4096,
+                    leaveOpen: true)
                 {
-                    break;
+                    AutoFlush = true,
+                };
+                while (true)
+                {
+                    string? line = await reader.ReadLineAsync().ConfigureAwait(false);
+                    if (line is null)
+                    {
+                        break;
+                    }
+
+                    await writer.WriteLineAsync(line).ConfigureAwait(false);
                 }
 
-                await writer.WriteLineAsync(line).ConfigureAwait(false);
+                await collector.WaitForExitAsync().ConfigureAwait(false);
+                string diagnostic = await stderr.ConfigureAwait(false);
+                if (collector.ExitCode != 0)
+                {
+                    await writer.WriteLineAsync($"#SYSMONITOR-ERROR {collector.ExitCode} {diagnostic.ReplaceLineEndings(" ")}")
+                        .ConfigureAwait(false);
+                }
+                BandDiagnostics.Log($"presentmon collector exited code={collector.ExitCode} targetPid={processId} stderr={diagnostic}");
             }
-
-            await collector.WaitForExitAsync().ConfigureAwait(false);
-            string diagnostic = await stderr.ConfigureAwait(false);
-            if (collector.ExitCode != 0)
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
-                await writer.WriteLineAsync($"#SYSMONITOR-ERROR {collector.ExitCode} {diagnostic.ReplaceLineEndings(" ")}")
-                    .ConfigureAwait(false);
             }
-            BandDiagnostics.Log($"presentmon collector exited code={collector.ExitCode} targetPid={processId} stderr={diagnostic}");
         }
         finally
         {
+            watcherCts.Cancel();
+            if (disconnectWatcher is not null)
+            {
+                try
+                {
+                    await disconnectWatcher.ConfigureAwait(false);
+                }
+                catch
+                {
+                }
+            }
+
+            if (collector is { HasExited: false })
+            {
+                await EnsureSessionTerminatedAsync().ConfigureAwait(false);
+                try
+                {
+                    await collector.WaitForExitAsync(CancellationToken.None)
+                        .WaitAsync(TimeSpan.FromSeconds(2))
+                        .ConfigureAwait(false);
+                }
+                catch
+                {
+                }
+            }
+
             try
             {
                 if (collector is { HasExited: false })
@@ -127,6 +181,110 @@ internal static class PresentMonHelperHost
             }
 
             collector?.Dispose();
+        }
+    }
+
+    private static async Task WatchParentDisconnectAsync(
+        NamedPipeClientStream pipe,
+        Process collector,
+        int processId,
+        Func<Task> ensureSessionTerminatedAsync,
+        CancellationToken cancellationToken)
+    {
+        byte[] buffer = new byte[1];
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                int read = await pipe.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (IOException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        BandDiagnostics.Log($"presentmon helper detected parent disconnect targetPid={processId}");
+        await ensureSessionTerminatedAsync().ConfigureAwait(false);
+        try
+        {
+            if (!collector.HasExited)
+            {
+                await collector.WaitForExitAsync(cancellationToken)
+                    .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            if (!collector.HasExited)
+            {
+                collector.Kill(entireProcessTree: true);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static async Task TerminateOwnedSessionAsync(string executablePath, string sessionName)
+    {
+        Process? terminator = null;
+        try
+        {
+            terminator = Process.Start(PresentMonProcessSupport.CreateTerminateStartInfo(
+                executablePath,
+                sessionName));
+            if (terminator is null)
+            {
+                return;
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            Task<string> stdout = PresentMonProcessSupport.CaptureBoundedAsync(
+                terminator.StandardOutput,
+                timeout.Token);
+            Task<string> stderr = PresentMonProcessSupport.CaptureBoundedAsync(
+                terminator.StandardError,
+                timeout.Token);
+            await terminator.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            await Task.WhenAll(stdout, stderr).ConfigureAwait(false);
+        }
+        catch
+        {
+            try
+            {
+                if (terminator is { HasExited: false })
+                {
+                    terminator.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+            }
+        }
+        finally
+        {
+            terminator?.Dispose();
         }
     }
 

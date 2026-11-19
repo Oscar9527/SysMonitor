@@ -12,7 +12,7 @@ public sealed class ThemeCatalogService
 
     private readonly ThemePackageService _packages;
     private readonly SemaphoreSlim _catalogGate = new(1, 1);
-    private ImmutableDictionary<string, ResolvedTheme> _themes = BuiltIns;
+    private volatile ImmutableDictionary<string, ResolvedTheme> _themes = BuiltIns;
 
     public ThemeCatalogService(string? themesRoot = null, Version? applicationVersion = null)
     {
@@ -122,24 +122,25 @@ public sealed class ThemeCatalogService
 
     public bool TryResolve(string? id, out ResolvedTheme theme)
     {
+        ImmutableDictionary<string, ResolvedTheme> themes = _themes;
         if (string.Equals(id, SystemThemeId, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(id, "auto", StringComparison.OrdinalIgnoreCase))
         {
             string targetId = DetectSystemUsesDarkTheme() ? MidnightThemeId : DefaultThemeId;
-            if (_themes.TryGetValue(targetId, out ResolvedTheme? systemResolved))
+            if (themes.TryGetValue(targetId, out ResolvedTheme? systemResolved))
             {
                 theme = systemResolved;
                 return true;
             }
         }
 
-        if (id is not null && _themes.TryGetValue(id, out ResolvedTheme? resolved))
+        if (id is not null && themes.TryGetValue(id, out ResolvedTheme? resolved))
         {
             theme = resolved;
             return true;
         }
 
-        theme = _themes[DefaultThemeId];
+        theme = themes[DefaultThemeId];
         return false;
     }
 
@@ -213,9 +214,9 @@ public sealed class ThemeCatalogService
                 "Default",
                 "builtin-default-v1",
                 new ThemePalette(
-                    "#F5F6F8", "#FFFFFFFF", "#1D1D1F", "#62666E",
-                    "#858A93", "#D9DCE2", "#F0F1F4", "#0A66E8"),
-                new ThemeMetricPalette("#1976D2", "#D97706", "#7E57C2", "#D97706", "#C6262E"),
+                    "#F5F6F8", "#FFFFFFFF", "#1D1D1F", "#707579",
+                    "#9AA0A6", "#D9DCE2", "#F0F1F4", "#3390EC"),
+                new ThemeMetricPalette("#3390EC", "#8774E1", "#31B545", "#F59E0B", "#E53935"),
                 "#00000000",
                 null,
                 null,
@@ -225,9 +226,9 @@ public sealed class ThemeCatalogService
                 "Midnight",
                 "builtin-midnight-v1",
                 new ThemePalette(
-                    "#17181B", "#202125", "#F5F5F7", "#B8BBC2",
-                    "#8E939C", "#45474F", "#32343A", "#70B5FF"),
-                new ThemeMetricPalette("#38BDF8", "#FBBF24", "#C084FC", "#F59E0B", "#F87171"),
+                    "#17181B", "#1E2530", "#F5F7FA", "#9EB1C2",
+                    "#708499", "#2B3544", "#232D3B", "#5EB5F7"),
+                new ThemeMetricPalette("#5EB5F7", "#A594F9", "#4DCD5E", "#F59E0B", "#FF595A"),
                 "#00000000",
                 null,
                 null,

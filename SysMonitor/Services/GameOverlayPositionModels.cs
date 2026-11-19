@@ -90,7 +90,9 @@ internal static class OverlayMonitorIdentityText
     public static string NormalizeMonitorDevicePath(string? value) => Normalize(value);
 
     public static string BuildFallbackId(string normalizedGdiName, ScreenPixelBounds bounds) =>
-        $"fallback:gdi={NormalizeGdiName(normalizedGdiName)};bounds={bounds.Left},{bounds.Top},{bounds.Right},{bounds.Bottom}";
+        string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"fallback:gdi={NormalizeGdiName(normalizedGdiName)};bounds={bounds.Left},{bounds.Top},{bounds.Right},{bounds.Bottom}");
 
     private static string Normalize(string? value)
     {

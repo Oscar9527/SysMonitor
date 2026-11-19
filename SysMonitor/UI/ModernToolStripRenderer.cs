@@ -58,8 +58,13 @@ internal sealed class ModernToolStripRenderer : Forms.ToolStripProfessionalRende
         int insetX = 4;
         int insetY = 1;
         RectangleF highlightRect = new(insetX, insetY, bounds.Width - (insetX * 2), bounds.Height - (insetY * 2));
+        if (highlightRect.Width <= 0 || highlightRect.Height <= 0)
+        {
+            return;
+        }
+
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = CreateRoundedRectangle(highlightRect, 4);
+        using var path = CreateRoundedRectangle(highlightRect, 6);
         using var brush = new SolidBrush(HoverColor);
         e.Graphics.FillPath(brush, path);
     }
@@ -131,46 +136,57 @@ internal sealed class ModernToolStripRenderer : Forms.ToolStripProfessionalRende
         e.Graphics.FillRectangle(brush, e.AffectedBounds);
     }
 
-    // ── Windows Fluent Theme Palette ──────────────────────────────────────
+    // ── Telegram Desktop Theme Palette ────────────────────────────────────
 
     private DrawingColor BackgroundColor => _dark
-        ? DrawingColor.FromArgb(255, 32, 32, 36)     // Windows Dark Surface
-        : DrawingColor.FromArgb(255, 255, 255, 255); // Windows Light Surface
+        ? DrawingColor.FromArgb(255, 23, 33, 43)     // Telegram Night (#17212B)
+        : DrawingColor.FromArgb(255, 255, 255, 255); // Telegram Day (#FFFFFF)
 
     private DrawingColor HoverColor => _dark
-        ? DrawingColor.FromArgb(255, 0, 120, 215)   // Fluent Accent Dark
-        : DrawingColor.FromArgb(255, 0, 103, 192);   // Fluent Accent Light
+        ? DrawingColor.FromArgb(255, 43, 82, 120)    // Telegram Night Selection (#2B5278)
+        : DrawingColor.FromArgb(255, 51, 144, 236);  // Telegram Blue (#3390EC)
 
     private DrawingColor AccentColor => _dark
-        ? DrawingColor.FromArgb(255, 0, 120, 215)
-        : DrawingColor.FromArgb(255, 0, 103, 192);
+        ? DrawingColor.FromArgb(255, 94, 181, 247)   // Telegram Night Accent (#5EB5F7)
+        : DrawingColor.FromArgb(255, 51, 144, 236);  // Telegram Day Accent (#3390EC)
 
     private DrawingColor ForegroundColor => _dark
-        ? DrawingColor.FromArgb(255, 243, 243, 243)
-        : DrawingColor.FromArgb(255, 26, 26, 26);
+        ? DrawingColor.FromArgb(255, 245, 247, 250)
+        : DrawingColor.FromArgb(255, 29, 29, 31);
 
     private DrawingColor SecondaryColor => _dark
-        ? DrawingColor.FromArgb(255, 160, 160, 165)
-        : DrawingColor.FromArgb(255, 110, 110, 115);
+        ? DrawingColor.FromArgb(255, 127, 145, 164)
+        : DrawingColor.FromArgb(255, 112, 117, 121);
 
     private DrawingColor DisabledColor => _dark
-        ? DrawingColor.FromArgb(255, 85, 85, 90)
-        : DrawingColor.FromArgb(255, 180, 180, 185);
+        ? DrawingColor.FromArgb(255, 86, 102, 118)
+        : DrawingColor.FromArgb(255, 175, 181, 188);
 
     private DrawingColor BorderColor => _dark
-        ? DrawingColor.FromArgb(255, 55, 55, 60)
-        : DrawingColor.FromArgb(255, 218, 220, 224);
+        ? DrawingColor.FromArgb(255, 35, 46, 60)     // Telegram Night Border (#232E3C)
+        : DrawingColor.FromArgb(255, 224, 229, 235);
 
     private DrawingColor SeparatorColor => _dark
-        ? DrawingColor.FromArgb(255, 50, 50, 55)
-        : DrawingColor.FromArgb(255, 230, 232, 236);
+        ? DrawingColor.FromArgb(255, 35, 46, 60)
+        : DrawingColor.FromArgb(255, 236, 240, 244);
 
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private static GraphicsPath CreateRoundedRectangle(RectangleF rect, float radius)
     {
-        float d = radius * 2;
         var path = new GraphicsPath();
+        float clampedRadius = Math.Min(radius, Math.Min(rect.Width, rect.Height) / 2f);
+        if (clampedRadius <= 0f)
+        {
+            if (rect.Width > 0f && rect.Height > 0f)
+            {
+                path.AddRectangle(rect);
+            }
+
+            return path;
+        }
+
+        float d = clampedRadius * 2f;
         path.AddArc(rect.Left, rect.Top, d, d, 180, 90);
         path.AddArc(rect.Right - d, rect.Top, d, d, 270, 90);
         path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);

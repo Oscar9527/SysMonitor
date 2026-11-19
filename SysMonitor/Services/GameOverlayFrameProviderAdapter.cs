@@ -59,7 +59,8 @@ internal sealed class GameOverlayFrameProviderAdapter :
                 FrameRateStatus.Starting or
                 FrameRateStatus.WaitingForFrames or
                 FrameRateStatus.Stopping => GameOverlayFrameStatus.Starting,
-                FrameRateStatus.NoPresentEvents => GameOverlayFrameStatus.NoFrames,
+                FrameRateStatus.NoPresentEvents or
+                FrameRateStatus.Stale => GameOverlayFrameStatus.NoFrames,
                 FrameRateStatus.Disabled => GameOverlayFrameStatus.Unavailable,
                 _ => GameOverlayFrameStatus.Faulted,
             },

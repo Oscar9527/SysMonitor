@@ -65,6 +65,7 @@ public partial class App : System.Windows.Application
     private ResolvedTheme? _currentTheme;
     private ResolvedTheme? _appliedTheme;
     private bool _isExiting;
+    private bool _userPreferenceEventsSubscribed;
     private bool _sessionGameSafeMode;
     private GameOverlayTargetOption? _explicitGameOverlayTarget;
     private long _bandGeneration;
@@ -85,6 +86,25 @@ public partial class App : System.Windows.Application
             {
                 Environment.SetEnvironmentVariable("SYSMONITOR_LAUNCHER_PATH", launcherPath);
             }
+        }
+
+        if (EnvironmentBootstrap.IsRunningAtLowIntegrity())
+        {
+            _localizationService.ApplyCulture(LocalizationService.SystemCulture);
+            bool zh = string.Equals(
+                _localizationService.ActiveCulture.TwoLetterISOLanguageName,
+                "zh",
+                StringComparison.OrdinalIgnoreCase);
+            System.Windows.MessageBox.Show(
+                zh
+                    ? "SysMonitor 当前处于低完整性（Low Mandatory Level）受限模式下运行，Windows 安全策略（UIPI）会阻止其挂载到任务栏右下角并禁止保存配置。\n\n请改用桌面上的 SysMonitor 快捷方式启动，或将程序移至普通目录（如 %LOCALAPPDATA%\\SysMonitor\\app）后再运行。"
+                    : "SysMonitor was started at Low Integrity Level. Windows UIPI blocks Low-Integrity windows from attaching to the taskbar and saving settings.\n\nPlease launch SysMonitor from the desktop shortcut or move the executable to a normal directory (such as %LOCALAPPDATA%\\SysMonitor\\app) before running it.",
+                "SysMonitor",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            Shutdown();
+            Environment.Exit(3);
+            return;
         }
 
         bool isFirstInstance;
@@ -149,7 +169,7 @@ public partial class App : System.Windows.Application
                 LogException(
                     "The built-in default theme could not be applied",
                     new InvalidOperationException("Theme resource initialization failed."));
-                Shutdown();
+                await ExitAsync();
                 return;
             }
 
@@ -202,6 +222,8 @@ public partial class App : System.Windows.Application
                 ApplyPendingSnapshot);
             await _monitorService.StartAsync();
             RegisterControlEventCallbacks();
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged += OnAppUserPreferenceChanged;
+            _userPreferenceEventsSubscribed = true;
 
             if (e.Args.Any(argument =>
                     string.Equals(argument, "--show-panel", StringComparison.OrdinalIgnoreCase)))
@@ -761,6 +783,51 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private void OnAppUserPreferenceChanged(object? sender, Microsoft.Win32.UserPreferenceChangedEventArgs e)
+    {
+        if (_isExiting || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            if (_isExiting || Dispatcher.HasShutdownStarted)
+            {
+                return;
+            }
+
+            if (!string.Equals(_settings.ActiveThemeId, ThemeCatalogService.SystemThemeId, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(_settings.ActiveThemeId, "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (!_themeCatalog.TryResolve(_settings.ActiveThemeId, out ResolvedTheme updated))
+            {
+                return;
+            }
+
+            if (string.Equals(_appliedTheme?.IdentityToken, updated.IdentityToken, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            bool previewingDifferentTheme = _appliedTheme is not null &&
+                _currentTheme is not null &&
+                !string.Equals(_currentTheme.IdentityToken, _appliedTheme.IdentityToken, StringComparison.Ordinal);
+
+            if (!previewingDifferentTheme && ApplyThemeRuntime(updated))
+            {
+                _appliedTheme = updated;
+            }
+            else if (previewingDifferentTheme)
+            {
+                _appliedTheme = updated;
+            }
+        });
+    }
+
     private void RestoreAppearanceSettings(BandAppearanceSettings appearance)
     {
         _settings.BandFontFamily = appearance.FontFamily;
@@ -777,20 +844,21 @@ public partial class App : System.Windows.Application
         string normalized = LocalizationService.NormalizeCulturePreference(culturePreference);
         _settings.UiCulture = normalized;
         PatchSettings(settings => settings.UiCulture = normalized);
-        _localizationService.ApplyCulture(normalized);
+        _localizationService.ApplyCulture(_settings.UiCulture);
     }
 
     private void OnBandHorizontalPositionResolved(object? sender, double positionPercent)
     {
         if (sender is not BandWindow band || !ReferenceEquals(_bandWindow, band) ||
-            _settings.BandHorizontalPositionPercent is not null)
+            _settings.BandHorizontalPositionPercent is not null ||
+            !double.IsFinite(positionPercent))
         {
             return;
         }
 
-        _settings.BandHorizontalPositionPercent = Math.Clamp(positionPercent, 0, 100);
-        PatchSettings(settings => settings.BandHorizontalPositionPercent =
-            Math.Clamp(positionPercent, 0, 100));
+        double normalized = Math.Clamp(positionPercent, 0, 100);
+        _settings.BandHorizontalPositionPercent = normalized;
+        PatchSettings(settings => settings.BandHorizontalPositionPercent = normalized);
     }
 
     private DetailWindow EnsureDetailWindow()
@@ -811,11 +879,13 @@ public partial class App : System.Windows.Application
         detail.LocationChanged += OnDetailLocationChanged;
 
         detail.WindowStartupLocation = WindowStartupLocation.Manual;
-        if (_settings.PanelLeft is double left && _settings.PanelTop is double top)
+        if (_settings.PanelLeft is double left && _settings.PanelTop is double top &&
+            double.IsFinite(left) && double.IsFinite(top))
         {
+            (double detailWidth, double detailHeight) = MeasureDetailBounds(detail);
             Rect workArea = SystemParameters.WorkArea;
-            detail.Left = Math.Clamp(left, workArea.Left, Math.Max(workArea.Left, workArea.Right - detail.Width));
-            detail.Top = Math.Clamp(top, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - detail.Height));
+            detail.Left = Math.Clamp(left, workArea.Left, Math.Max(workArea.Left, workArea.Right - detailWidth));
+            detail.Top = Math.Clamp(top, workArea.Top, Math.Max(workArea.Top, workArea.Bottom - detailHeight));
         }
         else
         {
@@ -1044,7 +1114,6 @@ public partial class App : System.Windows.Application
                     if (_rtssLegacyCompatibilityService.TryAutoEnableForExecutable(exePath, out _))
                     {
                         BandDiagnostics.Log($"auto-configured legacy RTSS compatibility for {Path.GetFileName(exePath)}");
-                        RtssLegacyCompatibilityService.TryEnsureRtssRunning(out _);
                     }
                 }
                 catch
@@ -1204,14 +1273,14 @@ public partial class App : System.Windows.Application
             : 50d;
         _settings.GameOverlayHorizontalPositionPercent = normalized;
         _settings.GameOverlayMonitorPositions?.Clear();
-        _gameOverlayWindow?.SetMonitorPositions([]);
-        _gameOverlayWindow?.SetHorizontalPositionPercent(normalized);
         PatchSettings(settings =>
         {
             settings.GameOverlayHorizontalPositionPercent = normalized;
             settings.GameOverlayMonitorPositions = [];
         });
-        _trayIcon?.SetGameOverlayPosition(normalized);
+        _gameOverlayWindow?.SetHorizontalPositionPercent(_settings.GameOverlayHorizontalPositionPercent);
+        _gameOverlayWindow?.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
+        _trayIcon?.SetGameOverlayPosition(_settings.GameOverlayHorizontalPositionPercent);
     }
 
     private void OnGameOverlayPresetChanged(string preset)
@@ -1234,7 +1303,10 @@ public partial class App : System.Windows.Application
         _settings.GameOverlayMetrics = GameOverlayMetricVisibilitySettings.FromEffective(metrics);
         PatchSettings(settings => settings.GameOverlayMetrics =
             GameOverlayMetricVisibilitySettings.FromEffective(metrics));
-        _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
+        GameOverlayMetricVisibility effective =
+            _settings.GameOverlayMetrics?.ToEffective() ?? new GameOverlayMetricVisibility();
+        _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, effective);
+        _trayIcon?.SetGameOverlayMetrics(effective);
     }
 
     private void OnGameOverlayAppearanceRequested(object? sender, EventArgs e)
@@ -1519,11 +1591,11 @@ public partial class App : System.Windows.Application
                 ? "horizontal"
                 : "vertical";
 
-        if (request.HorizontalPositionPercent is double percent)
+        bool updateHorizontalPositionPercent = false;
+        if (request.HorizontalPositionPercent is double percent && double.IsFinite(percent))
         {
-            double normalized = Math.Clamp(percent, 0, 100);
-            _settings.GameOverlayHorizontalPositionPercent = normalized;
-            _trayIcon?.SetGameOverlayPosition(normalized);
+            _settings.GameOverlayHorizontalPositionPercent = Math.Clamp(percent, 0, 100);
+            updateHorizontalPositionPercent = true;
         }
 
         if (positionIdentity is OverlayMonitorIdentity identity)
@@ -1532,8 +1604,6 @@ public partial class App : System.Windows.Application
             if (request.PositionChange == GameOverlayPositionChange.Reset)
             {
                 _settings.GameOverlayMonitorPositions?.Clear();
-                _gameOverlayWindow?.SetMonitorPositions([]);
-                _gameOverlayWindow?.SetHorizontalPositionPercent(_settings.GameOverlayHorizontalPositionPercent);
             }
             else if (request.PositionChange == GameOverlayPositionChange.Set &&
                 request.PositionX is int positionX &&
@@ -1643,6 +1713,12 @@ public partial class App : System.Windows.Application
             }
         }
 
+        if (updateHorizontalPositionPercent || request.PositionChange == GameOverlayPositionChange.Reset)
+        {
+            _gameOverlayWindow?.SetHorizontalPositionPercent(_settings.GameOverlayHorizontalPositionPercent);
+            _trayIcon?.SetGameOverlayPosition(_settings.GameOverlayHorizontalPositionPercent);
+        }
+
         _gameOverlayWindow?.SetMonitorPositions(_settings.GameOverlayMonitorPositions);
         _gameOverlayWindow?.SetLayoutMode(_settings.GameOverlayLayoutMode);
         _gameOverlayWindow?.SetLayout(_settings.GameOverlayPreset, metrics);
@@ -1702,7 +1778,8 @@ public partial class App : System.Windows.Application
         _settings.GameOverlayAppearance = GameOverlayAppearanceSettings.FromEffective(appearance);
         PatchSettings(settings => settings.GameOverlayAppearance =
             GameOverlayAppearanceSettings.FromEffective(appearance));
-        _gameOverlayWindow?.SetAppearance(appearance);
+        _gameOverlayWindow?.SetAppearance(
+            _settings.GameOverlayAppearance?.ToEffective() ?? new GameOverlayAppearance());
     }
 
     private void OnGameSafeModeChangeRequested(bool enabled)
@@ -1736,6 +1813,11 @@ public partial class App : System.Windows.Application
 
     private void SavePanelPosition()
     {
+        if (_detailWindow is null)
+        {
+            return;
+        }
+
         if (_detailWindow is { WindowState: WindowState.Normal } &&
             double.IsFinite(_detailWindow.Left) && double.IsFinite(_detailWindow.Top))
         {
@@ -1743,7 +1825,7 @@ public partial class App : System.Windows.Application
             _settings.PanelTop = _detailWindow.Top;
         }
 
-        _settings.PanelTopmost = _detailWindow?.IsPinned ?? _settings.PanelTopmost;
+        _settings.PanelTopmost = _detailWindow.IsPinned;
         PatchSettings(settings =>
         {
             settings.PanelLeft = _settings.PanelLeft;
@@ -1784,6 +1866,11 @@ public partial class App : System.Windows.Application
 
         _isExiting = true;
         DispatcherUnhandledException -= OnDispatcherUnhandledException;
+        if (_userPreferenceEventsSubscribed)
+        {
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged -= OnAppUserPreferenceChanged;
+            _userPreferenceEventsSubscribed = false;
+        }
 
         try
         {
@@ -1862,7 +1949,7 @@ public partial class App : System.Windows.Application
                 {
                     _gameOverlayAppearanceWindow.PreviewChanged -= OnGameOverlayAppearancePreviewChanged;
                     _gameOverlayAppearanceWindow.Applied -= OnGameOverlayAppearanceApplied;
-                    _gameOverlayAppearanceWindow.Close();
+                    _gameOverlayAppearanceWindow.ForceClose();
                 }
                 catch (Exception exception)
                 {
@@ -2033,11 +2120,28 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private static (double Width, double Height) MeasureDetailBounds(DetailWindow detail)
+    {
+        double detailWidth = detail.ActualWidth > 0
+            ? detail.ActualWidth
+            : (double.IsFinite(detail.Width) && detail.Width > 0 ? detail.Width : 480);
+        if (detail.ActualWidth > 0 && detail.ActualHeight > 0)
+        {
+            return (detailWidth, detail.ActualHeight);
+        }
+
+        detail.Measure(new System.Windows.Size(detailWidth, double.PositiveInfinity));
+        double detailHeight = detail.ActualHeight > 0
+            ? detail.ActualHeight
+            : (detail.DesiredSize.Height > 0
+                ? detail.DesiredSize.Height
+                : (double.IsFinite(detail.Height) && detail.Height > 0 ? detail.Height : 620));
+        return (detailWidth, detailHeight);
+    }
+
     private void PositionDetailAboveBand(DetailWindow detail, BandWindow? clickBand)
     {
-        detail.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        double detailWidth = detail.ActualWidth > 0 ? detail.ActualWidth : (double.IsFinite(detail.Width) && detail.Width > 0 ? detail.Width : 480);
-        double detailHeight = detail.ActualHeight > 0 ? detail.ActualHeight : (detail.DesiredSize.Height > 0 ? detail.DesiredSize.Height : (double.IsFinite(detail.Height) && detail.Height > 0 ? detail.Height : 620));
+        (double detailWidth, double detailHeight) = MeasureDetailBounds(detail);
 
         Rect workArea = SystemParameters.WorkArea;
         double targetLeft;

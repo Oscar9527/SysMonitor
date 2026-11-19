@@ -160,7 +160,16 @@ public sealed class TaskbarMotionTracker : IDisposable
         }
         else if (!_dispatcher.HasShutdownStarted && !_dispatcher.HasShutdownFinished)
         {
-            _dispatcher.Invoke(Stop);
+            try
+            {
+                _dispatcher.Invoke(Stop);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+            catch (TaskCanceledException)
+            {
+            }
         }
 
         _healthTimer.Tick -= OnHealthTimerTick;

@@ -65,7 +65,17 @@ internal static class PresentMonBinaryManager
                     throw new InvalidDataException("The extracted PresentMon binary failed its integrity check.");
                 }
 
-                File.Move(temporary, destination, overwrite: true);
+                try
+                {
+                    File.Move(temporary, destination, overwrite: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (!await HasExpectedHashAsync(destination, cancellationToken).ConfigureAwait(false))
+                    {
+                        throw;
+                    }
+                }
             }
             finally
             {
@@ -99,7 +109,7 @@ internal static class PresentMonBinaryManager
                 path,
                 FileMode.Open,
                 FileAccess.Read,
-                FileShare.Read,
+                FileShare.Read | FileShare.Delete,
                 81920,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
             return string.Equals(

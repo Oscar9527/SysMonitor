@@ -22,6 +22,7 @@ internal sealed class CpuTemperatureReader : IDisposable
     private readonly object _gate = new();
     private readonly Func<bool, Computer> _computerFactory;
     private readonly Action<Computer> _computerOpen;
+    private readonly bool _allowElevatedHelper;
     private Computer? _computer;
     private CancellationTokenSource? _helperCancellation;
     private NamedPipeServerStream? _helperPipe;
@@ -59,9 +60,18 @@ internal sealed class CpuTemperatureReader : IDisposable
     internal CpuTemperatureReader(
         Func<bool, Computer> computerFactory,
         Action<Computer> computerOpen)
+        : this(computerFactory, computerOpen, allowElevatedHelper: true)
+    {
+    }
+
+    internal CpuTemperatureReader(
+        Func<bool, Computer> computerFactory,
+        Action<Computer> computerOpen,
+        bool allowElevatedHelper)
     {
         _computerFactory = computerFactory ?? throw new ArgumentNullException(nameof(computerFactory));
         _computerOpen = computerOpen ?? throw new ArgumentNullException(nameof(computerOpen));
+        _allowElevatedHelper = allowElevatedHelper;
     }
 
     public event EventHandler? ReaderReady;
@@ -94,7 +104,18 @@ internal sealed class CpuTemperatureReader : IDisposable
         {
             lock (_gate)
             {
-                return _helperLaunchInProgress || (_helperProcess is not null && _helperTemperatureTimestamp == 0);
+                return _helperLaunchInProgress;
+            }
+        }
+    }
+
+    internal long NextRetryTimestampForTests
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _nextRetryTimestamp;
             }
         }
     }
@@ -133,7 +154,7 @@ internal sealed class CpuTemperatureReader : IDisposable
     {
         lock (_gate)
         {
-            if (_disposed)
+            if (_disposed || !_running)
             {
                 return (null, null);
             }
@@ -149,12 +170,6 @@ internal sealed class CpuTemperatureReader : IDisposable
 
             if (_computer is null)
             {
-                if (_openInProgress)
-                {
-                    return (ReadHelperTemperatureLocked(), ReadHelperPowerLocked());
-                }
-
-                RecordUnavailableReadLocked();
                 return (ReadHelperTemperatureLocked(), ReadHelperPowerLocked());
             }
 
@@ -273,7 +288,8 @@ internal sealed class CpuTemperatureReader : IDisposable
             openError = ex;
         }
 
-        Computer? computerToClose;
+        Computer? computerToClose = null;
+        bool raiseReaderReady = false;
         lock (_gate)
         {
             if (openError is null &&
@@ -287,13 +303,20 @@ internal sealed class CpuTemperatureReader : IDisposable
                 _openInProgress = false;
                 _nextRetryTimestamp = 0;
                 BandDiagnostics.Log("CPU temperature reader opened source=LibreHardwareMonitor");
-                ReaderReady?.Invoke(this, EventArgs.Empty);
-                return;
+                raiseReaderReady = true;
             }
+            else
+            {
+                // Keep the open marked in progress until a rejected Computer has
+                // been closed. This serializes LHM sessions across stop/restart.
+                computerToClose = openingComputer;
+            }
+        }
 
-            // Keep the open marked in progress until a rejected Computer has
-            // been closed. This serializes LHM sessions across stop/restart.
-            computerToClose = openingComputer;
+        if (raiseReaderReady)
+        {
+            ReaderReady?.Invoke(this, EventArgs.Empty);
+            return;
         }
 
         if (computerToClose is not null)
@@ -327,6 +350,10 @@ internal sealed class CpuTemperatureReader : IDisposable
             {
                 _nextRetryTimestamp = 0;
                 TryScheduleOpenLocked();
+            }
+            else if (openError is not null)
+            {
+                RecordUnavailableReadLocked();
             }
             else
             {
@@ -383,6 +410,7 @@ internal sealed class CpuTemperatureReader : IDisposable
                     continue;
                 }
 
+                string sensorName = sensor.Name ?? string.Empty;
                 if (sensor.SensorType == SensorType.Temperature)
                 {
                     double temperature = value;
@@ -391,14 +419,14 @@ internal sealed class CpuTemperatureReader : IDisposable
                         continue;
                     }
 
-                    int? priority = GetTemperatureSensorPriority(hardware.HardwareType, sensor.Name);
+                    int? priority = GetTemperatureSensorPriority(hardware.HardwareType, sensorName);
                     if (priority is null)
                     {
                         continue;
                     }
 
                     tempCandidates.Add(new TemperatureCandidate(
-                        $"{hardware.Name} / {sensor.Name}",
+                        $"{hardware.Name} / {sensorName}",
                         temperature,
                         priority.Value));
                 }
@@ -410,9 +438,9 @@ internal sealed class CpuTemperatureReader : IDisposable
                         continue;
                     }
 
-                    int priority = GetCpuPowerPriority(sensor.Name);
+                    int priority = GetCpuPowerPriority(sensorName);
                     powerCandidates.Add(new PowerCandidate(
-                        $"{hardware.Name} / {sensor.Name}",
+                        $"{hardware.Name} / {sensorName}",
                         power,
                         priority));
                 }
@@ -532,31 +560,31 @@ internal sealed class CpuTemperatureReader : IDisposable
 
     private double? ReadHelperTemperatureLocked()
     {
-        long timestamp = Volatile.Read(ref _helperTemperatureTimestamp);
+        long timestamp = _helperTemperatureTimestamp;
         if (timestamp == 0 ||
             Stopwatch.GetElapsedTime(timestamp, Stopwatch.GetTimestamp()) > HelperValueMaxAge)
         {
             return null;
         }
 
-        return Volatile.Read(ref _helperTemperature);
+        return _helperTemperature;
     }
 
     private double? ReadHelperPowerLocked()
     {
-        long timestamp = Volatile.Read(ref _helperPowerTimestamp);
+        long timestamp = _helperPowerTimestamp;
         if (timestamp == 0 ||
             Stopwatch.GetElapsedTime(timestamp, Stopwatch.GetTimestamp()) > HelperValueMaxAge)
         {
             return null;
         }
 
-        return Volatile.Read(ref _helperPower);
+        return _helperPower;
     }
 
     private void TryStartHelperLocked()
     {
-        if (_disposed || _helperLaunchAttempted)
+        if (_disposed || !_running || !_allowElevatedHelper || _helperLaunchAttempted)
         {
             return;
         }
@@ -634,7 +662,6 @@ internal sealed class CpuTemperatureReader : IDisposable
                 }
 
                 _helperProcess = process;
-                _helperLaunchInProgress = false;
             }
 
             using var connectionTimeout = CancellationTokenSource.CreateLinkedTokenSource(
@@ -649,6 +676,7 @@ internal sealed class CpuTemperatureReader : IDisposable
                 detectEncodingFromByteOrderMarks: false,
                 bufferSize: 128,
                 leaveOpen: true);
+            bool notifiedReady = false;
             while (!ownerCancellation.IsCancellationRequested)
             {
                 string? line = await reader.ReadLineAsync(ownerCancellation.Token).ConfigureAwait(false);
@@ -657,41 +685,51 @@ internal sealed class CpuTemperatureReader : IDisposable
                     break;
                 }
 
-                if (line.Contains(','))
+                ParseHelperTelemetryLine(line, out double? parsedTemp, out double? parsedPower);
+
+                bool raiseReady = false;
+                lock (_gate)
                 {
-                    string[] parts = line.Split(',');
-                    if (double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double tempVal) &&
-                        double.IsFinite(tempVal) && tempVal is >= 1 and <= 125)
+                    if (_disposed ||
+                        ownerCancellation.IsCancellationRequested ||
+                        !ReferenceEquals(_helperCancellation, ownerCancellation))
                     {
-                        Volatile.Write(ref _helperTemperature, tempVal);
-                        Volatile.Write(ref _helperTemperatureTimestamp, Stopwatch.GetTimestamp());
+                        break;
                     }
-                    if (parts.Length > 1 && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double powerVal) &&
-                        double.IsFinite(powerVal) && powerVal is > 0.5 and <= 2000)
+
+                    _helperLaunchInProgress = false;
+                    long now = Stopwatch.GetTimestamp();
+                    if (parsedTemp is double validTemp)
                     {
-                        Volatile.Write(ref _helperPower, powerVal);
-                        Volatile.Write(ref _helperPowerTimestamp, Stopwatch.GetTimestamp());
+                        _helperTemperature = validTemp;
+                        _helperTemperatureTimestamp = now;
                     }
-                    ReaderReady?.Invoke(this, EventArgs.Empty);
-                    BandDiagnostics.LogRateLimited(
-                        "cpu-temperature-helper-value",
-                        $"CPU telemetry source=ElevatedHelper temp={Volatile.Read(ref _helperTemperature):0.0}C power={Volatile.Read(ref _helperPower):0.0}W",
-                        TimeSpan.FromMinutes(5));
+
+                    if (parsedPower is double validPower)
+                    {
+                        _helperPower = validPower;
+                        _helperPowerTimestamp = now;
+                    }
+
+                    if ((parsedTemp is not null || parsedPower is not null) && !notifiedReady)
+                    {
+                        notifiedReady = true;
+                        raiseReady = true;
+                    }
                 }
-                else if (double.TryParse(
-                        line,
-                        NumberStyles.Float,
-                        CultureInfo.InvariantCulture,
-                        out double value) &&
-                    double.IsFinite(value) &&
-                    value is >= 1 and <= 125)
+
+                if (raiseReady)
                 {
-                    Volatile.Write(ref _helperTemperature, value);
-                    Volatile.Write(ref _helperTemperatureTimestamp, Stopwatch.GetTimestamp());
                     ReaderReady?.Invoke(this, EventArgs.Empty);
+                }
+
+                if (parsedTemp is not null || parsedPower is not null)
+                {
+                    string tempText = parsedTemp is double t ? $"{t:0.0}C" : "unknown";
+                    string powerText = parsedPower is double p ? $"{p:0.0}W" : "unknown";
                     BandDiagnostics.LogRateLimited(
                         "cpu-temperature-helper-value",
-                        $"CPU temperature source=ElevatedHelper value={value:0.0}C",
+                        $"CPU telemetry source=ElevatedHelper temp={tempText} power={powerText}",
                         TimeSpan.FromMinutes(5));
                 }
             }
@@ -734,7 +772,10 @@ internal sealed class CpuTemperatureReader : IDisposable
         Task? task = _helperTask;
         _helperTask = null;
         _helperLaunchInProgress = false;
-        Volatile.Write(ref _helperTemperatureTimestamp, 0);
+        _helperTemperatureTimestamp = 0;
+        _helperTemperature = 0;
+        _helperPowerTimestamp = 0;
+        _helperPower = 0;
 
         CancellationTokenSource? cancellation = _helperCancellation;
         _helperCancellation = null;
@@ -805,6 +846,48 @@ internal sealed class CpuTemperatureReader : IDisposable
         }
         catch
         {
+        }
+    }
+
+    internal static void ParseHelperTelemetryLine(
+        string line,
+        out double? temperature,
+        out double? powerWatts)
+    {
+        temperature = null;
+        powerWatts = null;
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return;
+        }
+
+        if (line.Contains(','))
+        {
+            string[] parts = line.Split(',');
+            if (double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double tempVal) &&
+                double.IsFinite(tempVal) && tempVal is >= 1 and <= 125)
+            {
+                temperature = tempVal;
+            }
+
+            if (parts.Length > 1 && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double powerVal) &&
+                double.IsFinite(powerVal) && powerVal is > 0.5 and <= 2000)
+            {
+                powerWatts = powerVal;
+            }
+
+            return;
+        }
+
+        if (double.TryParse(
+                line,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double value) &&
+            double.IsFinite(value) &&
+            value is >= 1 and <= 125)
+        {
+            temperature = value;
         }
     }
 

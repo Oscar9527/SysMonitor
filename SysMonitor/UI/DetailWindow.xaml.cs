@@ -41,6 +41,7 @@ public partial class DetailWindow : Window
         new(StringComparer.OrdinalIgnoreCase);
     private ImmutableArray<string> _driveOrder = ImmutableArray<string>.Empty;
     private bool _allowClose;
+    private bool _closed;
     private bool _isPinned;
 
     public DetailWindow()
@@ -130,6 +131,11 @@ public partial class DetailWindow : Window
     public void ApplyTheme(ResolvedTheme theme)
     {
         ArgumentNullException.ThrowIfNull(theme);
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(() => ApplyTheme(theme));
@@ -145,6 +151,11 @@ public partial class DetailWindow : Window
 
     public void UpdateHistory(ImmutableArray<MetricHistoryPoint> history)
     {
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(() => UpdateHistory(history));
@@ -158,6 +169,11 @@ public partial class DetailWindow : Window
     public void UpdateSnapshot(MonitorSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(() => UpdateSnapshot(snapshot));
@@ -209,15 +225,13 @@ public partial class DetailWindow : Window
         bool changed = _isPinned != isPinned;
         _isPinned = isPinned;
         Topmost = isPinned;
-        PinButton.Background = isPinned
-            ? (FindBrush("CpuMetricSoftBrush", Brushes.Transparent))
-            : Brushes.Transparent;
-        if (PinIcon is TextBlock pinText)
-        {
-            pinText.Foreground = isPinned
-                ? (FindBrush("AppPrimaryBrush", Brushes.DodgerBlue))
-                : (FindBrush("AppSecondaryTextBrush", Brushes.Gray));
-        }
+        ApplyPinBrushes(
+            PinButton,
+            PinIcon as TextBlock,
+            isPinned,
+            _pinnedBackgroundBrush,
+            _pinnedForegroundBrush,
+            _unpinnedForegroundBrush);
         UpdatePinTooltip();
 
         if (changed)
@@ -226,8 +240,32 @@ public partial class DetailWindow : Window
         }
     }
 
+    internal static void ApplyPinBrushes(
+        System.Windows.Controls.Button pinButton,
+        TextBlock? pinText,
+        bool isPinned,
+        Brush pinnedBackground,
+        Brush pinnedForeground,
+        Brush unpinnedForeground)
+    {
+        pinButton.Background = isPinned
+            ? pinnedBackground
+            : Brushes.Transparent;
+        if (pinText is not null)
+        {
+            pinText.Foreground = isPinned
+                ? pinnedForeground
+                : unpinnedForeground;
+        }
+    }
+
     public void ForceClose()
     {
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(ForceClose);
@@ -349,11 +387,11 @@ public partial class DetailWindow : Window
         var container = new Border
         {
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Height = 56,
-            Margin = new Thickness(3),
-            Padding = new Thickness(12, 6, 12, 6),
+            Height = 58,
+            Margin = new Thickness(4),
+            Padding = new Thickness(12, 7, 12, 7),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = new CornerRadius(10),
             Focusable = true,
         };
         container.SetResourceReference(BackgroundProperty, "AppControlBrush");
@@ -378,6 +416,7 @@ public partial class DetailWindow : Window
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
         };
+        System.Windows.Documents.Typography.SetNumeralAlignment(value, FontNumeralAlignment.Tabular);
         Grid.SetColumn(value, 1);
 
         var details = new TextBlock
@@ -543,7 +582,7 @@ public partial class DetailWindow : Window
         }
         if (IsFinite(powerWatts))
         {
-            parts.Add($"{powerWatts!.Value:0.#} W");
+            parts.Add(string.Format(localization.ActiveCulture, "{0:0.#} W", powerWatts!.Value));
         }
         return string.Join(" · ", parts);
     }
@@ -559,7 +598,7 @@ public partial class DetailWindow : Window
 
         if (IsFinite(gpu.PowerWatts))
         {
-            details.Add($"{gpu.PowerWatts!.Value:0.#} W");
+            details.Add(string.Format(localization.ActiveCulture, "{0:0.#} W", gpu.PowerWatts!.Value));
         }
 
         if (gpu.MemoryTotalBytes is { } total && total > 0)
@@ -584,6 +623,11 @@ public partial class DetailWindow : Window
 
     private void OnCultureChanged(object? sender, EventArgs e)
     {
+        if (_closed)
+        {
+            return;
+        }
+
         if (!Dispatcher.CheckAccess())
         {
             _ = Dispatcher.InvokeAsync(() => OnCultureChanged(sender, e));
@@ -707,10 +751,40 @@ public partial class DetailWindow : Window
     private Brush FindBrush(string key, Brush fallback) =>
         TryFindResource(key) as Brush ?? fallback;
 
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        if (WindowState == WindowState.Minimized && !_allowClose && !_closed)
+        {
+            // A ShowInTaskbar=False, AllowsTransparency=True window minimizes into a
+            // floating 160x28 stub and can corrupt layered rendering when restored.
+            WindowState = WindowState.Normal;
+            if (IsVisible)
+            {
+                HidePanel();
+            }
+        }
+    }
+
     private void PinButton_Click(object sender, RoutedEventArgs e) => SetPinned(!_isPinned);
 
-    private void MinimizeButton_Click(object sender, RoutedEventArgs e) =>
-        WindowState = WindowState.Minimized;
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => HidePanel();
+
+    internal void HidePanel()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        HideRequested?.Invoke(this, EventArgs.Empty);
+        Hide();
+    }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
@@ -743,8 +817,11 @@ public partial class DetailWindow : Window
         Hide();
     }
 
-    private void DetailWindow_Closed(object? sender, EventArgs e) =>
+    private void DetailWindow_Closed(object? sender, EventArgs e)
+    {
+        _closed = true;
         LocalizationService.Current.CultureChanged -= OnCultureChanged;
+    }
 
     private sealed record DriveRowElements(
         Border Container,

@@ -161,10 +161,11 @@ public sealed class GameOverlayWindowTracker : IDisposable
             {
                 _dispatcher.Invoke(Dispose);
             }
-            catch (InvalidOperationException)
+            catch (Exception exception) when (exception is InvalidOperationException or TaskCanceledException)
             {
                 // Dispatcher shutdown is equivalent to disposal.
                 DisposeCore();
+                GC.SuppressFinalize(this);
             }
 
             return;
@@ -293,7 +294,6 @@ public sealed class GameOverlayWindowTracker : IDisposable
         }
 
         bool post;
-        long generation;
         lock (_queueGate)
         {
             if (_disposed || _targetIdentity is null)
@@ -301,7 +301,7 @@ public sealed class GameOverlayWindowTracker : IDisposable
                 return;
             }
 
-            generation = _bindingGeneration;
+            long generation = _bindingGeneration;
             if (_pendingGeneration != generation)
             {
                 _pendingWork = TrackerWork.None;
@@ -322,7 +322,7 @@ public sealed class GameOverlayWindowTracker : IDisposable
         {
             _ = _dispatcher.BeginInvoke(
                 DispatcherPriority.Render,
-                new Action(() => ProcessPending(generation)));
+                new Action(ProcessPending));
         }
         catch (InvalidOperationException)
         {
@@ -333,12 +333,14 @@ public sealed class GameOverlayWindowTracker : IDisposable
         }
     }
 
-    private void ProcessPending(long generation)
+    private void ProcessPending()
     {
         TrackerWork work;
+        long generation;
         lock (_queueGate)
         {
-            work = generation == _bindingGeneration ? _pendingWork : TrackerWork.None;
+            generation = _bindingGeneration;
+            work = _pendingGeneration == generation ? _pendingWork : TrackerWork.None;
             _pendingWork = TrackerWork.None;
             _dispatchPosted = false;
         }

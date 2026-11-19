@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -24,17 +25,18 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private const int HtTransparent = -1;
     private const uint MonitorDefaultToPrimary = 0x00000001;
     private const uint MonitorDefaultToNearest = 0x00000002;
+    private const int MdtEffectiveDpi = 0;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoActivate = 0x0010;
-    private const uint SwpShowWindow = 0x0040;
     private const long WsExTopmost = 0x00000008L;
     private const uint GwHwndPrev = 3;
     private static readonly nint HwndTop = nint.Zero;
     private static readonly nint HwndTopmost = new(-1);
     private static readonly nint HwndNoTopmost = new(-2);
 
+    private static readonly MediaColorConverter ColorConverterInstance = new();
     private readonly DispatcherTimer _positionTimer;
     private readonly GameOverlayWindowTracker _windowTracker;
     private readonly OverlayMonitorIdentityResolver _monitorIdentityResolver = new();
@@ -53,6 +55,8 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     private nint _lastAppliedInsertAfter;
     private uint _lastAppliedFlags;
     private bool _placementApplied;
+    private bool _initializingSource;
+    private bool _closed;
     private bool? _lastFrameRateVisible;
     private GameOverlayMetricVisibility _metrics = new();
     private GameOverlayAppearance _appearance = new();
@@ -72,7 +76,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         {
             Interval = TimeSpan.FromMilliseconds(750)
         };
-        _positionTimer.Tick += (_, _) => PositionWithoutActivation(refreshMonitor: true);
+        _positionTimer.Tick += OnPositionTimerTick;
         _windowTracker = new GameOverlayWindowTracker(Dispatcher);
         _windowTracker.PositionRefreshRequested += OnTrackedPositionRefreshRequested;
         _windowTracker.TargetInvalidated += OnTrackedTargetInvalidated;
@@ -202,7 +206,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
         bool exact = TryFindExactPosition(identity, _monitorPositions, out GameOverlayMonitorPositionSettings? position);
         OverlayPixelRect monitorBounds = ToOverlayRect(identity.Bounds);
-        uint dpi = GetCurrentDpi();
+        uint dpi = GetCurrentDpi(identity);
         OverlayPixelRect placement = exact
             ? CalculateExactPlacement(
                 monitorBounds,
@@ -261,7 +265,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             ToOverlayRect(identity.Bounds),
             GetWidthDip(),
             GetHeightDip(),
-            GetCurrentDpi(),
+            GetCurrentDpi(identity),
             requestedX,
             requestedY);
         x = placement.Left;
@@ -430,7 +434,6 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         SolidColorBrush fpsBrush = CreateBrush(_appearance.FpsColor, Colors.LimeGreen);
         SolidColorBrush memoryBrush = CreateBrush(_appearance.MemoryColor, Colors.Gold);
         SolidColorBrush networkBrush = CreateBrush(_appearance.NetworkColor, Colors.Magenta);
-        SolidColorBrush valueBrush = CreateBrush(_appearance.ValueColor, Colors.White);
         DropShadowEffect textEffect = CreateTextEffect(_appearance);
         OverlayGrid.Effect = textEffect;
         foreach (TextBlock text in new[] { GpuLabel, GpuValue, CpuLabel, CpuValue, FpsLabel, FpsValue, MemoryLabel, MemoryValue, NetworkLabel, NetworkValue })
@@ -488,6 +491,8 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     {
         _positionTimer.Stop();
         _placementApplied = false;
+        _lastPlacement = null;
+        _lastPlacementMonitorId = null;
         Hide();
     }
 
@@ -544,7 +549,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         string baseVal = $"{(string.IsNullOrWhiteSpace(usage) ? "--" : usage)}  {(string.IsNullOrWhiteSpace(temperature) ? "--" : temperature)}";
         if (powerWatts is double p && double.IsFinite(p))
         {
-            return $"{baseVal}  {p:0.#} W";
+            return string.Format(LocalizationService.Current.ActiveCulture, "{0}  {1:0.#} W", baseVal, p);
         }
         return baseVal;
     }
@@ -616,7 +621,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         if (_metrics.CpuTemperature && !string.IsNullOrWhiteSpace(temperature) && temperature != "--") itemMap["temp"] = temperature;
         if (_metrics.CpuPower && monitor.CpuPowerWatts is double power && double.IsFinite(power) && power > 0.5)
         {
-            itemMap["power"] = $"{power:0.#} W";
+            itemMap["power"] = string.Format(LocalizationService.Current.ActiveCulture, "{0:0.#} W", power);
         }
         if (_metrics.CpuFrequency && _preset == "detailed")
         {
@@ -642,7 +647,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         if (_metrics.GpuTemperature && !string.IsNullOrWhiteSpace(temperature) && temperature != "--") itemMap["temp"] = temperature;
         if (_metrics.GpuPower && monitor.Gpu?.PowerWatts is double power && double.IsFinite(power) && power > 0.5)
         {
-            itemMap["power"] = $"{power:0.#} W";
+            itemMap["power"] = string.Format(LocalizationService.Current.ActiveCulture, "{0:0.#} W", power);
         }
         if (_metrics.GpuClock && _preset == "detailed")
         {
@@ -656,7 +661,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         }
         if (_metrics.GpuMemory && _preset == "detailed" && monitor.Gpu?.MemoryUsedBytes is long usedMem && usedMem > 0)
         {
-            itemMap["memUsed"] = $"{Math.Round(usedMem / 1024d / 1024d):0} MB";
+            itemMap["memUsed"] = string.Format(LocalizationService.Current.ActiveCulture, "{0:0} MB", Math.Round(usedMem / 1024d / 1024d));
         }
 
         var items = new List<string>();
@@ -681,7 +686,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         }
         if (monitor.MemoryUsedBytes > 0)
         {
-            itemMap["capacity"] = $"{Math.Round(monitor.MemoryUsedBytes / 1024d / 1024d):0} MB";
+            itemMap["capacity"] = string.Format(LocalizationService.Current.ActiveCulture, "{0:0} MB", Math.Round(monitor.MemoryUsedBytes / 1024d / 1024d));
         }
 
         var items = new List<string>();
@@ -695,12 +700,27 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         return items.Count > 0 ? string.Join("  ", items) : usage;
     }
 
-    private static string FormatPercent(double? value) => value is double percent && double.IsFinite(percent) ? $"{Math.Clamp(percent, 0, 100):0}%" : "--";
-    private static string FormatTemperature(double? value) => value is double celsius && double.IsFinite(celsius) ? $"{celsius:0}\u00B0C" : "--";
-    private static string FormatFrequency(double? value) => value is double mhz && double.IsFinite(mhz) && mhz > 0 ? $"{mhz:0} MHz" : "--";
-    private static string FormatRate(double value) => value switch { <= 0 => "0", < 1024 * 1024 => $"{value / 1024d:0.#}K", _ => $"{value / 1024d / 1024d:0.#}M" };
+    private static string FormatPercent(double? value) => value is double percent && double.IsFinite(percent)
+        ? Math.Clamp(percent, 0, 100).ToString("0", LocalizationService.Current.ActiveCulture) + "%"
+        : "--";
+    private static string FormatTemperature(double? value) => value is double celsius && double.IsFinite(celsius)
+        ? celsius.ToString("0", LocalizationService.Current.ActiveCulture) + "\u00B0C"
+        : "--";
+    private static string FormatFrequency(double? value) => value is double mhz && double.IsFinite(mhz) && mhz > 0
+        ? mhz.ToString("0", LocalizationService.Current.ActiveCulture) + " MHz"
+        : "--";
+    private static string FormatRate(double value) => !double.IsFinite(value) || value <= 0
+        ? "0"
+        : value < 1024 * 1024
+            ? (value / 1024d).ToString("0.#", LocalizationService.Current.ActiveCulture) + "K"
+            : (value / 1024d / 1024d).ToString("0.#", LocalizationService.Current.ActiveCulture) + "M";
 
-    private static SolidColorBrush CreateBrush(string value, MediaColor fallback) => new(ParseColor(value, fallback));
+    private static SolidColorBrush CreateBrush(string value, MediaColor fallback)
+    {
+        var brush = new SolidColorBrush(ParseColor(value, fallback));
+        brush.Freeze();
+        return brush;
+    }
     private static DropShadowEffect CreateTextEffect(GameOverlayAppearance appearance)
     {
         var effect = new DropShadowEffect
@@ -717,8 +737,22 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     }
     private static MediaColor ParseColor(string value, MediaColor fallback)
     {
-        try { return (MediaColor)MediaColorConverter.ConvertFromString(value)!; }
-        catch { return fallback; }
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return (MediaColor)ColorConverterInstance.ConvertFrom(
+                null,
+                CultureInfo.InvariantCulture,
+                value.Trim())!;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -728,12 +762,25 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
         nint existing = GetWindowLongPtr(_source.Handle, GwlExStyle);
         _ = SetWindowLongPtr(_source.Handle, GwlExStyle, new nint(ApplyNoActivateStyles(existing.ToInt64())));
         _windowTracker.SetOverlayWindow(_source.Handle);
-        PositionWithoutActivation();
+        _initializingSource = true;
+        try
+        {
+            PositionWithoutActivation();
+        }
+        finally
+        {
+            _initializingSource = false;
+        }
     }
+
+    private void OnPositionTimerTick(object? sender, EventArgs e) =>
+        PositionWithoutActivation(refreshMonitor: true);
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _closed = true;
         _positionTimer.Stop();
+        _positionTimer.Tick -= OnPositionTimerTick;
         _placementApplied = false;
         _windowTracker.PositionRefreshRequested -= OnTrackedPositionRefreshRequested;
         _windowTracker.TargetInvalidated -= OnTrackedTargetInvalidated;
@@ -787,7 +834,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private void SchedulePosition()
     {
-        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+        if (_closed || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
         {
             return;
         }
@@ -799,7 +846,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private void PositionWithoutActivation(bool refreshMonitor = false)
     {
-        if (_source is null) return;
+        if (_closed || _source is null || (!IsVisible && !_initializingSource)) return;
         nint target = _targetWindow;
         if (target != nint.Zero && !IsWindow(target))
         {
@@ -810,6 +857,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             // true process exit and handle re-acquisition.
             _targetWindow = nint.Zero;
             target = nint.Zero;
+            InvalidateMonitorCache();
         }
 
         OverlayMonitorIdentity? monitorIdentity =
@@ -834,7 +882,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             return;
         }
 
-        uint dpi = GetCurrentDpi();
+        uint dpi = GetCurrentDpi(monitorIdentity);
         OverlayPixelRect placement = hasExactPosition
             ? CalculateExactPlacement(
                 ToOverlayRect(monitorIdentity!.Value.Bounds),
@@ -863,7 +911,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             target,
             nint.Zero,
             true);
-        uint flags = SwpNoActivate | SwpShowWindow;
+        uint flags = SwpNoActivate;
         if (zOrder.PreserveZOrder)
         {
             flags |= SwpNoZOrder;
@@ -903,12 +951,13 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
             : (TryGetWorkArea(isTargetAlive ? _targetWindow : nint.Zero, out OverlayPixelRect workArea)
                 ? workArea
                 : ToOverlayRect(identity.Bounds));
+        uint dpi = GetCurrentDpi(identity);
         return CalculatePlacement(
             area,
             GetWidthDip(),
             GetHeightDip(),
-            GetCurrentDpi(),
-            marginDip: GetPresetMarginDip(GetCurrentDpi()),
+            dpi,
+            marginDip: GetPresetMarginDip(dpi),
             horizontalPositionPercent: _horizontalPositionPercent);
     }
 
@@ -941,13 +990,31 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
 
     private void InvalidateMonitorCache() => _hasCachedMonitorIdentity = false;
 
-    private uint GetCurrentDpi()
+    private uint GetCurrentDpi(OverlayMonitorIdentity? monitorIdentity = null)
     {
+        nint handle = _source?.Handle ?? nint.Zero;
+        if ((handle == nint.Zero || !IsVisible) && monitorIdentity is OverlayMonitorIdentity identity)
+        {
+            var rect = new NativeRect
+            {
+                Left = identity.Bounds.Left,
+                Top = identity.Bounds.Top,
+                Right = identity.Bounds.Right,
+                Bottom = identity.Bounds.Bottom
+            };
+            nint monitor = MonitorFromRect(ref rect, MonitorDefaultToNearest);
+            if (monitor != nint.Zero &&
+                GetDpiForMonitor(monitor, MdtEffectiveDpi, out uint dpiX, out _) == 0 &&
+                dpiX > 0)
+            {
+                return dpiX;
+            }
+        }
+
         // The target game may be DPI-unaware and would report 96 even on a
         // high-DPI monitor. The overlay is PerMonitorV2, so its own HWND is the
         // authoritative rendered DPI. A first cross-monitor move is corrected
         // by the ensuing WM_DPICHANGED render pass.
-        nint handle = _source?.Handle ?? nint.Zero;
         uint dpi = handle != nint.Zero ? GetDpiForWindow(handle) : 96;
         return dpi == 0 ? 96 : dpi;
     }
@@ -1013,7 +1080,7 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
                 0,
                 0,
                 0,
-                SwpNoMove | SwpNoSize | SwpNoActivate | SwpShowWindow);
+                SwpNoMove | SwpNoSize | SwpNoActivate);
         }
     }
 
@@ -1105,8 +1172,10 @@ public partial class GameOverlayWindow : Window, IGameOverlayView
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(nint hwnd, int dwAttribute, out NativeRect pvAttribute, int cbAttribute);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ClientToScreen(nint windowHandle, ref NativePoint point);
     [DllImport("user32.dll")] private static extern nint MonitorFromWindow(nint windowHandle, uint flags);
+    [DllImport("user32.dll")] private static extern nint MonitorFromRect(ref NativeRect rect, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint windowHandle);
+    [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(nint monitor, int dpiType, out uint dpiX, out uint dpiY);
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")] private static extern int GetWindowLong32(nint windowHandle, int index);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")] private static extern nint GetWindowLongPtr64(nint windowHandle, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLong", SetLastError = true)] private static extern int SetWindowLong32(nint windowHandle, int index, int value);
