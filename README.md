@@ -1,5 +1,7 @@
 # SysMonitor — Windows 任务栏系统监控与游戏 FPS HUD
 
+[English README](README.en.md)
+
 [![Release](https://img.shields.io/github/v/release/Oscar9527/SysMonitor?display_name=tag&sort=semver)](https://github.com/Oscar9527/SysMonitor/releases)
 [![License](https://img.shields.io/github/license/Oscar9527/SysMonitor)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)](https://github.com/Oscar9527/SysMonitor)
