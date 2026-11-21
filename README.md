@@ -81,21 +81,22 @@
 
 ## 下载与运行
 
-前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.10) 下载最新正式版 **v1.0.10**（提供 [`SHA256SUMS-v1.0.10.txt`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SHA256SUMS-v1.0.10.txt) 校验文件）：
+前往 [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.11) 下载最新正式版 **v1.0.11**（提供 [`SHA256SUMS-v1.0.11.txt`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.11/SHA256SUMS-v1.0.11.txt) 校验文件）：
 
 | 发行版本 | 下载文件 | 运行要求与说明 |
 | :--- | :--- | :--- |
-| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.10-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SysMonitor-v1.0.10-Standalone.exe) | 内置完整 .NET 运行时，双击即开即用，无需安装任何前置依赖 |
-| **轻量单文件版** | [`SysMonitor-v1.0.10-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SysMonitor-v1.0.10-Light.exe) | 体积更小，需 x64 .NET 8 Desktop Runtime；缺失时自动提示并可一键打开微软官方下载 |
+| **独立免安装单文件版（推荐）** | [`SysMonitor-v1.0.11-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.11/SysMonitor-v1.0.11-Standalone.exe) | 内置完整 .NET 运行时，双击即开即用，无需安装任何前置依赖 |
+| **轻量单文件版** | [`SysMonitor-v1.0.11-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.11/SysMonitor-v1.0.11-Light.exe) | 体积更小，需 x64 .NET 8 Desktop Runtime；缺失时自动提示并可一键打开微软官方下载 |
 
 > [!TIP]
 > 升级版本时，先退出正在运行的旧版本再启动新 EXE 即可；用户配置保存在 `%APPDATA%\SysMonitor\settings.json`。
 
 <details>
-<summary><b>历史版本归档（v1.0.1 – v1.0.9）</b></summary>
+<summary><b>历史版本归档（v1.0.1 – v1.0.10）</b></summary>
 
 | 版本 | 发布说明与特性 | 独立版下载 (Standalone) | 轻量版下载 (Light) |
 | :--- | :--- | :--- | :--- |
+| **v1.0.10** | [Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.10) · Telegram Day/Night 界面重构、全面稳定性修复与 125% DPI 裁切修正 | [`Standalone`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SysMonitor-v1.0.10-Standalone.exe) | [`Light`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SysMonitor-v1.0.10-Light.exe) |
 | **v1.0.9** | [Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.9) · 任务栏监控条异常消失自动恢复、慢速探测防打断、兼容任务栏自动隐藏 | [`Standalone`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.9/SysMonitor-v1.0.9-Standalone.exe) | [`Light`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.9/SysMonitor-v1.0.9-Light.exe) |
 | **v1.0.8** | [Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.8) · 任务栏切屏定位修正与遥测后端选择优化 | [`Standalone`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.8/SysMonitor-v1.0.8-Standalone.exe) | [`Light`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.8/SysMonitor-v1.0.8-Light.exe) |
 | **v1.0.7** | [Release](https://github.com/Oscar9527/SysMonitor/releases/tag/v1.0.7) · 降低辅助进程内存占用、有界缓存与任务栏事件合并 | [`Standalone`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.7/SysMonitor-v1.0.7-Standalone.exe) | [`Light`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.7/SysMonitor-v1.0.7-Light.exe) |
@@ -112,7 +113,7 @@
 
 ## 快速上手
 
-1. 下载 `SysMonitor-v1.0.10-Standalone.exe` 并双击运行。
+1. 下载 `SysMonitor-v1.0.11-Standalone.exe` 并双击运行。
 2. 任务栏右侧将自动出现实时监控条，并在系统托盘生成图标。
 3. **点击监控条**：在正上方弹出圆角详情面板。
 4. **游戏浮层 HUD**：游戏内随时按下 `Ctrl+Shift+F10` 开启/隐藏实时监控。
@@ -127,6 +128,11 @@
 ---
 
 ## 更新日志
+
+### v1.0.11
+
+- **全新应用图标设计**：重绘透明底圆角矩形（Squircle）应用与托盘图标，采用深曜石机身与青蓝渐变动效脉冲波形，同步打包 `16×16` 至 `256×256` 全尺寸规格。
+- **项目主页排版优化**：居中 Hero 顶栏、双列界面预览与文档结构整理。
 
 ### v1.0.10
 

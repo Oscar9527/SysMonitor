@@ -17,7 +17,7 @@
   <a href="#download">Download</a> ·
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·
-  <a href="#whats-new-in-v1010">What's New</a> ·
+  <a href="#whats-new-in-v1011">What's New</a> ·
   <a href="#build-from-source">Build from Source</a>
 </p>
 
@@ -29,12 +29,12 @@
 
 ## Download
 
-Get the latest build from [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/latest) ([`SHA256SUMS-v1.0.10.txt`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SHA256SUMS-v1.0.10.txt)):
+Get the latest build from [GitHub Releases](https://github.com/Oscar9527/SysMonitor/releases/latest) ([`SHA256SUMS-v1.0.11.txt`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.11/SHA256SUMS-v1.0.11.txt)):
 
 | Edition | Download | Requirements & Notes |
 | :--- | :--- | :--- |
-| **Standalone (Recommended)** | [`SysMonitor-v1.0.10-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SysMonitor-v1.0.10-Standalone.exe) | Self-contained single EXE with the .NET 8 runtime bundled |
-| **Light** | [`SysMonitor-v1.0.10-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.10/SysMonitor-v1.0.10-Light.exe) | Smaller framework-dependent EXE; requires x64 .NET 8 Desktop Runtime |
+| **Standalone (Recommended)** | [`SysMonitor-v1.0.11-Standalone.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.11/SysMonitor-v1.0.11-Standalone.exe) | Self-contained single EXE with the .NET 8 runtime bundled |
+| **Light** | [`SysMonitor-v1.0.11-Light.exe`](https://github.com/Oscar9527/SysMonitor/releases/download/v1.0.11/SysMonitor-v1.0.11-Light.exe) | Smaller framework-dependent EXE; requires x64 .NET 8 Desktop Runtime |
 
 > [!TIP]
 > To upgrade, exit the previous version and run the new EXE. Your settings are stored in `%APPDATA%\SysMonitor\settings.json`.
@@ -75,7 +75,12 @@ Get the latest build from [GitHub Releases](https://github.com/Oscar9527/SysMoni
 
 ---
 
-## What's New in v1.0.10
+## What's New in v1.0.11
+
+- Redesigned the application and system tray icon with a minimalist dark squircle and glowing telemetry pulse across all icon sizes (`16×16` to `256×256`).
+- Refined the GitHub README layout and bilingual documentation structure.
+
+### Earlier: v1.0.10
 
 - Added Day and Night themes and redesigned the details panel, tray menu, and settings windows.
 - Fixed the stray strip that could remain on the desktop after minimizing the details panel.
